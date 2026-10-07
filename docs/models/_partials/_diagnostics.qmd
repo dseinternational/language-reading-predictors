@@ -369,15 +369,15 @@ for _ppc_panel in _ppc_panels:
 if any(_has(_ppc_panel) for _ppc_panel in _ppc_panels):
     if _ppc_is_offfloor:
         print(
-            "\n_How to read it:_ each point is one arm × wave cell; the red cross is the "
+            "\n_How to read it:_ each point is one arm × wave cell; the green cross is the "
             "observed off-floor rate and the blue marker with whiskers is the model's "
-            "predicted rate and 90% range. A good fit keeps each red cross inside its "
+            "predicted rate and 90% range. A good fit keeps each green cross inside its "
             "blue whisker."
         )
     elif _ppc_is_joint:
         print(
             "\n_How to read it:_ for the named outcome, the blue histogram contains "
-            "posterior-predictive count draws and the red histogram contains the observed "
+            "posterior-predictive count draws and the green histogram contains the observed "
             "counts. They should overlap without a systematic location, spread, floor or "
             "ceiling discrepancy. Outcomes are selected with the saved cell map and are "
             "never pooled across incompatible test denominators."
@@ -410,7 +410,7 @@ if any(_has(_cal) for _cal in _cal_panels):
         "\n_How to read it:_ each point is one observation — its observed score (x) "
         "against the model's predicted median (y), with whiskers for the 90% "
         "prediction range. Points on the dashed **y = x** line are perfectly predicted; "
-        "points far off it (marked in red when the observed score falls outside the 90% "
+        "points far off it (marked with a green cross when the observed score falls outside the 90% "
         "range) are where the model fits that observation least well."
     )
 ```

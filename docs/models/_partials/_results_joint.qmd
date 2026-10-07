@@ -136,7 +136,7 @@ print("\n_How to read the forest plot:_ this is the **secondary conditional-logi
 # | echo: false
 # | output: asis
 print(_img("contrast_heatmap.png", "Pairwise contrast heatmap"))
-print("\n_How to read the contrast heatmap:_ the outcomes label both axes; each cell is the probability that the row outcome's probability-scale AME is larger than the column outcome's. Red (near 1) favours the row; blue (near 0) favours the column; white (near 0.5) indicates unresolved ordering. The diagonal is blank and transposed cells sum to 1.")
+print("\n_How to read the contrast heatmap:_ the outcomes label both axes; each cell is the probability that the row outcome's probability-scale AME is larger than the column outcome's. Blue (near 1) favours the row; orange (near 0) favours the column; pale grey (near 0.5) indicates unresolved ordering. The diagonal is blank and transposed cells sum to 1.")
 ```
 
 ```{python}

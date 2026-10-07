@@ -123,3 +123,41 @@ def test_shap_scatter_jitter_is_reproducible_and_leaves_the_global_generator_alo
 
     assert np.array_equal(first, second)
     assert np.array_equal(after, expected)
+
+
+# --- Categorical scatter colours -----------------------------------------------
+#
+# The design language allows six categorical series, and the shared
+# ``categorical_palette`` raises beyond that, so the default must fall back for
+# a figure with more categories rather than fail.
+
+
+def _scatter_colours(n_categories: int) -> list:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from matplotlib.colors import to_hex
+
+    import language_reading_predictors.plot_utils as pu
+
+    n_rows = 2 * n_categories
+    df = pd.DataFrame({"x": range(n_rows), "y": range(n_rows), "g": [i % n_categories for i in range(n_rows)]})
+    try:
+        pu.scatter_plot(df, "x", "y", color="g", categorical=True)
+        return [to_hex(c.get_facecolor()[0]) for c in plt.gca().collections]
+    finally:
+        plt.close("all")
+
+
+def test_categorical_scatter_takes_the_chart_colours():
+    from dse_research_utils.plot.styles import CHART_COLOURS
+
+    assert _scatter_colours(2) == list(CHART_COLOURS[:2])
+
+
+def test_categorical_scatter_draws_more_than_six_categories():
+    colours = _scatter_colours(8)
+    assert len(colours) == 8
+    assert len(set(colours)) == 8

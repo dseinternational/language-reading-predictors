@@ -54,12 +54,7 @@ import pandas as pd
 from numpy.polynomial.hermite import hermgauss
 from scipy.special import expit
 
-from dse_research_utils.plot.styles import (
-    COLOUR_BLUE,
-    COLOUR_DARK_GREEN,
-    COLOUR_ORANGE,
-    COLOUR_RED,
-)
+from dse_research_utils.plot.styles import CHART_COLOURS, TEXT_COLOUR
 
 from language_reading_predictors.figure_io import save_styled_figure
 from language_reading_predictors.statistical_models.likelihood import (
@@ -78,14 +73,16 @@ __all__ = [
     "write_outcome_trajectory",
 ]
 
-#: Arm colours from the shared project palette (``dse_research_utils.plot.styles``),
-#: matching ``predicted_scores.py``: wait-list control orange, immediate
-#: intervention blue.
-_CONTROL_COLOR = COLOUR_ORANGE
-_INTERVENTION_COLOR = COLOUR_BLUE
-#: Observed-overlay (red) and fit-ribbon (dark green) accents from the same palette.
-_OBSERVED_COLOR = COLOUR_RED
-_FIT_COLOR = COLOUR_DARK_GREEN
+#: Arm colours from the shared chart colours (``dse_research_utils.plot.styles``),
+#: matching ``predicted_scores.py``: wait-list control orange (``chart-3``),
+#: immediate intervention blue (``chart-1``).
+_CONTROL_COLOR = CHART_COLOURS[2]
+_INTERVENTION_COLOR = CHART_COLOURS[0]
+#: Model fit and observed overlay in the panels without an arm split: the model in
+#: blue (``chart-1``), as in the other posterior summaries, and the observed values in
+#: green (``chart-2``), as in the posterior-predictive checks.
+_FIT_COLOR = CHART_COLOURS[0]
+_OBSERVED_COLOR = CHART_COLOURS[1]
 #: Per-arm colour lookup and human labels (dataset arm coding: 1 = immediate, 0 = waitlist).
 ARM_COLORS: dict[int, str] = {0: _CONTROL_COLOR, 1: _INTERVENTION_COLOR}
 ARM_LABELS: dict[int, str] = {0: "wait-list control", 1: "immediate intervention"}
@@ -697,7 +694,12 @@ def _draw_small_multiples(
         ax.set_xticks(xs, [_wave_label(w) for w in p["waves"]], fontsize=7)
         ax.set_ylim(0, ymax)
         flag = f"\nhigh Pareto-k = {p['pareto_k']:.2f}" if p["worst"] and p["pareto_k"] is not None else ""
-        ax.set_title(f"child #{p['ordinal']}{flag}", fontsize=8, color=_OBSERVED_COLOR if p["worst"] else "black")
+        ax.set_title(
+            f"child #{p['ordinal']}{flag}",
+            fontsize=8,
+            color=TEXT_COLOUR,
+            fontweight="bold" if p["worst"] else "normal",
+        )
         ax.tick_params(labelsize=7)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
@@ -820,8 +822,8 @@ def _draw_outcome_trajectory(
     xs = np.arange(len(waves), dtype=float)
     for ax, sym in zip(flat[:n], syms, strict=False):
         d = facet_data[sym]
-        ax.fill_between(xs, d["lo"], d["hi"], color=_INTERVENTION_COLOR, alpha=0.18, linewidth=0)
-        ax.plot(xs, d["median"], color=_INTERVENTION_COLOR, lw=1.8)
+        ax.fill_between(xs, d["lo"], d["hi"], color=_FIT_COLOR, alpha=0.18, linewidth=0)
+        ax.plot(xs, d["median"], color=_FIT_COLOR, lw=1.8)
         ax.scatter(xs, d["observed"], color=_OBSERVED_COLOR, s=32, zorder=5, edgecolor="white")
         ax.set_xticks(xs, [f"t{int(w)}" for w in waves], fontsize=7)
         ax.set_ylim(0, d["n_trials"])
@@ -994,7 +996,12 @@ def _draw_small_multiples_panel(
         ax.set_xticks(xs, p["_wave_labels"], fontsize=7)
         ax.set_ylim(0, n_trials)
         flag = f"\nhigh Pareto-k = {p['pareto_k']:.2f}" if p["worst"] and p["pareto_k"] is not None else ""
-        ax.set_title(f"child #{p['ordinal']}{flag}", fontsize=8, color=_OBSERVED_COLOR if p["worst"] else "black")
+        ax.set_title(
+            f"child #{p['ordinal']}{flag}",
+            fontsize=8,
+            color=TEXT_COLOUR,
+            fontweight="bold" if p["worst"] else "normal",
+        )
         ax.tick_params(labelsize=7)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)

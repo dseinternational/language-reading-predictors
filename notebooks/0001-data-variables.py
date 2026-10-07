@@ -37,6 +37,7 @@ from sklearn.inspection import permutation_importance
 
 import dse_research_utils.environment.setup as setup
 import dse_research_utils.metadata.packages as package_metadata
+import dse_research_utils.plot.styles as plot_styles
 
 import language_reading_predictors.data_utils as data_utils
 import language_reading_predictors.plot_utils as plot_utils
@@ -96,9 +97,9 @@ dendro_0_idx = np.arange(0, len(dendro_0["ivl"]))
 
 with plt.rc_context({'ytick.labelsize': 12, 'xtick.labelsize': 12, 'axes.titlesize': 12}):
     plt.figure(figsize=(14, 14))
-    plt.set_cmap("viridis")
     ax = plt.axes()
-    im = ax.imshow(corr[dendro_0["leaves"], :][:, dendro_0["leaves"]])
+    # Distance correlations are non-negative: the sequential scale.
+    im = ax.imshow(corr[dendro_0["leaves"], :][:, dendro_0["leaves"]], cmap=plot_styles.SEQUENTIAL_CMAP)
     ax.set_title(f"Correlation heatmap of predictors")
     ax.set_xticks(dendro_0_idx)
     ax.set_yticks(dendro_0_idx)
@@ -129,7 +130,7 @@ plt.show()
 # %%
 fig, axes = plt.subplots(figsize=(6,4))
 bottom = np.zeros(len(cats.HEALTH))
-colors = matplotlib.color_sequences["tab10"]
+colors = plot_styles.categorical_palette(len(cats.HEALTH))
 i=0
 
 for v in cats.HEALTH:

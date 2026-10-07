@@ -47,7 +47,7 @@ import pandas as pd
 import xarray as xr
 from scipy.stats import gaussian_kde
 
-from dse_research_utils.plot.styles import COLOUR_BLUE, COLOUR_ORANGE, FIGSIZE_LG
+from dse_research_utils.plot.styles import CHART_COLOURS, FIGSIZE_LG
 
 from language_reading_predictors.figure_io import save_styled_figure
 from language_reading_predictors.statistical_models.likelihood import ScoreMeanLink
@@ -65,12 +65,12 @@ __all__ = [
     "write_arm_overlap_artifacts",
 ]
 
-#: Arm colours from the shared project palette (``dse_research_utils.plot.styles``):
-#: wait-list control orange, immediate intervention blue. The overlap region is
-#: not given its own hue — it reads as the natural blend where the two
-#: translucent fills cross.
-_CONTROL_COLOR = COLOUR_ORANGE
-_INTERVENTION_COLOR = COLOUR_BLUE
+#: Arm colours from the shared chart colours (``dse_research_utils.plot.styles``),
+#: matching ``predicted_scores.py``: wait-list control orange (``chart-3``),
+#: immediate intervention blue (``chart-1``). The overlap region is not given its
+#: own hue — it reads as the natural blend where the two translucent fills cross.
+_CONTROL_COLOR = CHART_COLOURS[2]
+_INTERVENTION_COLOR = CHART_COLOURS[0]
 
 
 @dataclass(frozen=True, slots=True)

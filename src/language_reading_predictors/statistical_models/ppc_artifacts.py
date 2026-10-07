@@ -21,8 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from dse_research_utils.plot.styles import (
-    COLOUR_BLUE,
-    COLOUR_RED,
+    CHART_COLOURS,
     FIGSIZE_LG,
 )
 from rich import print as rprint
@@ -40,6 +39,11 @@ from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
     save_styled_figure,
 )
+
+#: Posterior-predictive checks draw the model in blue (``chart-1``) and the observed
+#: values in green (``chart-2``), with a distinct marker, in every check figure.
+_PREDICTIVE_COLOUR = CHART_COLOURS[0]
+_OBSERVED_COLOUR = CHART_COLOURS[1]
 
 
 # Posterior-predictive check suite (issue #318) --------------------------------
@@ -467,11 +471,11 @@ def _ppc_overlay_figure(
             centers,
             lo_band,
             hi_band,
-            color=COLOUR_BLUE,
+            color=_PREDICTIVE_COLOUR,
             alpha=0.3,
             label="posterior-predictive 90% band",
         )
-        plt.plot(centers, med_band, color=COLOUR_BLUE, lw=1.2, alpha=0.85, label="posterior-predictive median")
+        plt.plot(centers, med_band, color=_PREDICTIVE_COLOUR, lw=1.2, alpha=0.85, label="posterior-predictive median")
         plt.plot(centers, obs_dens, color="black", lw=2, label="observed")
         axis_lbl = f"{label} — score (0–{hi} items)" if n_trials else f"{label} — score"
         plt.xlabel(axis_lbl)
@@ -526,17 +530,19 @@ def _ppc_calibration_figure(
             med,
             yerr=np.vstack((med - lo, hi - med)),
             fmt="none",
-            ecolor=COLOUR_BLUE,
+            ecolor=_PREDICTIVE_COLOUR,
             alpha=0.35,
             capsize=0,
             zorder=1,
         )
-        plt.scatter(obs[inside], med[inside], s=18, color=COLOUR_BLUE, label="observed inside 90% range", zorder=2)
+        plt.scatter(
+            obs[inside], med[inside], s=18, color=_PREDICTIVE_COLOUR, label="observed inside 90% range", zorder=2
+        )
         plt.scatter(
             obs[~inside],
             med[~inside],
             s=26,
-            color=COLOUR_RED,
+            color=_OBSERVED_COLOUR,
             marker="x",
             lw=1.6,
             label="observed outside 90% range",
@@ -581,11 +587,11 @@ def _ppc_offfloor_figure(
             med,
             yerr=np.vstack((med - lo, hi - med)),
             fmt="o",
-            color=COLOUR_BLUE,
+            color=_PREDICTIVE_COLOUR,
             capsize=4,
             label="posterior-predictive median and 90% range",
         )
-        plt.scatter(x, obs, marker="x", s=60, lw=2, color=COLOUR_RED, label="observed", zorder=3)
+        plt.scatter(x, obs, marker="x", s=60, lw=2, color=_OBSERVED_COLOUR, label="observed", zorder=3)
         plt.xticks(x, cells["cell"].tolist())
         plt.ylabel("off-floor rate")
         plt.ylim(-0.02, 1.02)

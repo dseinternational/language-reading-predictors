@@ -58,10 +58,13 @@ def scatter_plot(df: pd.DataFrame, x, y, color=None, palette=None, categorical=N
     x, y : column names for the axes
     color : optional column name to colour points by
     palette : optional palette specification.
-        - For continuous colour: a matplotlib colormap name (default 'viridis').
-        - For categorical colour: a qualitative colormap name (default 'tab10'),
-          a list/tuple of colours, or a dict mapping category values to colours
-          (e.g. {1: '#1f77b4', 2: '#d62728'}).
+        - For continuous colour: a matplotlib colormap name (default: the shared
+          sequential scale, ``dse_sequential``).
+        - For categorical colour: a qualitative colormap name, a list/tuple of
+          colours, or a dict mapping category values to colours (e.g.
+          {1: '#0e5caf', 2: '#e8721c'}). By default up to six categories take the
+          shared chart colours, in order; more than six fall back to 'tab10',
+          which is outside the design language's six series.
     categorical : optional bool to override auto-detection. Use True to force
         discrete colours on a numeric column (e.g. 1/2 coded sex), or False
         to force a gradient on a categorical-dtype column.
@@ -84,8 +87,8 @@ def scatter_plot(df: pd.DataFrame, x, y, color=None, palette=None, categorical=N
 
         if is_continuous:
             # Continuous → gradient colormap
-            cmap_name = palette if isinstance(palette, str) else "viridis"
-            sc = plt.scatter(df[x], df[y], c=df[color], alpha=0.5, cmap=cmap_name)
+            continuous_cmap = palette if isinstance(palette, str) else plot_styles.SEQUENTIAL_CMAP
+            sc = plt.scatter(df[x], df[y], c=df[color], alpha=0.5, cmap=continuous_cmap)
             plt.colorbar(sc, label=vars.get_variable_name(color))
 
         else:
@@ -101,7 +104,11 @@ def scatter_plot(df: pd.DataFrame, x, y, color=None, palette=None, categorical=N
                 color_map = {
                     cat: palette[i % len(palette)] for i, cat in enumerate(categories)
                 }
+            elif palette is None and len(categories) <= len(plot_styles.CHART_COLOURS):
+                color_map = dict(zip(categories, plot_styles.categorical_palette(len(categories)), strict=True))
             else:
+                # A named colormap, or more categories than the six chart colours:
+                # 'tab10' keeps such figures drawing, outside the design language.
                 cmap = plt.get_cmap(palette or "tab10")
                 n = len(categories)
                 if cmap.N >= 256:  # continuous colormap used as qualitative

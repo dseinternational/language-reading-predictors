@@ -36,7 +36,7 @@ from language_reading_predictors.statistical_models.summaries import concurrent 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from dse_research_utils.plot.styles import COLOUR_BLUE
+from dse_research_utils.plot.styles import CHART_COLOURS
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
@@ -86,6 +86,9 @@ from language_reading_predictors.statistical_models.runtime import (
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
+
+#: The adjusted coefficients in blue (``chart-1``) beside the grey single-skill ones.
+_ADJUSTED_COLOUR = CHART_COLOURS[0]
 
 
 _CA_LABELS = {
@@ -908,7 +911,7 @@ def _plot_concurrent(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float, *
         y + 0.12,
         xerr=[d["adj_mean"] - d["adj_lo"], d["adj_hi"] - d["adj_mean"]],
         fmt="o",
-        color=COLOUR_BLUE,
+        color=_ADJUSTED_COLOUR,
         capsize=3,
         label="adjusted (mutual)",
     )

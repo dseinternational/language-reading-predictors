@@ -64,11 +64,9 @@ from scipy.special import expit
 from scipy.stats import gaussian_kde
 
 from dse_research_utils.plot.styles import (
-    COLOUR_BLUE,
-    COLOUR_GREEN,
-    COLOUR_ORANGE,
-    COLOUR_RED,
+    CHART_COLOURS,
     FIGSIZE_LG,
+    diverging_palette,
 )
 
 from language_reading_predictors.figure_io import save_styled_figure
@@ -89,16 +87,17 @@ __all__ = [
     "write_predicted_scores_artifacts",
 ]
 
-#: Arm colours from the shared project palette (``dse_research_utils.plot.styles``):
-#: wait-list control orange and immediate intervention blue.
-_CONTROL_COLOR = COLOUR_ORANGE
-_INTERVENTION_COLOR = COLOUR_BLUE
-#: Icon-array / ROPE-triple colours: benefit (green), negligible (neutral grey),
-#: harm (red) — the semantic colours from the same palette, with a neutral for
-#: the "no meaningful difference" band.
-_BENEFIT_COLOR = COLOUR_GREEN
-_ROPE_COLOR = "#c7c7c7"
-_HARM_COLOR = COLOUR_RED
+#: Arm colours from the shared chart colours (``dse_research_utils.plot.styles``):
+#: wait-list control orange (``chart-3``) and immediate intervention blue
+#: (``chart-1``), the same in every figure that shows the arms.
+_CONTROL_COLOR = CHART_COLOURS[2]
+_INTERVENTION_COLOR = CHART_COLOURS[0]
+#: Icon-array / ROPE-triple colours: the three-step diverging scale, from harm (the
+#: orange low end) through negligible (the grey middle) to benefit (the blue high
+#: end). The icon array shows no arm, so its ends cannot be read as arm colours.
+_HARM_COLOR, _ROPE_COLOR, _BENEFIT_COLOR = diverging_palette(3)
+#: The ROPE band behind the effect density takes the negligible grey, lightened.
+_ROPE_BAND_ALPHA = 0.25
 
 
 @dataclass
@@ -594,7 +593,7 @@ def _effect_density_axis(
             -delta,
             delta,
             color=_ROPE_COLOR,
-            alpha=0.45,
+            alpha=_ROPE_BAND_ALPHA,
             label=f"ROPE (±{delta:g}{delta_unit})",
         )
         p_benefit, p_rope, p_harm = _rope_triple(effect, delta)

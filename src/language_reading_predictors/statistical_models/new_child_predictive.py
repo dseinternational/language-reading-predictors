@@ -902,9 +902,12 @@ def _plot_new_child_pit(ctx: StatisticalFitContext, result: NewChildValidation) 
     """
     import matplotlib.pyplot as plt
 
-    from dse_research_utils.plot.styles import COLOUR_BLUE, FIGSIZE_LG
+    from dse_research_utils.plot.styles import CHART_COLOURS, FIGSIZE_LG
 
     from language_reading_predictors.figure_io import save_styled_figure
+
+    # The PIT curve in blue (chart-1), as in the other model summaries.
+    pit_colour = CHART_COLOURS[0]
 
     for measure, frame in result.pit.groupby("measure", sort=False):
         label = f"new_child_pit_{str(measure).lower()}"
@@ -919,7 +922,7 @@ def _plot_new_child_pit(ctx: StatisticalFitContext, result: NewChildValidation) 
             fig, ax = plt.subplots(figsize=FIGSIZE_LG)
             ax.axhline(0.0, color="0.4", lw=1.0)
             ax.fill_between(grid, -band, band, color="0.88", label="95% uniform envelope")
-            ax.plot(grid, ecdf - grid, lw=1.8, color=COLOUR_BLUE)
+            ax.plot(grid, ecdf - grid, lw=1.8, color=pit_colour)
             ax.set_xlabel("New-child PIT value")
             ax.set_ylabel("ECDF minus uniform")
             ax.set_title(
