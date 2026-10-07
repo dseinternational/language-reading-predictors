@@ -1,5 +1,5 @@
 ---
-title: "LRPITT315: Available-case modified ITT generalisation contrast, receptive vocabulary — LKJ residual-correlation sensitivity companion of LRPITT15b"
+title: "LRP-RLI-ITT-315: Available-case modified ITT generalisation contrast, receptive vocabulary, LKJ residual-correlation sensitivity companion of LRPITT15b"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

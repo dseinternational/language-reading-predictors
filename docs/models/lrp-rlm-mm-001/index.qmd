@@ -1,5 +1,5 @@
 ---
-title: "RLMMM01: Byrne correlated domain-factor measurement model, wave 3"
+title: "LRP-RLM-MM-001: Byrne correlated domain-factor measurement model, wave 3"
 
 format:
   html:
@@ -14,6 +14,10 @@ format:
 ---
 
 ::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
+::: {.callout-note}
 Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 :::
 
@@ -25,56 +29,26 @@ Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 ## Overview
 
-RLMMM01 is the Byrne analogue of `lrp-rli-mm-001` (#338 Phase B),
-**measurement-only** per the 2026-07-16 sign-off: correlated unit-variance
-domain factors over the wave-3 nine-measure battery — **reading**
-{`basread`, `basspel`, `woco`}, **language** {`bpvs`, `trog`}, **memory**
-{`basdig`}, **ability** {`bassim`, `basmat`, `basnum`} — fitted on the
-complete-case cross-section (n = 75). The deliverables are the
-loadings/communalities table and the domain-factor correlation matrix: the
-modern, measurement-error-aware analogue of the paper's correlation tables,
-and the construct-structure summary that precedes any coupling model (Phase
-C). Wave 3 is used because it is the only wave carrying the full ability triad
-(`basmat` is wave-3+ only).
+RLMMM01 is the Byrne analogue of `lrp-rli-mm-001` (#338 Phase B), **measurement-only** per the 2026-07-16 sign-off: correlated unit-variance domain factors over the wave-3 nine-measure battery — **reading** {`basread`, `basspel`, `woco`}, **language** {`bpvs`, `trog`}, **memory** {`basdig`}, **ability** {`bassim`, `basmat`, `basnum`} — fitted on the complete-case cross-section (n = 75). The deliverables are the loadings/communalities table and the domain-factor correlation matrix: the modern, measurement-error-aware analogue of the paper's correlation tables, and the construct-structure summary that precedes any coupling model (Phase C). Wave 3 is used because it is the only wave carrying the full ability triad (`basmat` is wave-3+ only).
 
 _Sampling quality — no model-level exception._ The earlier permanent waiver in #412 was retired by the 2026-08-02 divergence-qualification policy. Factor correlations are covariance and latent-structure quantities, so this model's intended findings require zero divergences as well as passing R-hat, ESS and BFMI. The artefact-driven badge above is authoritative for the current trace; after any failed gate, the shared report setup withholds the scientific result tables.
 
-_Measurement / triangulation only — nothing causal._ Every factor correlation is a **descriptive association** in an observational
-cohort (`causal_status="none"`). There is deliberately **no structural leg**:
-the factors → gain question belongs to Phase D (`lrp-rlm-adj-001` /
-`lrp-rlm-hs-001`), so this model never regresses an outcome on the factors.
+_Measurement / triangulation only — nothing causal._ Every factor correlation is a **descriptive association** in an observational cohort (`causal_status="none"`). There is deliberately **no structural leg**: the factors → gain question belongs to Phase D (`lrp-rlm-adj-001` / `lrp-rlm-hs-001`), so this model never regresses an outcome on the factors.
 
-_Single-indicator memory factor (stated assumption)._ Memory has one indicator (`basdig`; the paper's visual-recall measures are absent from the checksum-pinned retained source), so its loading and residual cannot be estimated:
-they are **fixed by an assumed reliability of 0.8**
-($\lambda = \sqrt{0.8}$, $\sigma = \sqrt{0.2}$). Correlations involving the
-memory factor scale with that assumption — read them as conditional on it.
-Loadings are pooled across the three reading groups: measurement invariance is
-**assumed, not tested**, at this n.
+_Single-indicator memory factor (stated assumption)._ Memory has one indicator (`basdig`; the paper's visual-recall measures are absent from the checksum-pinned retained source), so its loading and residual cannot be estimated: they are **fixed by an assumed reliability of 0.8** ($\lambda = \sqrt{0.8}$, $\sigma = \sqrt{0.2}$). Correlations involving the memory factor scale with that assumption — read them as conditional on it. Loadings are pooled across the three reading groups: measurement invariance is **assumed, not tested**, at this n.
 
 _Latent (disattenuated) correlations._ These are **latent** factor correlations, corrected for measurement error, and are not the same estimand as observed inter-test correlations computed from raw scores. Whether the four domains are empirically distinguishable or better represented by a higher-order or general factor must be assessed from a cleanly sampled fit and a structural comparison; this template does not presuppose that result.
 
 ## Model
 
-For child $i$, the standardised Haldane-logit indicator vector
-$Z_i \in \mathbb{R}^9$ is Gaussian with the factor scores marginalised out
-(the mm-001 funnel fix, measure-preserving):
+For child $i$, the standardised Haldane-logit indicator vector $Z_i \in \mathbb{R}^9$ is Gaussian with the factor scores marginalised out (the mm-001 funnel fix, measure-preserving):
 
 $$
 Z_i \sim \mathrm{MVN}\!\left(0,\ \Lambda\,R\,\Lambda^{\top} +
 \operatorname{diag}(\sigma^2)\right),
 $$
 
-where $\Lambda$ is the sparse 9×4 loading matrix (each indicator loads only on
-its domain) and $R$ is the 4×4 factor correlation matrix under an LKJ(2) prior.
-For each of the eight free indicators, the communality
-$c \sim \operatorname{Beta}(2, 2)$; its positive loading and residual standard
-deviation are derived as $\lambda = \sqrt{c}$ and
-$\sigma = \sqrt{1-c}$. This enforces
-$\lambda^2 + \sigma^2 = 1$ for the standardised indicator instead of estimating
-an over-parameterised loading–residual pair. The memory indicator is fixed at
-$c=0.8$ as described above. Thus the indicator-factor correlation is
-$\sqrt{c}$ and the communality is $c$. No LOO is computed, matching the RLI
-corr-factor convention.
+where $\Lambda$ is the sparse 9×4 loading matrix (each indicator loads only on its domain) and $R$ is the 4×4 factor correlation matrix under an LKJ(2) prior. For each of the eight free indicators, the communality $c \sim \operatorname{Beta}(2, 2)$; its positive loading and residual standard deviation are derived as $\lambda = \sqrt{c}$ and $\sigma = \sqrt{1-c}$. This enforces $\lambda^2 + \sigma^2 = 1$ for the standardised indicator instead of estimating an over-parameterised loading–residual pair. The memory indicator is fixed at $c=0.8$ as described above. Thus the indicator-factor correlation is $\sqrt{c}$ and the communality is $c$. No LOO is computed, matching the RLI corr-factor convention.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

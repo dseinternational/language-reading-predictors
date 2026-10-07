@@ -1,5 +1,5 @@
 ---
-title: "LRPGF08b: Factors associated with gains in TROG receptive grammar (RG), treated-only"
+title: "LRP-RLI-GF-108: Factors associated with gains in TROG receptive grammar (RG), treated-only"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -27,8 +31,7 @@ _Causal labelling (DAG guardrails)._ Once restricted to on-intervention rows the
 
 ## Model
 
-Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 32$, with
-$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s\in\{R,TR\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}}) + \gamma_{\text{int}}\,(\text{age}\times\text{ability}) + u_{\text{child}}$. Priors: shared template in `priors.py`.
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 32$, with $\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s\in\{R,TR\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}}) + \gamma_{\text{int}}\,(\text{age}\times\text{ability}) + u_{\text{child}}$. Priors: shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

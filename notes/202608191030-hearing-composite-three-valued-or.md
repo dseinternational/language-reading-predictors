@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Hearing composite: derive it with a three-valued OR (one child was coded unknown, then filled to clear)
+
+**Historical record.** Later full rebuilds include the corrected loader. The old pending-refit statement and old hearing estimates below describe the August record. See [the later record](20261001-full-rebuild-both-layers.md) and [METHODS.md](../METHODS.md).
 
 **Date:** 2026-08-19. **Status:** loader corrected; stored fits not yet refitted (held until the current review of the August 2026 findings is complete).
 
@@ -37,7 +42,7 @@ A child recorded as hearing-impaired satisfies "impaired hearing or repeated ear
 
 ## How much the adjuster matters (added 2026-08-19)
 
-Two checks made while reviewing question 7 of the question-organised report bound what the refit can change. The flag has construct validity where the causal diagram says it should (flagged children −0.5 SD on speech production at timepoints 1 and 4, −0.6 SD on word/nonword repetition at timepoint 1) and only small associations with the literacy and vocabulary levels it de-confounds (|d| ≤ 0.23 SD). A screening check on the fitted rows of four mechanism models — clustered least squares with each model's own covariates, with and without `hs` / `hs_missing` — moves the focal slopes by 0–4% (letter sounds → word reading +0.434 against +0.425; taught receptive → word reading +0.226 against +0.230; expressive vocabulary → word reading +0.029 against +0.028; speech production → nonword reading +0.421 against +0.422). So the flag is an adequate adjuster for its purpose — there is little hearing confounding of these associations to remove, and the estimates barely depend on it — and the reclassification of one child by the three-valued OR cannot move any focal estimate materially; the refit is housekeeping for the flag's own coefficient and the fitted-data record. It remains unfit for estimating hearing's own association, which no fit does. The composition of the flag (25 flagged = 22 with the impairment indicator + 3 with an ear-infection history alone) and the reason a complete-case sensitivity cannot change the flagged-versus-clear contrast are recorded in question 7.
+Two screening checks recorded the association of the flag with speech and repetition, and compared four mechanism regressions with and without the hearing terms. Those regressions moved their focal slopes by 0–4%. This describes those fitted regressions only. It does not validate the composite as a measure of hearing, establish that hearing confounding is small, or bound movement after correcting a child's category. Read the model refits for the actual sensitivity of their estimates. The two binary components also cannot assess severity or change in hearing over time.
 
 ## Related wording correction
 

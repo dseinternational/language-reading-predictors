@@ -1,5 +1,5 @@
 ---
-title: "LRPDID05: Waitlist-crossover arm-by-wave sensitivity for receptive vocabulary (ROWPVT) (RV)"
+title: "LRP-RLI-DID-005: Waitlist-crossover arm-by-wave sensitivity for receptive vocabulary (ROWPVT) (RV)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

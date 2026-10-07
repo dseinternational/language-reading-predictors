@@ -1,5 +1,5 @@
 ---
-title: "LRPAL08: Aligned-40-week per-protocol gain for receptive grammar (RG)"
+title: "LRP-RLI-AL-008: Onset-aligned outcome for receptive grammar (RG)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,13 +25,9 @@ format:
 
 ## Overview
 
-LRPAL08 is the **aligned-40-week per-protocol** single-gain model for receptive grammar (T)
-(`trog`). Both arms are aligned by intervention onset across ~two periods
-(~the 40-week RLI program): the immediate arm onsets at t1 (aligned window
-**t1 -> t3**) and the wait-list arm at t2, post-crossover (aligned window
-**t2 -> t4**). One row per child, so there is no child random intercept.
+This model compares receptive grammar (`trog`) over one intervention-aligned window per child. The immediate arm uses t1 to t3; the wait-list arm uses t2 to t4. The model estimates the endpoint score given the onset score, age at onset and Block Design score. Each child contributes one row, so there is no child random intercept.
 
-**The aligned cohort contrast is an association.** The arms reach intervention onset at different ages and times, so their aligned comparison does not retain the randomised ITT interpretation. No coefficient in this model is a treatment effect. Use the ITT suite for the randomised contrast and the crossover models for sensitivity to the longitudinal specification. Session dose enters only the separate sensitivity variant because it is a collider in the DAG.
+**The cohort contrast is an association.** The windows differ in age at onset, calendar timing and elapsed time. The immediate window averages 15.5 months and the wait-list window 14.2 months. Alignment does not equalise elapsed time or sessions received. Use the ITT suite for the randomised assignment contrast. Session dose enters only the separate sensitivity variant. See [the assessment-interval decision](../../../notes/202609212100-assessment-interval-lengths.md).
 
 ## Model
 

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT15: Available-case modified ITT generalisation contrast, expressive vocabulary"
+title: "LRP-RLI-ITT-015: Available-case modified ITT generalisation contrast, expressive vocabulary"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

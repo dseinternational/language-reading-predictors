@@ -1,5 +1,5 @@
 ---
-title: "LRPMM101: Prior sensitivity for the correlated-domain-factor measurement model"
+title: "LRP-RLI-MM-101: Prior sensitivity for the correlated-domain-factor measurement model"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,9 +25,7 @@ format:
 
 ## Overview
 
-LRPMM101 is the **prior-geometry sensitivity companion** to [LRPMM01](../lrp-rli-mm-001). It
-is the same model, the same data and the same sampler settings, differing in exactly one
-thing: the **loading / residual parameterisation**.
+LRPMM101 is the **prior-geometry sensitivity companion** to [LRPMM01](../lrp-rli-mm-001). It is the same model, the same data and the same sampler settings, differing in exactly one thing: the **loading / residual parameterisation**.
 
 | | LRPMM01 (reference) | LRPMM101 (this model) |
 | --- | --- | --- |
@@ -33,46 +35,19 @@ thing: the **loading / residual parameterisation**.
 | $\lambda_j^2 + \sigma_j^2$ | $= 1$ exactly | unconstrained |
 | everything else | — | identical, including `target_accept` = 0.999 |
 
-Holding the sampler equal is deliberate: the geometry is the **single free variable**, so
-any difference in the posterior is attributable to it and to nothing else. Both geometries
-share a prior **median communality of 0.5** — the contrast isolates the *shape* of the
-prior, not its central tendency.
+Holding the sampler equal is deliberate: the geometry is the **single free variable**, so any difference in the posterior is attributable to it and to nothing else. Both geometries share a prior **median communality of 0.5** — the contrast isolates the *shape* of the prior, not its central tendency.
 
 ## Why this model exists
 
-The reference fit adopted the communality-scale parameterisation in #383: standardised
-indicators have unit sample variance, so a free indicator's model-implied variance budget
-is $\lambda^2 + \sigma^2 \approx 1$, and the legacy free pair ignores it. Squaring the two
-independent $\text{HalfNormal}(1)$ scales gives $\chi^2_1$ variables, so the legacy pair
-implies $c \sim \text{Beta}(\tfrac12, \tfrac12)$ — an **arcsine prior** that piles mass on
-both singular corners (the $\lambda \to 0$ neck and the Heywood-adjacent $c \to 1$
-boundary) and puts about **32 % of loading mass above 1**, which the unit budget rules out.
-This companion retains that legacy pair so the geometry change stays testable rather than
-asserted.
+The reference fit adopted the communality-scale parameterisation in #383: standardised indicators have unit sample variance, so a free indicator's model-implied variance budget is $\lambda^2 + \sigma^2 \approx 1$, and the legacy free pair ignores it. Squaring the two independent $\text{HalfNormal}(1)$ scales gives $\chi^2_1$ variables, so the legacy pair implies $c \sim \text{Beta}(\tfrac12, \tfrac12)$ — an **arcsine prior** that piles mass on both singular corners (the $\lambda \to 0$ neck and the Heywood-adjacent $c \to 1$ boundary) and puts about **32 % of loading mass above 1**, which the unit budget rules out. This companion retains that legacy pair so the geometry change stays testable rather than asserted.
 
-(This slot originally held the #261 "recalibrated" free pair, registered to un-confound
-that revision's prior change from its measure-preserving marginalisation. The ablation —
-`notes/202607101638-mm-001-convergence-reparameterisation.md` — found the recalibration
-neither necessary nor sufficient for convergence while shifting prior-implied median
-communality 0.50 → 0.79, a substantive commitment about exactly the quantity the model
-estimates. It was rejected, and that question is settled; the live question is the
-geometry.)
+(This slot originally held the #261 "recalibrated" free pair, registered to un-confound that revision's prior change from its measure-preserving marginalisation. The ablation — `notes/202607101638-mm-001-convergence-reparameterisation.md` — found the recalibration neither necessary nor sufficient for convergence while shifting prior-implied median communality 0.50 → 0.79, a substantive commitment about exactly the quantity the model estimates. It was rejected, and that question is settled; the live question is the geometry.)
 
 ## Required comparison
 
-The communality-scale and legacy-pair fits may be compared only when both current
-reporting traces pass the complete automatic gate. Earlier ablation runs are diagnostic
-history, not a waiver or a substitute for artefact-driven status. After a clean pair is
-available, compare factor correlations, structural slopes and communalities with Monte
-Carlo uncertainty; do not infer prior robustness merely because point estimates appear
-similar. The indicator-scale prior-predictive check quantifies the calibration difference
-directly: the legacy pair generates indicator data ~1.4× more dispersed than observed,
-while the communality scale is calibrated at ~1.0 by construction.
+The communality-scale and legacy-pair fits may be compared only when both current reporting traces pass the complete automatic gate. Earlier ablation runs are diagnostic history, not a waiver or a substitute for artefact-driven status. After a clean pair is available, compare factor correlations, structural slopes and communalities with Monte Carlo uncertainty; do not infer prior robustness merely because point estimates appear similar. The indicator-scale prior-predictive check quantifies the calibration difference directly: the legacy pair generates indicator data ~1.4× more dispersed than observed, while the communality scale is calibrated at ~1.0 by construction.
 
-_Measurement / triangulation, NOT causal._ As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a
-**latent-ability-confounded adjusted association**. The corresponding randomised-arm result
-is the available-case modified ITT estimate in `lrp-rli-itt-010`; the `gain_factors`
-randomised term is also outside this model.
+_Measurement / triangulation, NOT causal._ As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a **latent-ability-confounded adjusted association**. The corresponding randomised-arm result is the available-case modified ITT estimate in `lrp-rli-itt-010`; the `gain_factors` randomised term is also outside this model.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

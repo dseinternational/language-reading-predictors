@@ -1,4 +1,9 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # DiD family code review: findings and fixes
+
+**Historical record.** This review describes the code on 20 August. The later remediation records the focal estimands and release requirements. See [the later record](202608241130-did-family-576-remediation.md) and [METHODS.md](../METHODS.md).
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).

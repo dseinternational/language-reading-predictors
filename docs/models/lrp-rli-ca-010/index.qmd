@@ -1,5 +1,5 @@
 ---
-title: "LRP-CA-010: Concurrent letter sounds → word reading, minimal adjustment (per wave)"
+title: "LRP-RLI-CA-010: Concurrent letter sounds → word reading, minimal adjustment (per wave)"
 
 format:
   html:
@@ -14,6 +14,10 @@ format:
 ---
 
 ::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
+::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
 :::
 
@@ -25,19 +29,9 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 ## Overview
 
-LRP-CA-010 is the letter-sound → word-reading review's headline, promoted from a scratch
-fit to a registered model (#421 Tier 1). At each timepoint (t1–t4) it fits a between-child
-Beta-Binomial regression of word-reading level on the standardised same-wave logit of
-**letter-sound knowledge** (`L`), adjusting **only** for age, hearing (`hs`) and non-verbal
-ability (block design, `blocks`) — *"at wave t, among children alike on age, hearing and
-non-verbal ability, how much higher is word reading per +1 SD of letter sounds"*.
+LRP-CA-010 is the letter-sound → word-reading review's headline, promoted from a scratch fit to a registered model (#421 Tier 1). At each timepoint (t1–t4) it fits a between-child Beta-Binomial regression of word-reading level on the standardised same-wave logit of **letter-sound knowledge** (`L`), adjusting **only** for age, hearing (`hs`) and non-verbal ability (block design, `blocks`) — *"at wave t, among children alike on age, hearing and non-verbal ability, how much higher is word reading per +1 SD of letter sounds"*.
 
-This is a deliberately **minimal** adjustment. The nearest registered model,
-[`lrp-rli-ca-001`](../lrp-rli-ca-001), mutually adjusts word reading for five other
-same-wave skills (`B`, `TR`, `TE`, `R`, `E`) — a different conditional question.
-`ca-010` isolates the `L` → `W` level association against the trait covariates alone.
-Its companion [`lrp-rli-ca-011`](../lrp-rli-ca-011) adds same-wave nonword decoding to
-ask whether the association survives holding decoding fixed.
+This is a deliberately **minimal** adjustment. The nearest registered model, [`lrp-rli-ca-001`](../lrp-rli-ca-001), mutually adjusts word reading for five other same-wave skills (`B`, `TR`, `TE`, `R`, `E`) — a different conditional question. `ca-010` isolates the `L` → `W` level association against the trait covariates alone. Its companion [`lrp-rli-ca-011`](../lrp-rli-ca-011) adds same-wave nonword decoding to ask whether the association survives holding decoding fixed.
 
 Every coefficient is an adjusted association between measures at the same wave. Conditioning on other post-treatment skills does not identify a causal effect. Interpret the results with the measurement-error, correlated-predictor and prior-sensitivity checks in the results section.
 

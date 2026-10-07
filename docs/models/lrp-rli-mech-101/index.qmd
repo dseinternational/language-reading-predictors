@@ -1,5 +1,5 @@
 ---
-title: "LRP101: Linear letter-sound (LS) -> word reading (WR) slope — Tier-1 contrast anchor"
+title: "LRP-RLI-MECH-101: Linear letter-sound (LS) -> word reading (WR) slope, Tier-1 contrast anchor"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,14 +25,7 @@ format:
 
 ## Overview
 
-Tier-1 decoding-specificity mini-suite (see
-`notes/202607172330-tier1-decoding-specificity-spec.md`). LRP101 is the **linear
-single-slope** counterpart to [LRP58](../lrp-rli-mech-058), which fits the nonparametric
-HSGP *shape* of the letter-sound → word-reading relationship. The Tier-1 contrast (1A)
-and negative-control forest (1B) need every outcome on the *same* parameterisation — a
-single $\beta_\text{mech}\,z(\text{logit }L)$ slope, logit per SD of the exposure — so the
-cross-outcome comparison is like-for-like. LRP58 stays the deliverable for the *curve*;
-LRP101 supplies the comparable slope.
+Tier-1 decoding-specificity mini-suite (see `notes/202607172330-tier1-decoding-specificity-spec.md`). LRP101 is the **linear single-slope** counterpart to [LRP58](../lrp-rli-mech-058), which fits the nonparametric HSGP *shape* of the letter-sound → word-reading relationship. The Tier-1 contrast (1A) and negative-control forest (1B) need every outcome on the *same* parameterisation — a single $\beta_\text{mech}\,z(\text{logit }L)$ slope, logit per SD of the exposure — so the cross-outcome comparison is like-for-like. LRP58 stays the deliverable for the *curve*; LRP101 supplies the comparable slope.
 
 - **1A** — the $W$ partner to [LRP96](../lrp-rli-mech-096)'s $L \to N$ slope:
   $\Delta = \beta(L\to N) - \beta(L\to W)$.
@@ -38,9 +35,7 @@ LRP101 supplies the comparable slope.
 
 ## Adjustment set
 
-$\{G, A, HS, IS, SP\}$ plus baseline $W_\text{pre}$ — identical to LRP58/LRP96 (revised-DAG
-parents of $L$, #245), so the whole Tier-1 panel shares one conditioning set. GA is
-unblockable; $\beta_\text{mech}$ is an **adjusted association**, not a causal effect.
+$\{G, A, HS, IS, SP\}$ plus baseline $W_\text{pre}$ — identical to LRP58/LRP96 (revised-DAG parents of $L$, #245), so the whole Tier-1 panel shares one conditioning set. GA is unblockable; $\beta_\text{mech}$ is an **adjusted association**, not a causal effect.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

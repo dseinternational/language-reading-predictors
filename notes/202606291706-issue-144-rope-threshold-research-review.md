@@ -1,4 +1,7 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
@@ -11,13 +14,9 @@ Related issue: <https://github.com/dseinternational/language-reading-predictors/
 
 ## Purpose
 
-Issue #144 asks whether the current ITT reporting thresholds for "meaningful
-change" are educationally defensible and aligned with prior research. This note is
-for team review. It is not the final education sign-off.
+Issue #144 asks whether the current ITT reporting thresholds for "meaningful change" are educationally defensible and aligned with prior research. This note is for team review. It is not the final education sign-off.
 
-The short answer is that prior research does not appear to provide formal
-minimally important differences for these exact raw-score measures. It does,
-however, give useful anchors:
+The short answer is that prior research does not appear to provide formal minimally important differences for these exact raw-score measures. It does, however, give useful anchors:
 
 - the original Burgoyne et al. (2012) RCT reports the same intervention, the same
   20-week randomised comparison, and many of the same measures;
@@ -28,9 +27,7 @@ however, give useful anchors:
   intervention effects are often modest, heterogeneous, and probably overestimated
   in small or lower-rigour studies.
 
-My recommendation is to keep the current domain-paced threshold rule as the
-primary reporting convention for now, but to add explicit sensitivity checks for
-the two places where the judgement is most fragile:
+My recommendation is to keep the current domain-paced threshold rule as the primary reporting convention for now, but to add explicit sensitivity checks for the two places where the judgement is most fragile:
 
 - word reading (`W`): report the current `delta = 1` item read, plus a sensitivity
   read at `delta = 2` items;
@@ -40,30 +37,18 @@ the two places where the judgement is most fragile:
 
 ## The statistical issue in plain language
 
-The available-case modified ITT models estimate the assigned-arm contrast among
-their fitted observed cases, `tau`. Positive `tau` means the
-immediate-intervention arm did better during the randomised phase; extending that
-causal reading beyond the fitted cases requires the stated selection assumption.
+The available-case modified ITT models estimate the assigned-arm contrast among their fitted observed cases, `tau`. Positive `tau` means the immediate-intervention arm did better during the randomised phase; extending that causal reading beyond the fitted cases requires the stated selection assumption.
 
 There are two different questions:
 
 1. Did the intervention probably help at all?
 2. Was the benefit large enough to matter educationally?
 
-The first question is a direction question. In the reports this is `pd`, the
-posterior probability that the effect is above zero. A value like `pd = 0.99`
-means that almost all of the model's plausible effect values are positive.
+The first question is a direction question. In the reports this is `pd`, the posterior probability that the effect is above zero. A value like `pd = 0.99` means that almost all of the model's plausible effect values are positive.
 
-The second question is a size question. For that we need a threshold, called
-`delta`, that says how large a benefit must be before we call it meaningful. The
-ROPE, or region of practical equivalence, is the band from `-delta` to `+delta`.
-Effects inside that band are treated as close enough to zero for the practical
-question at hand.
+The second question is a size question. For that we need a threshold, called `delta`, that says how large a benefit must be before we call it meaningful. The ROPE, or region of practical equivalence, is the band from `-delta` to `+delta`. Effects inside that band are treated as close enough to zero for the practical question at hand.
 
-That means an effect can have strong directional evidence but still be uncertain
-in size. Word reading is the motivating example. A positive word-reading effect
-is likely, but whether it clears a one-word or two-word meaningful-change bar can
-lead to a different practical interpretation.
+That means an effect can have strong directional evidence but still be uncertain in size. Word reading is the motivating example. A positive word-reading effect is likely, but whether it clears a one-word or two-word meaningful-change bar can lead to a different practical interpretation.
 
 ## Current rule
 
@@ -72,21 +57,13 @@ The current provisional rule is:
 > `delta` = half of one period's natural maturation gain, rounded to whole items
 > and floored at 1 item.
 
-The "natural maturation gain" is the untreated wait-list arm's t1 to t2 progress
-over the first 20-week period. The rule is intentionally educational rather than
-purely statistical: it asks whether the intervention added at least a meaningful
-fraction of what children would otherwise gain over a period.
+The "natural maturation gain" is the untreated wait-list arm's t1 to t2 progress over the first 20-week period. The rule is intentionally educational rather than purely statistical: it asks whether the intervention added at least a meaningful fraction of what children would otherwise gain over a period.
 
-That choice has an important consequence. Outcomes that naturally move slowly get
-a lower bar. This may be right if "meaningful" should be judged relative to each
-domain's pace of progress. It is more lenient than a distribution-based rule, such
-as `0.2 * baseline SD`, for some outcomes, especially word reading.
+That choice has an important consequence. Outcomes that naturally move slowly get a lower bar. This may be right if "meaningful" should be judged relative to each domain's pace of progress. It is more lenient than a distribution-based rule, such as `0.2 * baseline SD`, for some outcomes, especially word reading.
 
 ## Data anchors from this study
 
-The table below recomputes the main raw-score anchors from
-`data/rli_data_long.csv`, using t1 rows and t1 to t2 gains. Group 1 is the
-immediate-intervention group; group 2 is the wait-list control group.
+The table below recomputes the main raw-score anchors from `data/rli_data_long.csv`, using t1 rows and t1 to t2 gains. Group 1 is the immediate-intervention group; group 2 is the wait-list control group.
 
 | Outcome                               | Scale | Current delta | Baseline SD | 0.2 SD | 5% scale | Wait-list gain | Intervention gain | Raw gain gap |
 | ------------------------------------- | ----: | ------------: | ----------: | -----: | -------: | -------------: | ----------------: | -----------: |
@@ -101,9 +78,7 @@ immediate-intervention group; group 2 is the wait-list control group.
 | `B` phoneme blending                  |    10 |             1 |        2.22 |   0.44 |     0.50 |           0.04 |              1.25 |         1.21 |
 
 \*The `UR` and `UE` denominators remain unconfirmed in the data dictionary. The
-observed maximum is 12, which is consistent with a 12-item not-taught comparison
-set, but this should not be treated as final until the original assessment
-materials confirm it.
+observed maximum is 12, which is consistent with a 12-item not-taught comparison set, but this should not be treated as final until the original assessment materials confirm it.
 
 Two things stand out:
 
@@ -113,27 +88,20 @@ Two things stand out:
   anchor (`0.2 SD` is about 2.3 items). This does not make `W = 1` wrong, but it
   does mean the report should show what happens at `W = 2`.
 
-For the floored outcomes, the estimand is not extra raw-score items. It is the
-increase in the probability of coming off the floor:
+For the floored outcomes, the estimand is not extra raw-score items. It is the increase in the probability of coming off the floor:
 
 | Outcome               | Immediate off floor by t2 | Wait-list off floor by t2 | Raw risk-difference anchor |
 | --------------------- | ------------------------: | ------------------------: | -------------------------: |
 | `P` phonetic spelling |                7/24 = 29% |                2/17 = 12% |      +17 percentage points |
 | `N` nonword reading   |               10/21 = 48% |                2/15 = 13% |      +34 percentage points |
 
-This makes the current 10 percentage point threshold plausible as a minimal
-off-floor change, but it is a low bar compared with the raw period-1 contrast.
-Sensitivity checks at 15 and 20 percentage points would make the conclusion less
-dependent on a placeholder.
+This makes the current 10 percentage point threshold plausible as a minimal off-floor change, but it is a low bar compared with the raw period-1 contrast. Sensitivity checks at 15 and 20 percentage points would make the conclusion less dependent on a placeholder.
 
 ## What prior research contributes
 
 ### Original trial: Burgoyne et al. (2012)
 
-Burgoyne et al. (2012) is the strongest source because it is the original
-randomised controlled trial of this intervention. It reports a teaching-assistant
-delivered reading and language programme, daily 40-minute sessions, and a
-wait-list design with a 20-week randomised phase.
+Burgoyne et al. (2012) is the strongest source because it is the original randomised controlled trial of this intervention. It reports a teaching-assistant delivered reading and language programme, daily 40-minute sessions, and a wait-list design with a 20-week randomised phase.
 
 The key pattern is directly relevant to the threshold decision:
 
@@ -148,46 +116,23 @@ The key pattern is directly relevant to the threshold decision:
 - the paper reports roughly 4.5 words gained per 20 weeks of intervention, versus
   roughly 2 words under typical instruction.
 
-This supports a threshold system that is more permissive for proximal,
-directly-taught skills than for distal transfer outcomes. It also supports
-keeping word-reading thresholds in raw-item units: even small numbers of
-additional readable words can be educationally meaningful for children who begin
-with very limited reading.
+This supports a threshold system that is more permissive for proximal, directly-taught skills than for distal transfer outcomes. It also supports keeping word-reading thresholds in raw-item units: even small numbers of additional readable words can be educationally meaningful for children who begin with very limited reading.
 
-At the same time, Burgoyne et al. does not settle the exact threshold. It does not
-say that one word, two words, or any other raw-score difference is a formal
-minimum important difference. The current `W = 1` threshold is therefore a
-reasonable domain judgement, not a citation-derived fact.
+At the same time, Burgoyne et al. does not settle the exact threshold. It does not say that one word, two words, or any other raw-score difference is a formal minimum important difference. The current `W = 1` threshold is therefore a reasonable domain judgement, not a citation-derived fact.
 
 ### Earlier and later Down syndrome reading interventions
 
-The surrounding reading-intervention literature broadly agrees with the
-Burgoyne pattern.
+The surrounding reading-intervention literature broadly agrees with the Burgoyne pattern.
 
-Goetz et al. (2008) evaluated training in reading and phoneme awareness. The
-Burgoyne discussion notes that this earlier study found similar word-reading
-gains, about two words per eight weeks, in a more selected group with emergent
-reading skills.
+Goetz et al. (2008) evaluated training in reading and phoneme awareness. The Burgoyne discussion notes that this earlier study found similar word-reading gains, about two words per eight weeks, in a more selected group with emergent reading skills.
 
-Cologon et al. (2011) studied targeted reading instruction in a small
-within-child design. Their abstract reports evidence that phonic reading
-instruction generally improved reading skills and phonological awareness.
+Cologon et al. (2011) studied targeted reading instruction in a small within-child design. Their abstract reports evidence that phonic reading instruction generally improved reading skills and phonological awareness.
 
-Lemons and Fuchs (2010) modelled response to reading intervention in children
-with Down syndrome. Their study is not an ITT analogue, but it is useful for
-expectations: a majority of children showed growth on letter sounds, taught sight
-words, and decodable words, while response varied by baseline skill.
+Lemons and Fuchs (2010) modelled response to reading intervention in children with Down syndrome. Their study is not an ITT analogue, but it is useful for expectations: a majority of children showed growth on letter sounds, taught sight words, and decodable words, while response varied by baseline skill.
 
-Lemons et al. (2012) compared decoding and phonological-awareness interventions
-using single-subject designs. The abstract reports improvements in taught
-phonetically regular and high-frequency words from the decoding intervention, but
-no reliable gains from the phonological-awareness intervention and no
-generalisation to oral reading fluency.
+Lemons et al. (2012) compared decoding and phonological-awareness interventions using single-subject designs. The abstract reports improvements in taught phonetically regular and high-frequency words from the decoding intervention, but no reliable gains from the phonological-awareness intervention and no generalisation to oral reading fluency.
 
-Baylis and Snowling (2012) evaluated a 10-week phonological reading programme.
-Their abstract reports significant improvement in word reading and alphabet
-knowledge, with some children developing decoding strategies, but also
-considerable variability in response.
+Baylis and Snowling (2012) evaluated a 10-week phonological reading programme. Their abstract reports significant improvement in word reading and alphabet knowledge, with some children developing decoding strategies, but also considerable variability in response.
 
 Taken together, these studies do not provide exact deltas, but they do support:
 
@@ -200,30 +145,13 @@ Taken together, these studies do not provide exact deltas, but they do support:
 
 ### Vocabulary intervention evidence
 
-The taught vocabulary outcomes should be treated separately from standardised
-vocabulary. Burgoyne et al. found evidence for directly taught expressive
-vocabulary, but not for broader standardised vocabulary.
+The taught vocabulary outcomes should be treated separately from standardised vocabulary. Burgoyne et al. found evidence for directly taught expressive vocabulary, but not for broader standardised vocabulary.
 
-Naess et al. (2022) provide newer RCT evidence that trained vocabulary in Down
-syndrome can be moved by a structured school-delivered programme. The study
-reported effects on expressive and receptive vocabulary breadth after a digital
-Down Syndrome LanguagePlus intervention. This supports retaining a low but real
-raw-score threshold for `TE` and `TR`, because trained vocabulary is a proximal
-target.
+Naess et al. (2022) provide newer RCT evidence that trained vocabulary in Down syndrome can be moved by a structured school-delivered programme. The study reported effects on expressive and receptive vocabulary breadth after a digital Down Syndrome LanguagePlus intervention. This supports retaining a low but real raw-score threshold for `TE` and `TR`, because trained vocabulary is a proximal target.
 
-By contrast, Donolato et al. (2023) reviewed oral-language interventions for
-children with neurodevelopmental disorders. The mean post-test effect was modest,
-with evidence of publication bias and overestimation. Receptive vocabulary and
-omnibus receptive measures had smaller effects than several other language
-domains. This supports caution for `R` and `E`: broad standardised vocabulary
-should not inherit the more permissive interpretation used for directly taught
-items.
+By contrast, Donolato et al. (2023) reviewed oral-language interventions for children with neurodevelopmental disorders. The mean post-test effect was modest, with evidence of publication bias and overestimation. Receptive vocabulary and omnibus receptive measures had smaller effects than several other language domains. This supports caution for `R` and `E`: broad standardised vocabulary should not inherit the more permissive interpretation used for directly taught items.
 
-Neil and Jones (2016), a systematic review and meta-analysis of communication
-interventions for individuals with Down syndrome, similarly concluded that the
-evidence base was promising but methodologically limited. That reinforces the
-need to report full uncertainty and avoid treating a small point estimate as a
-clear educational change.
+Neil and Jones (2016), a systematic review and meta-analysis of communication interventions for individuals with Down syndrome, similarly concluded that the evidence base was promising but methodologically limited. That reinforces the need to report full uncertainty and avoid treating a small point estimate as a clear educational change.
 
 ## Outcome-by-outcome implications
 
@@ -256,8 +184,7 @@ For the ITT reports, I would separate the decisions like this:
 7. Mark `UR` and `UE` as denominator-provisional until the assessment materials
    confirm the 12-item denominator.
 
-This would let the team keep the current primary convention while showing readers
-where the interpretation changes under stricter, still-plausible thresholds.
+This would let the team keep the current primary convention while showing readers where the interpretation changes under stricter, still-plausible thresholds.
 
 ## Questions for team review
 

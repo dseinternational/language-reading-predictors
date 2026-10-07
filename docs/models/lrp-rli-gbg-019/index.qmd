@@ -1,5 +1,5 @@
 ---
-title: "LRPGBG19: Predictors of Early Repetition Battery total repetition gains"
+title: "LRP-RLI-GBG-019: Predictors of Early Repetition Battery total repetition gains"
 
 format:
   html:
@@ -255,10 +255,7 @@ The box plot shows the variation across shuffles. Positive importance means shuf
 
 ### SHAP analysis
 
-[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into per-feature contributions, giving the
-*direction* of each predictor to pair with the permutation-importance
-magnitude.
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values decompose each prediction into per-feature contributions, giving the *direction* of each predictor to pair with the permutation-importance magnitude.
 
 #### Global feature importance (bar)
 

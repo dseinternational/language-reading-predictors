@@ -1,12 +1,13 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Results
 
-The latent change-score model reports within-child longitudinal couplings. These
-are conditional predictive associations among latent trajectories, not causal
-effects.
+The latent change-score model reports within-child longitudinal couplings. These are conditional predictive associations among latent trajectories, not causal effects.
 
-In plain terms: a coupling coefficient says how much the level of one skill at one
-wave predicts the later change in another skill, holding the rest of the model
-fixed.
+In plain terms: a coupling coefficient says how much the level of one skill at one wave predicts the later change in another skill, holding the rest of the model fixed.
 
 ```{python}
 # | echo: false
@@ -14,13 +15,7 @@ coupling_summary = _csv("coupling_summary.csv")
 coupling_summary if coupling_summary is not None else "No coupling summary."
 ```
 
-_How to read the coupling table:_ each row is one directed coupling, written
-`from -> to` (the level of `from` predicting the later change in `to`). `mean` is
-the posterior average of that coupling; `lo` and `hi` are the ends of the 89%
-credible interval, so a range that stays on one side of 0 is a coupling the data
-support in that direction. `prob_pos` is the posterior probability the coupling is
-positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 =
-undecided).
+_How to read the coupling table:_ each row is one directed coupling, written `from -> to` (the level of `from` predicting the later change in `to`). `mean` is the posterior average of that coupling; `lo` and `hi` are the ends of the 89% credible interval, so a range that stays on one side of 0 is a coupling the data support in that direction. `prob_pos` is the posterior probability the coupling is positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 = undecided).
 
 ```{python}
 # | echo: false
@@ -42,9 +37,7 @@ if coupling_summary is not None:
         )
 ```
 
-_Model-check emphasis._ Because this model has latent trajectories, process noise and only four waves,
-sampling diagnostics and posterior predictive checks are part of the result. A
-wide interval or fragile sampler is an honest finding, not just a nuisance.
+_Model-check emphasis._ Because this model has latent trajectories, process noise and only four waves, sampling diagnostics and posterior predictive checks are part of the result. A wide interval or fragile sampler is an honest finding, not just a nuisance.
 
 
 ```{python}

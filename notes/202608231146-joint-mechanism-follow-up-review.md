@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 # Joint-mechanism family follow-up review: residual code and statistical findings, 2026-08-23
+
+**Historical record.** This review predates the wave-specific lifecycle and predictive-target corrections. Read the later remediation for the response. See [the later record](202608241000-joint-mechanism-591-remediation.md) and [METHODS.md](../METHODS.md).
 
 ## Status and scope
 

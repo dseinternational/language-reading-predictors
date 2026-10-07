@@ -1,5 +1,5 @@
 ---
-title: "LRP87: Does the intervention raise phoneme blending via letter-sounds? (mediation)"
+title: "LRP-RLI-MED-087: Does the intervention raise phoneme blending via letter-sounds? (mediation)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Substantially edited by a LLM-based AI tool (Codex/GPT-5).

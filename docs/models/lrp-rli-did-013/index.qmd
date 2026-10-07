@@ -1,5 +1,5 @@
 ---
-title: "LRPDID13: exploratory waitlist-catch-up heterogeneity — word reading (WR)"
+title: "LRP-RLI-DID-013: Exploratory wait-list t3 variation in word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,9 +25,9 @@ format:
 
 ## Overview
 
-**In plain terms.** LRPDID13 asks whether waitlist children's t2→t3 catch-up varies more than the observation model already allows. It extends LRPDID01 with a waitlist-only random deviation at t3. This is an exploratory variance component, not a clean estimate of treatment-response heterogeneity and not a basis for classifying responders.
+**In plain terms.** LRPDID13 asks whether wait-list children's t3 deviations require more variation than the observation model allows. It extends LRPDID01 with a waitlist-only random deviation at t3. This is an exploratory variance component, not a clean estimate of treatment-response heterogeneity and not a basis for classifying responders.
 
-_The honest non-responder ladder (#230 §4a)._ Do not classify children into responders and non-responders from observed changes; that manufactures groups partly from measurement noise (Senn 2016, doi:10.1002/sim.7059). `sigma_delta` can show whether the posterior moved away from its prior, but it cannot by itself establish variation in a causal treatment effect: each waitlist child supplies one post-crossover observation, so heterogeneous maturation, period shocks, nonlinear individual trajectories and measurement noise can all contribute. Any later moderation must be one-stage, strongly regularised, restricted to pre-randomisation variables and labelled exploratory. See `METHODS.md`.
+**Interpretation limits.** Do not classify children into responders and non-responders from observed changes; that manufactures groups partly from measurement noise (Senn 2016, doi:10.1002/sim.7059). `sigma_delta` can show whether the posterior moved away from its prior, but it cannot by itself establish variation in a causal treatment effect: each waitlist child supplies one post-crossover observation, so heterogeneous maturation, period shocks, nonlinear individual trajectories and measurement noise can all contribute. Any later moderation must be one-stage, strongly regularised, restricted to pre-randomisation variables and labelled exploratory. See `METHODS.md`.
 
 ## Model
 
@@ -35,7 +39,7 @@ $$
 \qquad z_i \sim \mathcal{N}(0,1),
 $$
 
-with a Beta-Binomial likelihood on t1/t2/t3 word-reading counts ($N=79$), $G_i=1$ for the immediate arm, $\beta_{\text{period},t1}=0$, and $\text{arm\_gap}_{t}=(\text{arm\_gap}_{t1},\tau_{t2},\text{arm\_gap}_{t3})$. The child-specific catch-up quantity is $\delta_{\text{crossover},i}=\tau_{t2}-\text{arm\_gap}_{t3}+\sigma_\delta z_i$. No period-start outcome enters because t2 is treatment-affected for the immediate arm when used as the P2 baseline.
+with a Beta-Binomial likelihood on t1/t2/t3 word-reading counts ($N=79$), $G_i=1$ for the immediate arm, $\beta_{\text{period},t1}=0$, and $\text{arm\_gap}_{t}=(\text{arm\_gap}_{t1},\tau_{t2},\text{arm\_gap}_{t3})$. The child-specific modelled gap-change quantity is $\delta_{\text{crossover},i}=\tau_{t2}-\text{arm\_gap}_{t3}+\sigma_\delta z_i$. No period-start outcome enters because t2 is treatment-affected for the immediate arm when used as the P2 baseline.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
@@ -43,9 +47,9 @@ with a Beta-Binomial likelihood on t1/t2/t3 word-reading counts ($N=79$), $G_i=1
 {{< include _partials/_prior_predictive.qmd >}}
 {{< include _partials/_results_did.qmd >}}
 
-## Exploratory catch-up heterogeneity
+## Exploratory wait-list t3 variation
 
-_What `sigma_delta` separates — and what it conflates._ `sigma_delta` is identified only from waitlist children's t3 deviations. Each child contributes one such observation, so the component is not separately protected from heterogeneous t3 shocks, curvature in development or residual measurement variation. The immediate arm informs the common arm-by-wave trajectory but has no corresponding random catch-up slope. Read `sigma_delta` as unexplained variation in modelled waitlist catch-up, not as the standard deviation of individual causal effects.
+_What `sigma_delta` separates — and what it conflates._ `sigma_delta` is identified only from waitlist children's t3 deviations. Each child contributes one such observation, so the component is not separately protected from heterogeneous t3 shocks, curvature in development or residual measurement variation. The immediate arm informs the common arm-by-wave trajectory but has no corresponding random catch-up slope. Read `sigma_delta` as unexplained variation in wait-list t3 deviations, not as the standard deviation of individual causal effects.
 
 ```{python}
 # | echo: false

@@ -1,5 +1,5 @@
 ---
-title: "LRPDID03: Waitlist-crossover arm-by-wave sensitivity for phoneme blending (PA)"
+title: "LRP-RLI-DID-003: Waitlist-crossover arm-by-wave sensitivity for phoneme blending (PA)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

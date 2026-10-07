@@ -1,5 +1,5 @@
 ---
-title: "LRP-CA-001: Concurrent conditional associations — skills → word reading (per wave)"
+title: "LRP-RLI-CA-001: Concurrent conditional associations, skills → word reading (per wave)"
 
 format:
   html:
@@ -14,6 +14,10 @@ format:
 ---
 
 ::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
+::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
 :::
 
@@ -25,22 +29,9 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 ## Overview
 
-LRP-CA-001 is the first model of the **concurrent conditional-associations** family
-(#312, descriptive-association workstream #314). At each timepoint (t1–t4) it fits a
-between-child Beta-Binomial regression of **word reading's level** on the standardised
-same-wave logits of a core skill set — letter sounds (`L`), blending (`B`), taught
-receptive (`TR`) and expressive (`TE`) vocabulary, and receptive (`R`) and expressive
-(`E`) vocabulary — plus age and a group nuisance term. The four waves are fitted
-separately and reported side by side.
+LRP-CA-001 is the first model of the **concurrent conditional-associations** family (#312, descriptive-association workstream #314). At each timepoint (t1–t4) it fits a between-child Beta-Binomial regression of **word reading's level** on the standardised same-wave logits of a core skill set — letter sounds (`L`), blending (`B`), taught receptive (`TR`) and expressive (`TE`) vocabulary, and receptive (`R`) and expressive (`E`) vocabulary — plus age and a group nuisance term. The four waves are fitted separately and reported side by side.
 
-The estimand is the mutually-adjusted association at each wave: *"at wave t, among
-children alike on age and the other skills, +n of a predictor skill is associated with
-+m more words read"*. No model in the rest of the suite estimates this — the
-level-factors family deliberately omits cross-skill terms to protect the causal reading
-of its group×time contrast, but that objection does not apply to a family that makes
-**no causal claim at all**. All children are on the intervention from t2, so these
-describe the conditional joint distribution of the skill measures within a treated
-system.
+The estimand is the mutually-adjusted association at each wave: *"at wave t, among children alike on age and the other skills, +n of a predictor skill is associated with +m more words read"*. No model in the rest of the suite estimates this — the level-factors family deliberately omits cross-skill terms to protect the causal reading of its group×time contrast, but that objection does not apply to a family that makes **no causal claim at all**. All children are on the intervention from t2, so these describe the conditional joint distribution of the skill measures within a treated system.
 
 Every coefficient is an adjusted association between measures at the same wave. Conditioning on other post-treatment skills does not identify a causal effect. Interpret the results with the measurement-error, correlated-predictor and prior-sensitivity checks in the results section.
 

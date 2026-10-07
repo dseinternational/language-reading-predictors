@@ -11,11 +11,15 @@ Notes record what was known or decided on their stated date. They are not all cu
 
 ## Findings and rebuilds
 
-The [1 September statistical findings](202609011800-findings-00-overview.md) link to 21 family summaries. The [boosting review](202609012030-gb-findings-review.md) covers the same date. These are the most recent full narrative findings series retained here, but they are **dated snapshots**, not a fresh evaluation of the present code.
+Choose the record for the question you need to answer:
 
-The [8 September rebuild](202609080119-full-rebuild-both-layers.md) is a later execution record. The [21 September refit](20260921-full-statistical-refit.md) repeats the statistical layer only and records three declared acceptance-target remediations. The [22 September boosting refit](202609221140-gb-refit-shap-plots.md) repeats the boosting layer only. It reproduces every ranking and held-out metric, redraws the SHAP plots and changes five of the boosting review's replicated labels through the corrected bootstrap stability check. The [Huber retune and refit](202609221800-gb-huber-retune-refit.md), later the same day, changes the boosting objective from MAE to Huber after the [objective-sensitivity check](202609221700-gb-objective-sensitivity.md), re-tunes all 50 models and refits them; boosting numbers from earlier notes describe the MAE fits. The [28 September rebuild](20260928-full-rebuild-both-layers.md) refits both layers after that retune and after the statistical validation corrections (#691); it reproduces the ITT and DiD headlines and records the changed horseshoe-versus-boosting comparison. The [1 October rebuild](20261001-full-rebuild-both-layers.md) repeats both layers on Windows; it needed a Numba CPU-target workaround, remediated `mech-190` and reproduces the ITT, DiD and horseshoe-versus-boosting results of 28 September. The [16 September integrity fixes](20260916-codebase-review-and-run-integrity.md) changed fit provenance, resumption and bootstrap importance. Check a stored fit's configuration and current publication decision before reusing a numerical finding. This documentation review did not refit models or revalidate historical numbers.
+- [1 October rebuild](20261001-full-rebuild-both-layers.md) records the latest full rebuild retained here. It includes the Windows Numba workaround, convergence remediation and comparisons with the preceding run.
+- [4 October corrections](20261004-statistical-review-corrections.md) changed mediation sensitivity, pooled-level row identity, interpretation and new-child K-fold validation after that rebuild. A stored result must meet the current requirements before reuse.
+- [September statistical findings](202609011800-findings-00-overview.md) and [boosting findings](202609012030-gb-findings-review.md) are the latest full narrative series, but their numbers describe older fits. The boosting series used MAE. The [Huber decision and retune](202609221800-gb-huber-retune-refit.md) changed that policy.
+- [August findings by question](202608182200-findings-by-question.md) retains cross-model questions and author decisions. Its numerical evidence is historical.
+- [September report plan](202609071300-technical-report-plan-v2.md) remains a proposal. This cleanup does not approve its pending author decisions.
 
-The [August findings by question](202608182200-findings-by-question.md) retains cross-model questions and author decisions. Its numerical evidence is historical. The [September report plan](202609071300-technical-report-plan-v2.md) remains a proposal; its pending author decisions have not been approved by this cleanup.
+Earlier rebuilds remain evidence of their own runs. Check each fit's configuration, data and environment identities, diagnostics and current publication decision before citing a numerical result. The presence of a trace, table or report page does not establish that the result remains eligible for publication.
 
 ## Decisions that govern current work
 
@@ -29,7 +33,7 @@ The [August findings by question](202608182200-findings-by-question.md) retains 
 | Gain-factor interpretation   | [Primary and moderation specifications](202608071500-gf-391-findings-2-3-respec.md) and [later corrections](202608261200-gain-factors-575-decisions.md)                                                                                          |
 | Crossover contrasts          | [t2 arm-gap estimand](202608241100-did-t2-estimand-signoff.md) and [later randomised schedule contrasts](202608262110-did-lf-estimand-label-sync-631.md)                                                                                         |
 | Mediation                    | [Common baseline adjustment](202608231500-mediation-585-remediation.md)                                                                                                                                                                          |
-| Prediction for new children  | [Joint-family prediction target](202609011600-joint-new-child-prediction-target-626.md)                                                                                                                                                          |
+| Prediction for new children  | [Prediction target](202609011600-joint-new-child-prediction-target-626.md), [PSIS validation](20260923-statistical-review-corrections.md) and [K-fold batch validation](20261004-statistical-review-corrections.md)                              |
 | Priors and release           | [Prior descriptors](202608311600-prior-descriptor-findings-637.md) and [missing prior-evidence policy](202608311200-prior-evidence-release-policy-637.md)                                                                                        |
 | Data provenance              | [Trial archive](202609071500-incorporate-deposited-trial-archive.md), [Byrne source reconciliation](202608161340-byrne-source-provenance-reconciliation.md) and [word-repetition quarantine](202608262120-erb-word-repetition-quarantine-631.md) |
 | Assessment intervals         | [Unequal intervals, the t2 timing bound and `lcsm-167`](202609212100-assessment-interval-lengths.md)                                                                                                                                             |
@@ -37,14 +41,14 @@ The [August findings by question](202608182200-findings-by-question.md) retains 
 
 Other retained design notes, source audits and reviews provide the evidence behind these decisions. A proposal is not an approved method. A completed audit's list of open issues describes its date; check later remediation notes and current code before treating those issues as unresolved.
 
-## Earlier findings snapshots
+## Removed or superseded records
 
-The 17 September cleanup removed repeated family findings from 16, 20 and 21 July, 5 August and 18 August, together with superseded June-to-August run summaries, the retired feature-selection table, six completed pipeline-migration logs, two superseded report-layout notes and the retired pooled-moderation analysis. The current architecture guide replaces those migration instructions. The September series and current guides replace their role as reading material. Scientific decisions, source audits and distinctive methodological reviews remain.
+The [7 October documentation review](20261007-documentation-review.md) lists the removed migration plans, completed repair logs, old tuning records and duplicate review notes. Their exact versions remain in Git history. References to their evidence must point to those versions rather than to a newer document with different results.
 
-The removed files remain available in [the notes directory before this cleanup](https://github.com/dseinternational/language-reading-predictors/tree/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes). Citations from retained notes point to that exact version, preserving the evidence cited at the time. To recover a file locally, use the recorded commit and its original path, for example:
+The 17 September cleanup removed earlier repeated findings and run summaries. Those files remain in [the notes directory before that cleanup](https://github.com/dseinternational/language-reading-predictors/tree/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes). To recover a historical file locally, name its commit and original path:
 
 ```bash
 git show b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95:notes/202607161800-findings-gain_factors.md
 ```
 
-Use those files only to reconstruct the earlier analysis. Their intervals, causal labels, fitted samples and release rules may have been superseded.
+Use removed files to reconstruct the earlier analysis. Their intervals, causal labels, samples and release rules can have been superseded.

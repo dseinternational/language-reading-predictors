@@ -1,3 +1,8 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Treatment-prior sensitivity release gate
 
 The main power-scaling diagnostic is a local derivative check. When it diagnoses a possible prior-data conflict for `tau`, or when a unique and interpretable `tau` diagnostic is unavailable, scientific interpretation additionally requires the explicit estimand-matched grid: the observed-baseline-floor subgroup, Bernoulli off-floor likelihood, treatment-effect prior SD 0.5/1.0/1.5, and linear age adjustment off/on. Every one of the six fits must pass the all-free-variable convergence gate; each content-addressed trace must contain the declared posterior variables and embedded cell provenance; and the grid's data, model, sample counts, primary config hash, primary trace hash, free-variable set, and sampling provenance must match this report. The release evaluator recomputes convergence, risk differences and posterior probabilities from each trace rather than trusting the CSV declarations.
@@ -217,11 +222,7 @@ tau_summary = _csv("tau_summary.csv")
 tau_summary
 ```
 
-_How to read the table:_ `tau_prob_median` is the best single estimate of the
-off-floor risk difference (in probability units; multiply by 100 for percentage
-points), `tau_prob_lo`/`tau_prob_hi` bracket its 89% credible interval, and
-`prob_ame_pos` (or the legacy `prob_tau_pos` field) is the posterior probability
-that the intervention helps (closer to 1 = stronger evidence of benefit).
+_How to read the table:_ `tau_prob_median` is the best single estimate of the off-floor risk difference (in probability units; multiply by 100 for percentage points), `tau_prob_lo`/`tau_prob_hi` bracket its 89% credible interval, and `prob_ame_pos` (or the legacy `prob_tau_pos` field) is the posterior probability that the intervention helps (closer to 1 = stronger evidence of benefit).
 
 ```{python}
 # | echo: false
@@ -377,9 +378,7 @@ if _has("arm_overlap_mean.png"):
 
 ### Off-floor movers by arm
 
-_How to read the table:_ this is the raw tally behind the estimate — for each arm,
-how many children started at the floor and how many moved off it, with the observed
-off-floor rate. Comparing the rates across arms shows the effect before any modelling.
+_How to read the table:_ this is the raw tally behind the estimate — for each arm, how many children started at the floor and how many moved off it, with the observed off-floor rate. Comparing the rates across arms shows the effect before any modelling.
 
 ```{python}
 # | echo: false

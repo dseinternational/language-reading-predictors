@@ -13,8 +13,7 @@ Exploratory passes that inform the gated modelling decisions. These are descript
 
 ## `rlm_associations.py` — Byrne reading-language-memory descriptive pass (#409 item A)
 
-Mirrors the RLI descriptive work for the observational Byrne, MacDonald & Buckley
-(2002) cohort (`study_id="rlm"`). It describes associations alongside the registered Byrne models. Run:
+Mirrors the RLI descriptive work for the observational Byrne, MacDonald & Buckley (2002) cohort (`study_id="rlm"`). It describes associations alongside the registered Byrne models. Run:
 
 ```bash
 uv run python scripts/exploratory/rlm_associations.py
@@ -52,15 +51,9 @@ Writes to `output/exploratory/rlm/`:
   within-group one — as a descriptive prompt that the pooled age signal may be partly
   cohort composition, not as an adjusted effect estimate.
 
-Groups follow the catalogue labels (1 = Down syndrome, 2 = Average readers,
-3 = Reading-matched). Correlations use Pearson's r throughout, for coherence with
-the between/within variance decomposition and the linear RTM residualisation;
-A rank-correlation sensitivity can check whether extreme values determine the pattern.
+Groups follow the catalogue labels (1 = Down syndrome, 2 = Average readers, 3 = Reading-matched). Correlations use Pearson's r throughout, for coherence with the between/within variance decomposition and the linear RTM residualisation. A rank-correlation sensitivity can check whether extreme values determine the pattern.
 
-**Not causal.** `readgrp` is an observational cohort factor and every number here is
-a descriptive correlate carrying the usual residual-confounding caveat. These figures
-are inputs to the still-gated modelling decisions in #338/#409 (instrument ceilings,
-group scope, the reading-matched selection collider), not publication estimates.
+**Not causal.** `readgrp` is an observational cohort factor and every number here is a descriptive correlate carrying the usual residual-confounding caveat. These figures are inputs to the still-gated modelling decisions in #338/#409 (instrument ceilings, group scope, the reading-matched selection collider), not publication estimates.
 
 ## `cross_cohort_replication.py` — matched RLI/Byrne replication (#409)
 

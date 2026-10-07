@@ -1,5 +1,5 @@
 ---
-title: "LRPPL005: Wave-pooled level association, phonological memory (erbto) → word reading (W)"
+title: "LRP-RLI-PL-005: Wave-pooled level association, phonological memory (erbto) → word reading (W)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -37,8 +41,7 @@ $$
   + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}}
 $$
 
-where $z_{it}$ is the standardised **raw** ERB total at wave $t$ (not a logit) and
-$\bar z_i$ its child mean. There is deliberately no own-baseline term.
+where $z_{it}$ is the standardised **raw** ERB total at wave $t$ (not a logit) and $\bar z_i$ its child mean. There is deliberately no own-baseline term.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

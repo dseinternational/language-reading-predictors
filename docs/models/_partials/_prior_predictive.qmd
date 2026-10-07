@@ -1,11 +1,11 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Prior-predictive check
 
-Does the prior generate physically-possible outcomes before seeing the data
-(Gabry et al. 2019)? The prior-predictive distribution of the outcome count is
-overlaid on the observed counts. _How to read it:_ the prior-predictive spread
-(blue) should comfortably cover the observed counts (red) without being wildly
-wider — if the observed data sit in the extreme tails the prior is too tight; if
-the blue dwarfs the red the prior is barely informative.
+Does the prior generate physically-possible outcomes before seeing the data (Gabry et al. 2019)? The prior-predictive distribution of the outcome count is overlaid on the observed counts. _How to read it:_ the prior-predictive spread (blue) should comfortably cover the observed counts (red) without being wildly wider — if the observed data sit in the extreme tails the prior is too tight; if the blue dwarfs the red the prior is barely informative.
 
 ```{python}
 # | echo: false

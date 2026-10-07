@@ -1,14 +1,7 @@
-<!--
-Transcluded standing caveat for [ASSOCIATION] results. Stated once, reused everywhere —
-edit HERE only. Included via {{< include ../_caveats-association.qmd >}} (from a chapter
-in chapters/) or {{< include _caveats-association.qmd >}} (from a top-level file).
--->
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
-::: {.callout-important title="Causal status — [ASSOCIATION]"}
-Beyond the single randomised term, **every coefficient in this chapter is an adjusted
-association, not an effect**. Under the locked DAG (@sec-dag) each is confounded by
-latent general ability and — where the predictor is measured at the same wave as the
-outcome — by shared measurement; the per-child random intercept is a *partial* repair,
-not full adjustment. Read these as "associated with, after adjusting for …", **never** as
-"X drives Y".
+::: {.callout-important title="Adjusted associations"}
+Skill, mediator and dose coefficients describe relationships conditional on the model's listed covariates. They can remain confounded by unmeasured ability, measurement error and shared causes. Same-wave measurements do not establish temporal order. A child random intercept models repeated observations and stable residual differences; it does not by itself remove confounding. Describe these quantities as adjusted associations.
 :::

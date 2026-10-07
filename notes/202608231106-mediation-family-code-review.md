@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 # Mediation and mediation-multi code review, 2026-08-23
+
+**Historical record.** This review predates the common baseline adjustment and integration corrections. Read the later remediation for current practice. See [the later record](202608231500-mediation-585-remediation.md) and [METHODS.md](../METHODS.md).
 
 ## Decision summary
 

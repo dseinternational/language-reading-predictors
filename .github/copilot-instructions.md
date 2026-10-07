@@ -33,7 +33,7 @@ Down Syndrome Education International studies predictors of language and reading
 We use two stages:
 
 1. LightGBM, permutation importance and SHAP to identify useful predictors.
-2. Bayesian PyMC models to estimate interactions and, where the DAG supports it, causal effects with quantified uncertainty.
+2. Bayesian PyMC models to estimate treatment contrasts and adjusted associations with uncertainty. Causal interpretation requires a suitable design and the stated assumptions.
 
 See `METHODS.md` for the methods, reporting rules, glossary and references. Paths in these instructions are relative to the repository root.
 
@@ -42,12 +42,12 @@ See `METHODS.md` for the methods, reporting rules, glossary and references. Path
 Use [uv](https://docs.astral.sh/uv/) to install the locked Python environment:
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
 Run commands with `uv run <command>`; activation is optional. PyMC uses the Numba-backed `nutpie` sampler. Supported platforms are declared in `pyproject.toml`; Windows runs natively and Intel macOS is excluded.
 
-On some Windows hosts, Numba cannot compile the larger statistical models for the host CPU and stops with `ran out of registers during register allocation`. This was seen with an Intel Raptor Lake CPU, numba 0.67 and llvmlite 0.49. Set `NUMBA_CPU_NAME=sandybridge` before fitting or running sensitivity sweeps. The `generic` and `x86-64-v2` targets also work; `haswell` and `x86-64-v3` fail in the same way. Fit provenance does not record this variable, so state it in the run note.
+If Numba fails on Windows with `ran out of registers during register allocation`, set `NUMBA_CPU_NAME=sandybridge` before sampling. Record it in the run note because fit provenance does not capture it. The 1 October run in `notes/20261001-full-rebuild-both-layers.md` records the tested CPU targets.
 
 `dse-research-utils` supplies the scientific dependencies. This repository declares its required extras and pinned git tag in `pyproject.toml`; do not duplicate those version lists here. For local library development, replace its `[tool.uv.sources]` git entry with a path to `../research/src/python`. The project uses neither the `jax` nor the `storage` extra.
 
@@ -78,12 +78,12 @@ npm run format:check
 # Fit a model (artifacts saved to output/models/{model_id}/)
 uv run python scripts/fit_model.py lrp-rli-gbg-001                    # dev config (fast, default)
 uv run python scripts/fit_model.py lrp-rli-gbg-001 --config test      # test config (moderate)
-uv run python scripts/fit_model.py lrp-rli-gbg-001 --config reporting # full config (production)
-uv run python scripts/fit_model.py all --config dev --render           # all final models, render reports
+uv run python scripts/fit_model.py lrp-rli-gbg-001 --config reporting # full reporting configuration
+uv run python scripts/fit_model.py all --config dev --render           # all primary models, render reports
 uv run python scripts/fit_model.py all --include-variants --config dev # include variants
 
 # Hyperparameter tuning with Optuna (output/tuning/{model_id}/)
-uv run python scripts/tune_model.py lrp-rli-gbg-001 # LGBM, 50 trials, GroupKFold
+uv run python scripts/tune_model.py lrp-rli-gbg-001 # Huber objective, 150 trials, child-grouped folds
 uv run python scripts/tune_model.py lrp-rli-gbg-001 --n-trials 200 --timeout 1800
 
 # Preview research report
@@ -103,10 +103,10 @@ The Python package is in `src/language_reading_predictors/` and is installed in 
 
 This is the **source of truth** for all variable names used across notebooks and utils. It defines:
 
-- `Variables` class — column name constants (e.g., `Variables.AGE`, `Variables.GENDER`) and grouped lists (`NUMERIC`, `CATEGORICAL`, `GAINS`, `NEXTS`, `DEMOGRAPHICS`, `COGNITIVE`, `LANGUAGE`, `SPEECH`, `READING`).
-- `Categories` class — integer-to-label mappings (e.g., `Categories.GENDER = {1: "Male", 2: "Female"}`).
+- `Variables` defines column name constants (e.g., `Variables.AGE`, `Variables.GENDER`) and grouped lists (`NUMERIC`, `CATEGORICAL`, `GAINS`, `NEXTS`, `DEMOGRAPHICS`, `COGNITIVE`, `LANGUAGE`, `SPEECH`, `READING`).
+- `Categories` defines integer-to-label mappings (e.g., `Categories.GENDER = {1: "Male", 2: "Female"}`).
 
-When adding or renaming variables, update `data_variables.py` first — everything else references it.
+When adding or renaming variables, update `data_variables.py` first. Other modules reference it.
 
 ### Data flow
 
@@ -116,9 +116,9 @@ When adding or renaming variables, update `data_variables.py` first — everythi
 
 ### Module responsibilities
 
-- **ml_utils.py** — RandomizedSearchCV wrapper, cross-validation reporting, GP kernel functions.
-- **stats_utils.py** — Standardization, descriptive stats with normality tests, distance correlation matrices, mutual information dissimilarity, hierarchical clustering.
-- **plot_utils.py** — Visualization functions. Saves figures to `output/`.
+- `ml_utils.py` provides a RandomizedSearchCV wrapper, cross-validation reports and GP kernel functions.
+- `stats_utils.py` provides standardisation, descriptive statistics with normality tests, distance correlation matrices, mutual information dissimilarity and hierarchical clustering.
+- `plot_utils.py` provides figure helpers that save to the selected output root.
 
 ### Gradient-boosting models (`models/`)
 
@@ -149,16 +149,7 @@ Keep construction in `factories/`, orchestration in `pipelines/` and shared oper
 - `posteriors.py`, `summaries/` and `findings/` own posterior helpers, family calculations and findings prose. `key_findings.py` assembles and writes the findings. `estimands.py` and `reporting.py` retain compatibility imports. `predictive_checks.py` handles prior pushforwards and predictive coverage; `lcf_inference.py` / `lcf_summaries.py` hold correlated-factor algorithms.
 - `convergence.py` owns the sampling gate. `release/` combines input, computation, artefact and robustness checks into the publication decision.
 
-`tests/statistical_models/test_pipeline_boundaries.py` enforces these boundaries. ITT is the reference implementation. Read `METHODS.md` and the model catalogue (`docs/models/README.md`) before changing a family's scientific specification. The main interpretation rules are:
-
-- **`itt`** estimates assigned-arm differences among archived children with the required observations. Use "available-case modified ITT" and state exclusions by arm. Own baseline and linear age are precision terms; they do not repair selection. The P/N floor rule is post-hoc and exploratory. Its headline is an off-floor transition risk difference among children observed at the baseline floor. The immediate arm's t2 assessment came about two weeks later than the wait-list's; state the constant-rate timing scenarios and their assumptions from `scripts/assessment_interval_check.py` beside any t2 headline.
-- **`joint`** fits several outcomes together. Parent models factorise by outcome; registered dependence companions add within-child residual covariance. Read the corresponding paired comparison before interpreting a difference between outcome effects.
-- **`mechanism`** estimates adjusted skill or exposure associations, with child random intercepts and optional moderation or nonlinear curves. Neither the adjustment set nor the random intercept identifies a skill effect under the study's latent-ability confounding.
-- **`mediation`** computes model-based direct/indirect decompositions. Every leg must use the same pre-exposure adjustment vector, including outcome and mediator baselines and bounded-measure confounders. Floored baselines use binary off-floor indicators. Integrate finite count supports exactly and normal mediators with checked quadrature; posterior sampling error does not measure integration error. The period-stacked headline uses period 1. Interventional companions change the target's interpretation but remain unidentified under the study's unmeasured confounding.
-- **`did`** models arm gaps at t1, t2 and t3. `arm_gap_t1` is baseline balance. `tau_t2` is the adjusted t2 arm-gap level, with soft, prior-weighted baseline adjustment. `arm_gap_t3` is a randomised early-start versus delayed-start schedule contrast. `delta_crossover` is the change between those contrasts, not an identified catch-up mechanism. Dose variants report observational treated-row dose marginals; their saturated arm-by-period design does not isolate a treatment-presence coefficient. Bind every prior sweep to the focal estimand and primary run-plan digest.
-- **`gain_factors`** models post-score given pre-score across periods, with child random intercepts. Standardise the treatment headline over period 1 and retain the mandatory period-1-only sensitivity. Primary headlines have no treatment interactions; the moderation variants are associational. P/N use Bernoulli off-floor outcomes and the binary pre-score indicator (`gamma_own_offfloor`). All natural-scale summaries must use `GainFactorsPayload.score_mean_link`. Hold out every transition of a child together for LOO (`loo_unit="child"`).
-- **`level_factors`** models per-wave levels without an own-baseline covariate. The default arm-gap reference is t1; `d_grp_time[t2]` is the randomised t2 change in the gap. Later changes compare randomised treatment schedules and have role `regime`. The free-reference specification is a comparator. Do not adjust the group contrast for contemporaneous measured skills, which may be post-treatment mediators.
-- **`aligned`** compares one intervention-aligned window per child, immediate t1→t3 and waitlist t2→t4. Age at onset, timing and window length (immediate windows average 1.3 months longer) confound the cohort contrast. Every term is an association; dose enters only the sensitivity variant.
+`tests/statistical_models/test_pipeline_boundaries.py` enforces these boundaries. ITT is the reference implementation. Read `METHODS.md` and the model catalogue (`docs/models/README.md`) before changing a family's scientific specification. `METHODS.md` governs the estimands, causal qualifications, missingness, floor outcomes, timing, mediation integration and prediction targets. Use each family's declared score link and reference population when computing summaries. A child random intercept does not identify a causal skill effect. Read the registered companion comparisons before interpreting link, covariance, prior or period sensitivities.
 
 **Phoneme blending.** Every registered `outcome_symbol="B"` fit requires its guessing-floor companion or a dated exemption. An unregistered family pairing fails closed. Both fits must pass their required checks, have matching resolved plans apart from the link and pairing fields, and match their current specifications. ITT uses a trace-backed content-addressed archive; the other seven paired families use stored-artefact checks. Source commit, dirty flag and environment lock are recorded but need not match across the pair. The concurrent comparison uses its marginals table; mediation uses its `total` row and applies the link to the outcome, not the mediator. Treated-only and moderation gain variants have recorded exemptions. See the scope decision (`notes/202608242000-blending-guessing-floor-scope-608.md`), binding amendment (`notes/202608252100-blending-pair-binding-608-decision-2.md`) and gain exemptions (`notes/202608251100-gain-blending-guessing-floor-596.md`).
 
@@ -187,7 +178,7 @@ Fit with `uv run python scripts/fit_statistical_model.py {model_id|all} --config
 
 ## Notebooks
 
-Notebooks in `notebooks/` use **Jupytext** (synced `.ipynb` and `.py:percent` formats). Edit either format; Jupytext keeps them in sync. Some legacy notebooks predate the pipeline refactor and still reference Random Forest — they will be updated separately.
+Notebooks in `notebooks/` use **Jupytext** (synced `.ipynb` and `.py:percent` formats). Edit either format; Jupytext keeps them in sync. Some notebooks predate the pipeline refactor and retain Random Forest analyses. Read them as historical exploratory work. Use the current fit pipelines and `METHODS.md` for analysis and interpretation.
 
 Notebooks reference a shared external package (`dse_research_utils`) for environment setup and metadata.
 
@@ -201,13 +192,12 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 
 ## Interpreting and reporting results
 
-Report direction and uncertainty — never a bare ranking or point estimate.
+Read `METHODS.md` before writing findings. State the direction, uncertainty, named quantity, fitted population and interpretation limits.
 
-- **Gradient boosting:** read the SHAP beeswarm (`output/models/{model_id}/shap_summary.png`) with the permutation-importance ranking; the two disagree, so state the direction.
-- **Bayesian:** check computation before interpretation. A clean pass requires R-hat ≤ 1.01, bulk/tail ESS ≥ 400, BFMI ≥ 0.3 and zero divergences. Only the trace- and estimand-bound policy in `METHODS.md` can permit a qualified exploratory result; a low divergence percentage is insufficient. Causal/model-of-record, mediation, floor/survival, nonlinear-shape, dose-heterogeneity, horseshoe-ranking, covariance and latent-structure results require zero divergences. Report the median, inner 50% and outer 89% equal-tailed credible intervals, and the named estimand's tail probability; no p-values. `notes/202607172359-credible-interval-standard.md` records the house convention. Positive τ means the intervention arm scores higher; causal interpretation requires the stated assumptions. Skill couplings and mediator-to-outcome terms are adjusted associations.
-- **Notes, issues, PRs:** write for a frequentist-leaning science reader; expand shorthand and read credible intervals in plain words; record decisions a future reader might question as a dated `notes/` note; verify citations and always include DOIs.
-
-Full rationale, workflow, conventions, glossary, and references: **`METHODS.md`**.
+- For boosting, read SHAP direction with permutation importance and held-out performance. A ranking alone does not describe a relationship or identify a causal effect.
+- For Bayesian results, check the complete publication decision before interpretation. A clean sampling pass requires R-hat ≤ 1.01, bulk and tail ESS ≥ 400, BFMI ≥ 0.3 and zero divergences. The trace- and estimand-specific qualification policy in `METHODS.md` is the only exception. A low divergence percentage is insufficient. The policy excludes causal/model-of-record, mediation, floor/survival, nonlinear-shape, dose-heterogeneity, horseshoe-ranking, covariance and latent-structure results.
+- Report the median, inner 50% and outer 89% equal-tailed credible intervals, and the named quantity's tail probability. Do not report p-values. Use each model's sign convention and state the assumptions needed for a causal reading. Skill couplings and mediator-to-outcome terms remain adjusted associations.
+- Write notes, issues and PRs for a science reader who knows frequentist statistics but may be new to Bayesian methods. Explain intervals in plain words, verify citations and include DOIs where available. Record decisions a future reader might question in a dated `notes/` note.
 
 ## AI-authored content labelling
 

@@ -1,5 +1,5 @@
 ---
-title: "LRP188: GP knee-test — taught-receptive vocabulary (TR) -> word reading (WR)"
+title: "LRP-RLI-MECH-188: GP knee-test, taught-receptive vocabulary (TR) -> word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,30 +25,19 @@ format:
 
 ## Overview
 
-LRP188 is a **GP knee-test**: a nonparametric (**HSGP**) re-attempt of the LRP88 mechanism, built
-to test whether the taught-receptive-vocabulary -> word-reading association has a **"knee"** the
-way [LRP58](../lrp-rli-mech-058) found for letter sounds.
+This model uses a Hilbert-space Gaussian process (HSGP) to estimate a smooth association between taught receptive vocabulary and word reading. The curve allows the slope to vary across the observed exposure range. It is a nonlinear companion to [MECH-088](../lrp-rli-mech-088/), which estimates a single slope.
 
-LRP88 was forced to a **linear** mechanism on the vocabulary-exposure precedent (LRP56/57), so its
-estimand is a single slope, not a shape. This variant switches the HSGP curve **back on** and lifts
-`target_accept` to **0.999** (per LRP58).
+The declared sampling target is `target_accept=0.999`. A high target can help sampling, but it does not guarantee convergence or validate a curve. Read the diagnostics for the current fit rather than carrying earlier run results into this report.
 
-_Non-convergence is itself the result._ A persisting divergence at `target_accept` 0.999 is the honest result and leaves the knee
-untestable for this exposure — check the gate badge above before reading any shape into the curve.
+**Sampling limit.** If the fit diverges, withhold the curve and its shape summaries. A sampling failure does not show that the association is linear or that no change in slope exists. Read the current publication decision before interpreting the curve.
 
 ## Adjustment set
 
-Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general
-ability ($GA$) held: $TR$'s observed confounders that also reach word reading are
-$\{A, HS, IG, IS, RW\}$; group $G\,(= IG)$ is the always-in precision term and $W_{\text{pre}}$ the
-autoregressive baseline.
+Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general ability ($GA$) held: $TR$'s measured common causes of the exposure and word reading are $\{A, HS, IG, IS, RW\}$; group $G\,(= IG)$ is the always-in precision term and $W_{\text{pre}}$ the autoregressive baseline.
 
-_Sessions added relative to LRP88._ This set **adds intervention sessions** ($IS$ = `attend`) relative to LRP88, which omitted it:
-$IS \to TR$ and $IS \to WR$ make sessions a genuine confounder of $TR \to W$ (the same adjuster
-LRP58 already carries for $L \to W$).
+_Sessions added relative to LRP88._ This set **adds intervention sessions** ($IS$ = `attend`) relative to LRP88, which omitted it: $IS \to TR$ and $IS \to WR$ make sessions a measured common cause in the stated DAG of $TR \to W$ (the same adjuster LRP58 already carries for $L \to W$).
 
-_Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^{TR}$ is an **adjusted
-association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
+_Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^{TR}$ is an **adjusted association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -12,7 +12,7 @@ Start with [the runnable script](../../scripts/learn_itt_model.py). The [report 
 From the repository root, install the declared environment and inspect predictions made before fitting:
 
 ```bash
-uv sync
+uv sync --locked
 uv run python scripts/learn_itt_model.py --prior-only
 ```
 
@@ -109,7 +109,7 @@ Do not substitute median coefficients before calculating the difference. For thr
 
 ## Extend the example one question at a time
 
-- Follow [the gain-factor family](../../src/language_reading_predictors/statistical_models/gain_factors.py) to see repeated transitions within children. Its child intercept represents partially pooled differences between children; it does not fully control latent ability. Its causal marginal uses the randomised first period, and predictive validation holds out children together.
+- Follow [the gain-factor family](../../src/language_reading_predictors/statistical_models/gain_factors.py) to see repeated transitions within children. Its child intercept represents partially pooled differences between children; it does not by itself control latent ability. Its causal marginal uses the randomised first period, and predictive validation holds out children together.
 - Follow [ITT-009](../../src/language_reading_predictors/statistical_models/lrp_rli_itt_009.py) to a heavily floored outcome. Check its declared likelihood and baseline rule before reusing a graded-score formula. A binary off-floor probability answers a different question from an expected item count.
 - Follow [the mediation calculation](../../src/language_reading_predictors/statistical_models/mediation.py). It integrates over a mediator distribution within each posterior draw, using an exact sum for finite counts or checked quadrature for normal mediators. That integration has its own numerical error, separate from posterior sampling error. Causal interpretation also needs assumptions about mediator-outcome confounding beyond randomised assignment.
 

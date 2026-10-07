@@ -1,5 +1,5 @@
 ---
-title: "LRP63base: Joint-readiness baseline (no interaction) — letter-sound (LS) + nonword decoding (NW) main effects -> word reading (WR)"
+title: "LRP-RLI-MECH-163: Joint-readiness baseline (no interaction), letter-sound (LS) + nonword decoding (NW) main effects -> word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,20 +25,9 @@ format:
 
 ## Overview
 
-LRP63base is the no-interaction companion to [LRP63](../lrp-rli-mech-063/). It uses the same
-outcome, data window and **HSGP** letter-sound mechanism $f^L$, and enters nonword decoding
-($N$) through the **same** moderator main effect $\gamma_{\text{mod}} z(N)$ as LRP63, with
-`include_interaction=False` dropping only the $\gamma_{\text{int}}$ ($L \times N$) term. The two
-models therefore differ by *exactly* the interaction, with an identical prior on the decoding
-main effect — a clean **nested** comparison.
+LRP63base is the no-interaction companion to [LRP63](../lrp-rli-mech-063/). It uses the same outcome, data window and **HSGP** letter-sound mechanism $f^L$, and enters nonword decoding ($N$) through the **same** moderator main effect $\gamma_{\text{mod}} z(N)$ as LRP63, with `include_interaction=False` dropping only the $\gamma_{\text{int}}$ ($L \times N$) term. The two models therefore differ by *exactly* the interaction, with an identical prior on the decoding main effect — a clean **nested** comparison.
 
-The purpose is model comparison: LRP63 versus LRP63base asks whether adding the letter-sound
-$\times$ decoding interaction improves predictive fit for word reading (PSIS-LOO). Because nonword
-decoding $N = \mathrm{NW}$ is a DAG-descendant of the exposure $L$, both models estimate a
-controlled-direct-**shaped** $L \to W$ association at fixed decoding — an adjusted association, not an identified controlled direct effect (#586 finding 10) — so the comparison is like-for-like.
-Decoding is $\approx 57\%$ floored, so the interaction the comparison tests is weakly powered and
-the LOO contrast is suggestive at best. All coefficients are latent-GA-confounded adjusted
-associations, not causal skill-to-skill effects.
+The purpose is model comparison: LRP63 versus LRP63base asks whether adding the letter-sound $\times$ decoding interaction improves predictive fit for word reading (PSIS-LOO). Because nonword decoding $N = \mathrm{NW}$ is a DAG-descendant of the exposure $L$, both models estimate a controlled-direct-**shaped** $L \to W$ association at fixed decoding — an adjusted association, not an identified controlled direct effect (#586 finding 10) — so the comparison is like-for-like. Decoding is $\approx 57\%$ floored, so the interaction the comparison tests is weakly powered and the LOO contrast is suggestive at best. All coefficients are latent-GA-confounded adjusted associations, not causal skill-to-skill effects.
 
 ## Model
 
@@ -42,8 +35,7 @@ $$
 \eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}}) + \gamma_{\text{mod}}\, z(N),
 $$
 
-the same as [LRP63](../lrp-rli-mech-063/) but without $\gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(N)$.
-The outcome is word reading (`WR`, `ewrswr`) with a Beta-Binomial likelihood.
+the same as [LRP63](../lrp-rli-mech-063/) but without $\gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(N)$. The outcome is word reading (`WR`, `ewrswr`) with a Beta-Binomial likelihood.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

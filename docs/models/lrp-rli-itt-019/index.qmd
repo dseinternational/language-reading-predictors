@@ -1,5 +1,5 @@
 ---
-title: "LRPITT19: Ability-adjusted available-case modified ITT estimate for not-taught receptive vocabulary (UR)"
+title: "LRP-RLI-ITT-019: Ability-adjusted available-case modified ITT estimate for not-taught receptive vocabulary (UR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,11 +25,7 @@ format:
 
 ## Overview
 
-LRPITT19 is the **general-ability-adjusted available-case modified ITT** analysis for not-taught receptive vocabulary, block 1 (b1rent) (`b1rent`)—
-the ability-robustness companion to LRPITT03, part of the LRPITT17-24 ability-adjusted
-family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
-nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The
-estimand is the assigned-arm contrast in $UR_{\text{post}}$ in the outcome-available fitted sample over the RCT phase. A causal reading requires archive, outcome and analytic-variable selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
+LRPITT19 is the **general-ability-adjusted available-case modified ITT** analysis for not-taught receptive vocabulary, block 1 (b1rent) (`b1rent`)— the ability-robustness companion to LRPITT03, part of the LRPITT17-24 ability-adjusted family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The estimand is the assigned-arm contrast in $UR_{\text{post}}$ in the outcome-available fitted sample over the RCT phase. A causal reading requires archive, outcome and analytic-variable selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
 _Why adjust for ability, and what it does (and does not) buy._ Block design is a child trait measured **before** randomisation, so it cannot cause assignment. This adjustment is a **precision / chance-imbalance robustness check**, not confounding control. Randomisation balances it at assignment in expectation, although observed-data selection can alter balance in a fitted subset. The immediate-intervention arm started about **0.27 SD higher** in block design, and block design is prognostic of the outcomes, so adjustment asks whether the offer contrast survives that chance head-start.
 
@@ -42,11 +42,7 @@ $$
        + \gamma_{\text{blocks}}\, z(\text{blocks}_i),
 $$
 
-with Beta-Binomial likelihood $UR_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 12$. Priors follow the shared template in `priors.py`.
-The block-design adjuster enters as a linear $\gamma_{\text{blocks}}$ term (the same
-weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by
-default.
+with Beta-Binomial likelihood $UR_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 12$. Priors follow the shared template in `priors.py`. The block-design adjuster enters as a linear $\gamma_{\text{blocks}}$ term (the same weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by default.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -1,5 +1,5 @@
 ---
-title: "RLMJC102: within-scale prior sensitivity for RLMJC02 — HalfNormal(1.0)"
+title: "LRP-RLM-JC-102: within-scale prior sensitivity for RLMJC02, HalfNormal(1.0)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Claude Code/Opus 5).

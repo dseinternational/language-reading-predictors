@@ -1,5 +1,5 @@
 ---
-title: "LRP67: What within-child changes predict reading change? (latent change-score model)"
+title: "LRP-RLI-LCSM-067: What within-child changes predict reading change? (latent change-score model)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,16 +25,9 @@ format:
 
 ## Overview
 
-LRP67 is the **within-child, longitudinal** complement to LRP65. LRP65 asks which
-baseline skills predict a child's overall word-reading *gain* (a between-child
-contrast). LRP67 unrolls that question over all four waves with a **latent
-change-score model (LCSM)**: for each wave-to-wave transition, does a child's
-prior-wave **letter-sound** and **vocabulary** standing predict their subsequent
-**reading** change?
+LRP67 is the **within-child, longitudinal** complement to LRP65. LRP65 asks which baseline skills predict a child's overall word-reading *gain* (a between-child contrast). LRP67 unrolls that question over all four waves with a **latent change-score model (LCSM)**: for each wave-to-wave transition, does a child's prior-wave **letter-sound** and **vocabulary** standing predict their subsequent **reading** change?
 
-This is "Approach 4" (process-over-time) from the modelling meeting, and one
-longitudinal triangulation point beside the between-child LRP65 model. The
-RI-CLPM companion was dropped as not estimable at this sample size.
+This is "Approach 4" (process-over-time) from the modelling meeting, and one longitudinal triangulation point beside the between-child LRP65 model. The RI-CLPM companion was dropped as not estimable at this sample size.
 
 _Symbol mapping (read before the table)._ The codebase `MEASURES` symbols differ from the handoff's R / L / V:
 
@@ -40,15 +37,11 @@ _Symbol mapping (read before the table)._ The codebase `MEASURES` symbols differ
 | Letter-sounds | **L** | `yarclet` | 32 |
 | Expressive vocabulary | **E** | `eowpvt` | 170 |
 
-`R` is **not** reading here — it is receptive vocabulary (`rowpvt`). The handoff's
-headline path "L → R over time" is the coefficient `g_L` (prior letter-sounds →
-reading change) below.
+`R` is **not** reading here — it is receptive vocabulary (`rowpvt`). The handoff's headline path "L → R over time" is the coefficient `g_L` (prior letter-sounds → reading change) below.
 
 ## Model structure
 
-For each measure $m \in \{W, L, E\}$, child $i$ and wave $t$, a latent logit
-true-score $x_m[i,t]$ accumulates change scores (a McArdle latent change-score
-model with **process noise**):
+For each measure $m \in \{W, L, E\}$, child $i$ and wave $t$, a latent logit true-score $x_m[i,t]$ accumulates change scores (a McArdle latent change-score model with **process noise**):
 
 $$
 x_m[i,t] = x_m[i,t-1] + \Delta_m[i,t],
@@ -63,14 +56,7 @@ $$
                     + d^{\text{age}}_W\,\text{age}[t-1].
 $$
 
-Letter-sounds and vocabulary changes follow a self-proportional form plus age. The
-intervention-dose covariate is **omitted** — it is the revised DAG's `IS` collider, so
-conditioning on it would reopen the latent-`GA` backdoor onto the `g_L`/`g_E` couplings
-(ID-3). Coupling coefficients are **time-invariant** (pooled across the three
-transitions) — a deliberate constraint at this sample size. Observed counts enter a
-**masked** Beta-Binomial so a child missing one score still contributes its other
-waves; $\kappa$ is measurement overdispersion, distinct from the dynamic
-$\sigma^{\text{proc}}$.
+Letter-sounds and vocabulary changes follow a self-proportional form plus age. The intervention-dose covariate is **omitted** — it is the revised DAG's `IS` collider, so conditioning on it would reopen the latent-`GA` backdoor onto the `g_L`/`g_E` couplings (ID-3). Coupling coefficients are **time-invariant** (pooled across the three transitions) — a deliberate constraint at this sample size. Observed counts enter a **masked** Beta-Binomial so a child missing one score still contributes its other waves; $\kappa$ is measurement overdispersion, distinct from the dynamic $\sigma^{\text{proc}}$.
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
 {{< include _partials/_results_lcsm.qmd >}}

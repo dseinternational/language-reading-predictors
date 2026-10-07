@@ -1,5 +1,5 @@
 ---
-title: "LRP70: Do verbal/reading trajectories grow together, and does baseline non-verbal ability predict the common tempo? (shared growth-tempo factor)"
+title: "LRP-RLI-GC-070: Do verbal/reading trajectories grow together, and does baseline non-verbal ability predict the common tempo? (shared growth-tempo factor)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,21 +25,14 @@ format:
 
 ## Overview
 
-LRP70 is the **shared growth-tempo** companion to LRP69 (issue #187, Q5). It keeps
-LRP69's joint growth-curve structure and adds a rank-1 **shared child-level
-growth-tempo factor** $G_i \sim \mathrm{Normal}(0,1)$ loading (positively, for
-identification) on every measure's slope. This is the genuinely *joint* layer — it
-tests two questions the independent-core LRP69 cannot:
+LRP70 is the **shared growth-tempo** companion to LRP69 (issue #187, Q5). It keeps LRP69's joint growth-curve structure and adds a rank-1 **shared child-level growth-tempo factor** $G_i \sim \mathrm{Normal}(0,1)$ loading (positively, for identification) on every measure's slope. This is the genuinely *joint* layer — it tests two questions the independent-core LRP69 cannot:
 
 1. **Do the measures grow together?** The loadings $\lambda_m$ say how strongly each
    measure's growth rate tracks a common developmental tempo.
 2. **Does baseline non-verbal ability predict the common tempo?** Read out post-hoc
    as the correlation between each child's latent tempo and their block-design score.
 
-`LOO(LRP69 vs LRP70)` shows whether the shared tempo earns its keep at n≈54. If
-LRP70 will not sample cleanly, LRP69 is the primary deliverable and the factor is
-reported as not estimable at this sample size (as the RI-CLPM companion was for
-LRP67).
+`LOO(LRP69 vs LRP70)` shows whether the shared tempo earns its keep at n≈54. If LRP70 will not sample cleanly, LRP69 is the primary deliverable and the factor is reported as not estimable at this sample size (as the RI-CLPM companion was for LRP67).
 
 _The shared-factor loadings are sign-constrained._ Each loading $\lambda_m$ is given a positive-only (`HalfNormal`) prior for identification, so a loading reported at posterior P(> 0) = 1.0 ("very strong") is a mechanical consequence of that constraint, not evidence that the measure loads strongly on the common tempo. Read the loading _magnitudes_ — and the tempo↔ability correlation, which is unconstrained — rather than the direction or its probability.
 
@@ -49,8 +46,7 @@ _Symbol mapping (read before the tables)._
 | Word reading | **W** | `ewrswr` | 79 |
 | Letter-sound knowledge | **L** | `yarclet` | 32 |
 
-Non-verbal ability is **block design** (`blocks`), recorded at t1 only, complete
-for all 54 children.
+Non-verbal ability is **block design** (`blocks`), recorded at t1 only, complete for all 54 children.
 
 ## Model structure
 
@@ -62,12 +58,7 @@ $$
 \qquad G_i \sim \mathrm{Normal}(0,1),\;\; \lambda_m \ge 0.
 $$
 
-$\gamma_m$ is now the block-design → growth-rate association **incremental to** the
-common tempo; $\lambda_m$ is the tempo loading; the intercept, the masked
-Beta-Binomial likelihood and the omitted dose covariate are unchanged from LRP69.
-The positive-loading constraint identifies the factor's sign (higher $G$ = faster
-growth on every measure); it is a parsimonious rank-1 stand-in for cross-measure
-slope covariation, **not** an identified general-ability construct.
+$\gamma_m$ is now the block-design → growth-rate association **incremental to** the common tempo; $\lambda_m$ is the tempo loading; the intercept, the masked Beta-Binomial likelihood and the omitted dose covariate are unchanged from LRP69. The positive-loading constraint identifies the factor's sign (higher $G$ = faster growth on every measure); it is a parsimonious rank-1 stand-in for cross-measure slope covariation, **not** an identified general-ability construct.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

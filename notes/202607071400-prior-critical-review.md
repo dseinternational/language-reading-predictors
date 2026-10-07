@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -9,10 +12,7 @@ Date: 2026-07-07
 
 ## Purpose and relation to #141
 
-Issue #141 audited the priors, fixed the `priors_table` completeness gaps, and shipped
-the **two-tier τ** (proximal `Normal(0, 0.5)` / distal `Normal(0, 0.3)`) with a
-sensitivity sweep. That work is sound and this review builds on it rather than
-repeating it. The value added here is threefold:
+Issue #141 audited the priors, fixed the `priors_table` completeness gaps, and shipped the **two-tier τ** (proximal `Normal(0, 0.5)` / distal `Normal(0, 0.3)`) with a sensitivity sweep. That work is sound and this review builds on it rather than repeating it. The value added here is threefold:
 
 1. **Interrogate the shared priors #141 largely accepted** — the intercept `alpha`,
    the own-baseline coupling `gamma_own`, and the dispersion `kappa` — with an
@@ -26,32 +26,17 @@ repeating it. The value added here is threefold:
 3. **Cross-family consistency** — do the shared priors mean the same thing
    everywhere, and are the newer families coherent with the ITT baseline?
 
-Scope: this covers every prior-bearing **Bayesian** family (priors are set per family,
-not per model, so `lrpitt01–24` etc. are one review each). The 50 Layer-1
-gradient-boosting models have LightGBM hyperparameters, not Bayesian priors; they are
-outside a prior review but reviewed in a delineated appendix on request.
+Scope: this covers every prior-bearing **Bayesian** family (priors are set per family, not per model, so `lrpitt01–24` etc. are one review each). The 50 Layer-1 gradient-boosting models have LightGBM hyperparameters, not Bayesian priors; they are outside a prior review but reviewed in a delineated appendix on request.
 
-Provenance constraint from #141 still binds: `data/rli_data_long.csv` **is** the
-Burgoyne et al. (2012) trial dataset, so that publication cannot set the _scale_ of
-any effect prior (double-counting); it may only fix measurement facts. Priors are
-Bayesian; the frequentist-reader bridge is in
-`notes/202606261304-evidence-strength-and-rope-reporting.md`.
+Provenance constraint from #141 still binds: `data/rli_data_long.csv` **is** the Burgoyne et al. (2012) trial dataset, so that publication cannot set the _scale_ of any effect prior (double-counting); it may only fix measurement facts. Priors are Bayesian; the frequentist-reader bridge is in `notes/202606261304-evidence-strength-and-rope-reporting.md`.
 
 ## Method
 
-For each family: (a) read the registered priors off a built model (role + scale, via
-`priors.py`); (b) translate each coefficient to the **items scale** through each
-outcome's real Beta-Binomial denominator; (c) **prior-predictive pushforward** — draw
-from the prior and push through the actual likelihood on the real baseline data,
-comparing the implied post-score distribution to what DS children actually score.
-A prior that is weakly-informative on the logit scale can be wildly informative on the
-items scale of a long test — the recurring theme.
+For each family: (a) read the registered priors off a built model (role + scale, via `priors.py`); (b) translate each coefficient to the **items scale** through each outcome's real Beta-Binomial denominator; (c) **prior-predictive pushforward** — draw from the prior and push through the actual likelihood on the real baseline data, comparing the implied post-score distribution to what DS children actually score. A prior that is weakly-informative on the logit scale can be wildly informative on the items scale of a long test — the recurring theme.
 
 ## ITT suite (`build_itt_model`) — the LRPITT family
 
-Registered priors (LRPITT config: own baseline + linear age, empty cross/adjust set):
-`alpha ~ Normal(0, 1.5)`, `tau ~ Normal(0, 0.5|0.3)` [tiered, #141], `gamma_own ~
-Normal(1, 0.5)`, `gamma_A ~ Normal(0, 0.3)`, `kappa ~ HalfNormal(50)`.
+Registered priors (LRPITT config: own baseline + linear age, empty cross/adjust set): `alpha ~ Normal(0, 1.5)`, `tau ~ Normal(0, 0.5|0.3)` [tiered, #141], `gamma_own ~ Normal(1, 0.5)`, `gamma_A ~ Normal(0, 0.3)`, `kappa ~ HalfNormal(50)`.
 
 ### Prior-predictive pushforward (dev data, n = 53, 1000 draws)
 
@@ -65,13 +50,7 @@ Implied post-count distribution vs what children actually score:
 
 ### Finding 1 (headline) — the _intercept_ `alpha ~ Normal(0, 1.5)` is not scale-invariant, and #141 tiered only τ
 
-On the 170-item receptive-vocabulary test the ITT prior implies post-scores spanning
-**0 to 148 items (SD 48)**, where DS children occupy 15–68 (SD 12). The dominant
-driver is **not** τ (which #141 already tightened) but the intercept: near the
-operating point (p ≈ 0.25 on R) the item count changes ≈ 36 items per logit, so
-`alpha`'s ±1.5-logit (1 SD) prior alone sweeps ≈ ±50 items — essentially flat across
-the whole plausible range. This is exactly the non-invariance #141 diagnosed for τ,
-but for the intercept, and it was left at a common `Normal(0, 1.5)` for every outcome.
+On the 170-item receptive-vocabulary test the ITT prior implies post-scores spanning **0 to 148 items (SD 48)**, where DS children occupy 15–68 (SD 12). The dominant driver is **not** τ (which #141 already tightened) but the intercept: near the operating point (p ≈ 0.25 on R) the item count changes ≈ 36 items per logit, so `alpha`'s ±1.5-logit (1 SD) prior alone sweeps ≈ ±50 items — essentially flat across the whole plausible range. This is exactly the non-invariance #141 diagnosed for τ, but for the intercept, and it was left at a common `Normal(0, 1.5)` for every outcome.
 
 **Recommendation.** Two coherent options, both defensible:
 
@@ -85,68 +64,31 @@ but for the intercept, and it was left at a common `Normal(0, 1.5)` for every ou
   (e.g. `Normal(0, 1.0)` for R/E), keeping the probability-scale coverage sensible
   without the 0–170-item sweep.
 
-The distal outcomes are already ~null (sweep in #141 §5a), so this cannot suppress a
-real effect — it only stops the prior asserting implausibly dispersed item-scale
-scores, and it makes the prior-predictive checks (which the report should show) look
-sane on the long tests.
+The distal outcomes are already ~null (sweep in #141 §5a), so this cannot suppress a real effect — it only stops the prior asserting implausibly dispersed item-scale scores, and it makes the prior-predictive checks (which the report should show) look sane on the long tests.
 
 ### Finding 2 — `gamma_own ~ Normal(1, 0.5)` is the one prior informative in its _mean_, and its SD is loose
 
-`gamma_own` is centred at 1 (post-logit tracks pre-logit 1:1, i.e. **no regression to
-the mean**) with SD 0.5 (95% ≈ 0 to 2: from no tracking to double). It is a _precision_
-term, so it cannot bias τ — but it materially inflates the item-scale prior spread on
-long tests (Finding 1), and #141's own recommendation (open decision 3) to anchor it
-against published test–retest reliabilities (typically r ≈ 0.8–0.95 at these ages)
-remains open. A retest r ≈ 0.9 supports keeping the mean near 1 but **tightening
-the SD to ≈ 0.25**. This is the single most-informative coefficient prior in the suite
-and the cheapest calibration win: the reliabilities are an admissible external source
-(test manuals), unlike the trial data.
+`gamma_own` is centred at 1 (post-logit tracks pre-logit 1:1, i.e. **no regression to the mean**) with SD 0.5 (95% ≈ 0 to 2: from no tracking to double). It is a _precision_ term, so it cannot bias τ — but it materially inflates the item-scale prior spread on long tests (Finding 1), and #141's own recommendation (open decision 3) to anchor it against published test–retest reliabilities (typically r ≈ 0.8–0.95 at these ages) remains open. A retest r ≈ 0.9 supports keeping the mean near 1 but **tightening the SD to ≈ 0.25**. This is the single most-informative coefficient prior in the suite and the cheapest calibration win: the reliabilities are an admissible external source (test manuals), unlike the trial data.
 
 ### Finding 3 — the graded proximal outcomes carry heavy prior floor mass
 
-40% of the W prior-predictive mass sits exactly at 0. For genuinely floored outcomes
-(P, N) the suite already switches to the off-floor Bernoulli estimand (good — the
-item-scale concern does not apply there). But W is modelled graded, and a prior that
-puts 40% of children at exactly zero word-reading is a strong floor assertion baked in
-before the data. It is _defensible_ for DS word reading, and it is downstream of
-Finding 1/2 (fix those and the floor mass falls), but it is worth a prior-predictive
-panel in the report so the floor concentration is visible, not implicit.
+40% of the W prior-predictive mass sits exactly at 0. For genuinely floored outcomes (P, N) the suite already switches to the off-floor Bernoulli estimand (good — the item-scale concern does not apply there). But W is modelled graded, and a prior that puts 40% of children at exactly zero word-reading is a strong floor assertion baked in before the data. It is _defensible_ for DS word reading, and it is downstream of Finding 1/2 (fix those and the floor mass falls), but it is worth a prior-predictive panel in the report so the floor concentration is visible, not implicit.
 
 ### Finding 4 — `kappa ~ HalfNormal(50)` is permissive but under-anchored, not a red flag
 
-The prior-predictive over-dispersion above is location-driven (α + baseline coupling),
-not `kappa`: median prior κ ≈ 33 (near-binomial to moderate over-dispersion), tail to
-≈ 98. HalfNormal(50) does allow small κ (real over-dispersion) so it is not obviously
-mis-scaled, but its scale (50) is arbitrary and #141 flagged the normative raw-score
-SDs as the admissible, still-unused anchor for it. Lower priority than α/`gamma_own`;
-revisit only if a posterior-predictive dispersion check shows misfit.
+The prior-predictive over-dispersion above is location-driven (α + baseline coupling), not `kappa`: median prior κ ≈ 33 (near-binomial to moderate over-dispersion), tail to ≈ 98. HalfNormal(50) does allow small κ (real over-dispersion) so it is not obviously mis-scaled, but its scale (50) is arbitrary and #141 flagged the normative raw-score SDs as the admissible, still-unused anchor for it. Lower priority than α/`gamma_own`; revisit only if a posterior-predictive dispersion check shows misfit.
 
 ### Finding 5 — ceiling censoring on the short tests (L, and T)
 
-Observed letter-sounds uses **97%** of its 32-item scale (max 31/32); grammar (T) and
-blending (B) are similar. A Beta-Binomial has no ceiling-censoring term, so children at
-or near the maximum compress the measured effect — a measurement caveat that touches
-τ, the growth-curve slopes (already flagged for `lrp69`/`lrp70`), and any item-scale
-translation. Not a prior mis-specification per se, but the priors interact with it
-(the floor/ceiling both truncate the pushforward), so it belongs in the same audit and
-should be stated in the report's measurement caveats.
+Observed letter-sounds uses **97%** of its 32-item scale (max 31/32); grammar (T) and blending (B) are similar. A Beta-Binomial has no ceiling-censoring term, so children at or near the maximum compress the measured effect — a measurement caveat that touches τ, the growth-curve slopes (already flagged for `lrp69`/`lrp70`), and any item-scale translation. Not a prior mis-specification per se, but the priors interact with it (the floor/ceiling both truncate the pushforward), so it belongs in the same audit and should be stated in the report's measurement caveats.
 
 ### What ITT gets right
 
-The **two-tier τ** (#141) is well-judged and sensitivity-checked; the **role
-discipline** (only τ causal; `gamma_own`/`gamma_A` precision; adjusters association) is
-clean and machine-checked (`test_prior_inventory`); the **empty adjustment set** under
-the locked DAG is correct; the **HSGP amplitude tightening** to `HalfNormal(0.3)` is a
-sound, documented response to the LRP52 funnel (it trades flexibility for
-identifiability at n ≈ 54 — a reasonable call, though worth a one-line note that it
-_does_ cap the age nonlinearity the GP can express). The intercept and `gamma_own`
-calibration (Findings 1–2) are the substantive gaps.
+The **two-tier τ** (#141) is well-judged and sensitivity-checked; the **role discipline** (only τ causal; `gamma_own`/`gamma_A` precision; adjusters association) is clean and machine-checked (`test_prior_inventory`); the **empty adjustment set** under the locked DAG is correct; the **HSGP amplitude tightening** to `HalfNormal(0.3)` is a sound, documented response to the LRP52 funnel (it trades flexibility for identifiability at n ≈ 54 — a reasonable call, though worth a one-line note that it _does_ cap the age nonlinearity the GP can express). The intercept and `gamma_own` calibration (Findings 1–2) are the substantive gaps.
 
 ## Families that reuse the shared priors (joint, factors, DiD, aligned, adjusted, mechanism, mediation)
 
-These inherit `alpha`, `gamma_own`, `kappa` unchanged, so **Findings 1–2 apply to all
-of them** — the item-scale non-invariance of the free intercept and the loose
-`gamma_own` is a _suite-wide_ property, not an ITT quirk. Family-specifics:
+These inherit `alpha`, `gamma_own`, `kappa` unchanged, so **Findings 1–2 apply to all of them** — the item-scale non-invariance of the free intercept and the loose `gamma_own` is a _suite-wide_ property, not an ITT quirk. Family-specifics:
 
 - **Joint (LRPITT12/15):** per-outcome `alpha`/`tau`/`gamma_own` vectors; keeps the
   **common** `tau ~ Normal(0, 0.5)` (deliberately _not_ per-outcome-tiered — #141
@@ -177,10 +119,7 @@ HalfNormal(0.5)`; associations at 0.3. Clean reuse.
   **third instance of the 0.3-vs-0.5 association drift** (§ below) — looser than
   `gamma_cross` 0.3, and #141 already lists `predictor_slope` for a `{0.3, 0.7}` sweep.
 
-→ **`beta_mech` / `b_path` at `Normal(0, 1)`** remain the loosest coefficient priors
-(a +1 SD move ≈ ×2.7 odds; empirically, at a mid-scale baseline the induced outcome
-shift is Δp ≈ ±0.16 median, ±0.38 at p95 — see the per-family pushforward below) —
-#141's flagged second sensitivity candidate after τ, still open.
+→ **`beta_mech` / `b_path` at `Normal(0, 1)`** remain the loosest coefficient priors (a +1 SD move ≈ ×2.7 odds; empirically, at a mid-scale baseline the induced outcome shift is Δp ≈ ±0.16 median, ±0.38 at p95 — see the per-family pushforward below) — #141's flagged second sensitivity candidate after τ, still open.
 
 ## Families that postdate #141 (never critically audited)
 
@@ -232,14 +171,11 @@ Normal(0, 0.3)`; growth + LCSM use 0.5 for their couplings/associations. Pick on
    (mechanism/DiD/factors/horseshoe) vs `sigma_subject` / `re_intercept ~
 HalfNormal(1.0)` (historical growth, growth). Reconcile or document.
 
-Plus: **`kappa ~ HalfNormal(50)` is universal** (good consistency) but universally
-under-anchored — the normative raw-score SDs (#141's admissible, still-unused source)
-would calibrate it once, everywhere.
+Plus: **`kappa ~ HalfNormal(50)` is universal** (good consistency) but universally under-anchored — the normative raw-score SDs (#141's admissible, still-unused source) would calibrate it once, everywhere.
 
 ## Empirical extension — all-families pushforward (anchored vs unanchored)
 
-Running the pushforward across families sharpens Finding 1 and **corrects** one earlier
-claim. Two contrasting families (dev data, 400 draws):
+Running the pushforward across families sharpens Finding 1 and **corrects** one earlier claim. Two contrasting families (dev data, 400 draws):
 
 | Family (intercept)                           | scale            | observed (med, SD, occupancy) | prior-pred (med, p95, SD)           |
 | -------------------------------------------- | ---------------- | ----------------------------- | ----------------------------------- |
@@ -264,9 +200,7 @@ claim. Two contrasting families (dev data, 400 draws):
 
 ### Per-family pushforward — the bespoke coefficient priors
 
-The three families with priors _not_ shared with ITT (their inherited
-`alpha`/`gamma_own`/`kappa` are already covered above) were checked by sampling each
-bespoke prior in isolation (200 k draws; LKJ via a standalone `sample_prior_predictive`):
+The three families with priors _not_ shared with ITT (their inherited `alpha`/`gamma_own`/`kappa` are already covered above) were checked by sampling each bespoke prior in isolation (200 k draws; LKJ via a standalone `sample_prior_predictive`):
 
 | Prior (family)                               | quantity pushed forward                         | result                                                                      |
 | -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
@@ -311,10 +245,7 @@ bespoke prior in isolation (200 k draws; LKJ via a standalone `sample_prior_pred
    (floor/ceiling mass, item-scale spread) to the reports so the pushforward is
    visible, not implicit.
 
-None of these change the current substantive conclusions (distal outcomes null,
-proximal effects keep direction — #141 §5a); they improve item-scale plausibility,
-cross-family coherence, and defensibility to a critical reader. Each is a self-
-contained follow-up that can land behind the existing shared-constructor seam.
+None of these change the current substantive conclusions (distal outcomes null, proximal effects keep direction — #141 §5a); they improve item-scale plausibility, cross-family coherence, and defensibility to a critical reader. Each is a self- contained follow-up that can land behind the existing shared-constructor seam.
 
 ## Prior provenance and anti-double-dipping
 
@@ -340,16 +271,7 @@ This is an exploratory **reanalysis of already-reported data** — `data/rli_dat
 
 ## Appendix — Layer-1 gradient-boosting models: hyperparameters, not priors
 
-The 50 LightGBM models (`lrpgbg01–22` gain, `lrpgbl01–28` level) are frequentist and
-have **no Bayesian priors**, so they fall outside a _prior_ review. Reviewed here on
-request because they are part of the modelling suite; the analogue of "prior
-specification" is the **regularisation regime** — the committed LightGBM
-hyperparameters. Each model is tuned _independently_ (per-model Optuna, MAE objective,
-GroupKFold `cv ≈ 51–53`), so unlike the Bayesian side (priors set once per family)
-there are 50 separate regimes. Observed spread across the 50: `num_leaves` 10–63
-(median 38), `max_depth` 3–12 (median 6), `min_child_samples` 4–37 (median 10),
-`learning_rate` 0.012–0.19 (median 0.064), `n_estimators` 5–580 (median 66),
-`reg_alpha`/`reg_lambda` 0.001–9 (median ≈ 0.04).
+The 50 LightGBM models (`lrpgbg01–22` gain, `lrpgbl01–28` level) are frequentist and have **no Bayesian priors**, so they fall outside a _prior_ review. Reviewed here on request because they are part of the modelling suite; the analogue of "prior specification" is the **regularisation regime** — the committed LightGBM hyperparameters. Each model is tuned _independently_ (per-model Optuna, MAE objective, GroupKFold `cv ≈ 51–53`), so unlike the Bayesian side (priors set once per family) there are 50 separate regimes. Observed spread across the 50: `num_leaves` 10–63 (median 38), `max_depth` 3–12 (median 6), `min_child_samples` 4–37 (median 10), `learning_rate` 0.012–0.19 (median 0.064), `n_estimators` 5–580 (median 66), `reg_alpha`/`reg_lambda` 0.001–9 (median ≈ 0.04).
 
 - **Stale/borrowed hyperparameters — already tracked by #169.** Six modules
   (`lrpgbg03/04/11`, `lrpgbl03/04/11`) carry no per-model tuning block; their params are
@@ -378,7 +300,4 @@ there are 50 separate regimes. Observed spread across the 50: `num_leaves` 10–
   on a tiny sample — which is exactly why #169's _reviewed, consistent_ retune is the
   right remediation.
 
-**Bottom line for the GB layer:** there is no prior to critique; the analogues of
-prior mis-specification are (a) the stale/borrowed hyperparameters and (b) the
-`num_leaves`/`max_depth` coupling — (a) is already #169, and (b) plus a tuning-to-noise
-guard should be folded into that same retune.
+**Bottom line for the GB layer:** there is no prior to critique; the analogues of prior mis-specification are (a) the stale/borrowed hyperparameters and (b) the `num_leaves`/`max_depth` coupling — (a) is already #169, and (b) plus a tuning-to-noise guard should be folded into that same retune.

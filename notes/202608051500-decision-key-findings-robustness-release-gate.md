@@ -73,7 +73,7 @@ The per-fit checks deliberately do not call `evaluate_standard_sensitivity`. Tha
 
 No estimand, prior, likelihood, analysis population or sampling setting moves. Nothing is refitted. The gate reads artefacts already in the output directory, so it can be applied to stored fits by regenerating their key findings.
 
-The expected practical consequence on the current suite is **small, and concentrated where it should be**. `notes/202607261700-psense-coverage-backfill.md` measured every available-case modified ITT headline `tau`: 28 clear, 15 potential prior-data conflict, and **zero** in the prior-dominant class. Under this policy the 15 are released with an attenuation note, not withheld. The models this actually bites are the P/N floor primaries missing their grid — which is the case #392 raised.
+The expected practical consequence on the current suite is **small, and concentrated where it should be**. [historical record](https://github.com/dseinternational/language-reading-predictors/blob/043c72db2211b9cf067fd8d1b076fda8fe597dc9/notes/202607261700-psense-coverage-backfill.md) measured every available-case modified ITT headline `tau`: 28 clear, 15 potential prior-data conflict, and **zero** in the prior-dominant class. Under this policy the 15 are released with an attenuation note, not withheld. The models this actually bites are the P/N floor primaries missing their grid — which is the case #392 raised.
 
 ## Scope, and what is deliberately left
 
@@ -81,4 +81,4 @@ ITT only, including the floored P/N primaries — the family #392 reviewed. The 
 
 ## Related
 
-#392 (the review and the three options), #381 (power-scaling coverage, and the measured-versus-unmeasured distinction this rests on), #382 (the sensitivity refits that would supply lifting evidence), #464 (why a note must not be appended past the five-sentence cap — it silently drops the causal sentence), `notes/202607261700-psense-coverage-backfill.md` (the per-family measurement quoted above).
+#392 (the review and the three options), #381 (power-scaling coverage, and the measured-versus-unmeasured distinction this rests on), #382 (the sensitivity refits that would supply lifting evidence), #464 (why a note must not be appended past the five-sentence cap — it silently drops the causal sentence), [historical record](https://github.com/dseinternational/language-reading-predictors/blob/043c72db2211b9cf067fd8d1b076fda8fe597dc9/notes/202607261700-psense-coverage-backfill.md) (the per-family measurement quoted above).

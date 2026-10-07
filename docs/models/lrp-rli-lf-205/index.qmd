@@ -1,5 +1,5 @@
 ---
-title: "LRPLF205: Factors associated with the level of phonetic spelling (PS), off-floor — randomised-window (t1/t2) comparator"
+title: "LRP-RLI-LF-205: Factors associated with the level of phonetic spelling (PS), off-floor, randomised-window (t1/t2) comparator"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -29,20 +33,7 @@ Read the four-wave report for the levels view across all four timepoints — sho
 
 LRPLF205 is the **level-factors** model for phonetic spelling (`spphon`).
 
-_Off-floor likelihood + level-model crossover caveat._ Phonetic spelling is heavily floored, so the level outcome is the **off-floor
-indicator** (score $> 0$) at each timepoint, modelled by a Bernoulli; the linear
-predictor is the log-odds of being off the floor. `group x time` is a per-timepoint
-off-floor log-odds gap for the group, parameterised as the adjusted t1 gap
-(`arm_gap_t1`, a pre-randomisation *balance* quantity, never an effect) plus the
-change in that gap at each later wave (`d_grp_time[t]`; #552); after t2 the waitlist
-crosses over, so the **clean randomised contrast lives only at t2** — the t2 change
-`d_grp_time[t2]`, a difference-in-differences of adjusted off-floor log-odds,
-labelled *causal*; the only later wave in this fit is t2, so the model carries `arm_gap_t1` and `d_grp_time[t2]` alone — the post-crossover waves are not fitted here at all, which is the point of the comparator. Under the revised DAG (`dag/dag-language-reading.dagitty`, revised
-2026-07-10) measured skill parents are **deliberately excluded** as post-treatment
-mediators of the group×time effect; only the revised-DAG confounder phonological
-memory (RW = `erbto`) — with a missing-indicator — enters as an adjuster.
-`ability x time` and `group x ability` complete the focal set. SES excluded
-(non-DAG / redundant).
+_Off-floor likelihood + level-model crossover caveat._ Phonetic spelling is heavily floored, so the level outcome is the **off-floor indicator** (score $> 0$) at each timepoint, modelled by a Bernoulli; the linear predictor is the log-odds of being off the floor. `group x time` is a per-timepoint off-floor log-odds gap for the group, parameterised as the adjusted t1 gap (`arm_gap_t1`, a pre-randomisation *balance* quantity, never an effect) plus the change in that gap at each later wave (`d_grp_time[t]`; #552); after t2 the waitlist crosses over, so the **clean randomised contrast lives only at t2** — the t2 change `d_grp_time[t2]`, a difference-in-differences of adjusted off-floor log-odds, labelled *causal*; the only later wave in this fit is t2, so the model carries `arm_gap_t1` and `d_grp_time[t2]` alone — the post-crossover waves are not fitted here at all, which is the point of the comparator. Under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10) measured skill parents are **deliberately excluded** as post-treatment mediators of the group×time effect; only the revised-DAG confounder phonological memory (RW = `erbto`) — with a missing-indicator — enters as an adjuster. `ability x time` and `group x ability` complete the focal set. SES excluded (non-DAG / redundant).
 
 ## Model
 
@@ -54,10 +45,7 @@ $$
   + \sum_{c}\gamma_c\,z(c) + u_{\text{child}}.
 $$
 
-Here $\sum_{c}\gamma_c\,z(c)$ is the standardised revised-DAG confounder
-phonological memory (RW = `erbto`), with a missing-indicator; measured skill parents
-are excluded as post-treatment mediators. No `kappa` under the Bernoulli. Priors:
-shared template in `priors.py`.
+Here $\sum_{c}\gamma_c\,z(c)$ is the standardised revised-DAG confounder phonological memory (RW = `erbto`), with a missing-indicator; measured skill parents are excluded as post-treatment mediators. No `kappa` under the Bernoulli. Priors: shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

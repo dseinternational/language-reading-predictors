@@ -1,5 +1,5 @@
 ---
-title: "LRPPL002: Wave-pooled level association — letter sounds to nonword decoding"
+title: "LRP-RLI-PL-002: Wave-pooled level association, letter sounds to nonword decoding"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -35,8 +39,7 @@ $$
   + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}}
 $$
 
-where $z_{it}$ is the standardised exposure logit at wave $t$ and $\bar z_i$ its
-child mean. There is deliberately no own-baseline term.
+where $z_{it}$ is the standardised exposure logit at wave $t$ and $\bar z_i$ its child mean. There is deliberately no own-baseline term.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

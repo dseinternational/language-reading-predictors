@@ -1,5 +1,5 @@
 ---
-title: "LRPGBG15: Predictors of receptive-grammar (TROG-2) gains"
+title: "LRP-RLI-GBG-015: Predictors of receptive-grammar (TROG-2) gains"
 
 format:
   html:
@@ -42,23 +42,13 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG15 models **gains in receptive-grammar (TROG-2)** scores (`trog_gain`)
-between consecutive longitudinal timepoints. The target is `trog_gain` --- the
-change in `trog` score between assessments. The `trog` score is the items-
-correct total from the Test for Reception of Grammar 2 (TROG-2; Bishop 2003),
-covering eight grammatical constructs in blocks of four items. All observations
-are included (no outlier exclusion) so the full range of outcomes informs the
-model.
+LRPGBG15 models **gains in receptive-grammar (TROG-2)** scores (`trog_gain`) between consecutive longitudinal timepoints. The target is `trog_gain` --- the change in `trog` score between assessments. The `trog` score is the items- correct total from the Test for Reception of Grammar 2 (TROG-2; Bishop 2003), covering eight grammatical constructs in blocks of four items. All observations are included (no outlier exclusion) so the full range of outcomes informs the model.
 
-The target is **mildly left-skewed** (skew −0.17) with 34% negative and ~8%
-zero observations.
+The target is **mildly left-skewed** (skew −0.17) with 34% negative and ~8% zero observations.
 
-This is a **baseline exploratory model** for the gain-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full
-`Predictors.DEFAULT_GAIN` set (`trog` is already a level predictor in that
-set). Later variants will have a documented starting point for comparison.
+This is a **baseline exploratory model** for the gain-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_GAIN` set (`trog` is already a level predictor in that set). Later variants will have a documented starting point for comparison.
 
-Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
-prevent data leakage across timepoints for the same child.
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
 
 This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
@@ -136,8 +126,7 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
-The predictor set spans demographics, cognitive assessments, language, speech
-and reading measures.
+The predictor set spans demographics, cognitive assessments, language, speech and reading measures.
 
 ### Target variable
 
@@ -246,22 +235,17 @@ The box plot shows the variation across shuffles. Positive importance means shuf
 
 ### Predictor-relationship diagnostics
 
-The following plots show inter-predictor relationships and are the main lens
-for identifying redundant predictors that inform the ranking clusters.
+The following plots show inter-predictor relationships and are the main lens for identifying redundant predictors that inform the ranking clusters.
 
 #### Distance-correlation dendrogram
 
-Distance correlation captures both linear and non-linear associations between
-predictors. The dendrogram (average linkage on 1 − distance correlation) groups
-predictors that share information.
+Distance correlation captures both linear and non-linear associations between predictors. The dendrogram (average linkage on 1 − distance correlation) groups predictors that share information.
 
 ![Distance-correlation dendrogram](distance_corr_dendrogram.png){#fig-dcorr-dendrogram .lightbox fig-align="left"}
 
 #### Distance-correlation heatmap
 
-Pairwise distance correlations (0 = independent, 1 = perfectly dependent).
-Distance correlation has no sign --- it captures association strength regardless
-of direction.
+Pairwise distance correlations (0 = independent, 1 = perfectly dependent). Distance correlation has no sign --- it captures association strength regardless of direction.
 
 ![Distance-correlation heatmap](distance_corr_heatmap.png){#fig-dcorr-heatmap .lightbox fig-align="left"}
 
@@ -273,21 +257,17 @@ Spearman rank correlations show monotonic relationships between predictors.
 
 #### Mutual information
 
-Mutual information (displayed as 1 − dissimilarity) captures arbitrary
-dependencies, including non-monotonic relationships that Spearman misses.
+Mutual information (displayed as 1 − dissimilarity) captures arbitrary dependencies, including non-monotonic relationships that Spearman misses.
 
 ![Mutual information heatmap](mutual_info_heatmap.png){#fig-mi .lightbox fig-align="left"}
 
 ### SHAP analysis
 
-[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into the contribution of each feature, providing both
-global and local interpretability.
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values decompose each prediction into the contribution of each feature, providing both global and local interpretability.
 
 #### Global feature importance (bar)
 
-Mean absolute SHAP values across all observations, showing the average magnitude
-of each feature's contribution to predictions.
+Mean absolute SHAP values across all observations, showing the average magnitude of each feature's contribution to predictions.
 
 The bar plots show the ten predictors with the largest mean |SHAP| and collapse the rest into one "other features" row.
 
@@ -295,24 +275,19 @@ The bar plots show the ten predictors with the largest mean |SHAP| and collapse 
 
 #### Clustered feature importance
 
-SHAP bar plot with hierarchical clustering of correlated features (cutoff = 0.4),
-revealing groups of features that contribute similar information.
+SHAP bar plot with hierarchical clustering of correlated features (cutoff = 0.4), revealing groups of features that contribute similar information.
 
 ![SHAP clustered bar plot](shap_bar_clustered.png){#fig-shap-bar-clustered .lightbox fig-align="left"}
 
 #### Summary (beeswarm) plot
 
-Each point represents a single observation. Position on the x-axis shows the SHAP
-value (impact on prediction), and colour indicates the feature value (red = high,
-blue = low).
+Each point represents a single observation. Position on the x-axis shows the SHAP value (impact on prediction), and colour indicates the feature value (red = high, blue = low).
 
 ![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
 
 #### Waterfall plot (most representative observation)
 
-SHAP waterfall plot for the most representative observation (lowest combined
-residual and distance from the median feature vector), showing how each feature
-pushes the prediction from the base value.
+SHAP waterfall plot for the most representative observation (lowest combined residual and distance from the median feature vector), showing how each feature pushes the prediction from the base value.
 
 ![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
 
@@ -335,9 +310,7 @@ pd.read_csv("shap_waterfall_observations.csv")
 
 #### SHAP scatter plots by predictor
 
-One scatter for each of the ten predictors with the largest permutation importance: feature value on the x-axis, SHAP contribution on
-the y-axis. Colouring uses SHAP's auto-interaction picker (the strongest
-interacting feature is chosen automatically for each plot).
+One scatter for each of the ten predictors with the largest permutation importance: feature value on the x-axis, SHAP contribution on the y-axis. Colouring uses SHAP's auto-interaction picker (the strongest interacting feature is chosen automatically for each plot).
 
 ```{python}
 #| output: asis
@@ -360,9 +333,7 @@ print(":::")
 
 ## Partial dependence
 
-Partial dependence plots show the marginal effect of each feature on the predicted
-target, averaging over the values of all other features. Features are ordered by
-permutation importance.
+Partial dependence plots show the average fitted prediction as one predictor changes and the other predictors retain their observed values. Features are ordered by permutation importance. These curves describe the model, not causal effects. Correlated predictors can create combinations rarely observed in the data, so check their support before interpreting a curve.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
 

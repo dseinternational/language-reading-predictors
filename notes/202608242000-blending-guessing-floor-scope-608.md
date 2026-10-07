@@ -1,9 +1,14 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
 # The phoneme-blending guessing-floor policy covers every `B` fit, under one evidence tier
+
+**Historical record.** The later amendment keeps the content-addressed archive ITT-only. Other families use stored-artefact checks. Read both decisions together. See [the later record](202608252100-blending-pair-binding-608-decision-2.md) and [METHODS.md](../METHODS.md).
 
 - **Date:** 2026-08-24
 - **Status:** scientific decision

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT216: Available-case modified ITT modality contrast, taught expressive versus taught receptive vocabulary — LKJ residual-correlation sensitivity companion of LRPITT16"
+title: "LRP-RLI-ITT-216: Available-case modified ITT modality contrast, taught expressive versus taught receptive vocabulary, LKJ residual-correlation sensitivity companion of LRPITT16"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

@@ -3,12 +3,7 @@
 
 # Descriptive plot scripts
 
-Standalone, archivable descriptive figures for the reading-and-language battery.
-These are exploratory scratch figures for the responder / non-responder
-discussion: per child, how much they gained over the study given their starting
-point, plus a developmental-profile trajectory grid across the battery.
-
-**Purely descriptive — no models, no causal language.**
+These scripts plot observed levels and changes in the reading and language battery. A change score includes treatment, maturation, measurement error and other sources of variation. It cannot classify a child as a treatment responder. These plots are descriptive.
 
 ## Standalone by design
 
@@ -42,21 +37,15 @@ One point per child:
 - The per-period gain columns in the data are **not** used; total gain is derived
   from the plain level columns.
 
-The reference panel is script 06 (baseline letter sounds vs word reading gain),
-about 53 children — use it as the visual target for the others.
+The reference panel is script 06 (baseline letter sounds vs word reading gain). Read the number of children from the generated data.
 
 ## Trajectory grid (script 00)
 
-`plot00_progress_over_time.py` draws a 2-by-4 small-multiples grid, one panel per
-measure, of level against timepoint (waves 1–4): faint per-child lines plus a bold
-mean-per-wave line. It covers the eight measures that have repeated waves. Block
-design (a non-verbal ability subtest) is excluded because it is measured at baseline only
-and so has no trajectory.
+`plot00_progress_over_time.py` draws a 2-by-4 small-multiples grid, one panel per measure, of level against timepoint (waves 1–4): faint per-child lines plus a bold mean-per-wave line. It covers the eight measures that have repeated waves. Block design (a non-verbal ability subtest) is excluded because it is measured at baseline only and so has no trajectory.
 
 ## Measure → column map
 
-Use these columns exactly. Note the letter-sounds trap: **letter sounds is
-`yarclet`**, which is a different measure from phonetic spelling (`spphon`).
+Use these columns exactly. Note the letter-sounds trap: **letter sounds is `yarclet`**, which is a different measure from phonetic spelling (`spphon`).
 
 | Measure                           | Level column |
 | --------------------------------- | ------------ |

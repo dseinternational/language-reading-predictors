@@ -1,5 +1,5 @@
 ---
-title: "LRP62: How much of the word-reading gain is *phonics-route-compatible*? (reading-route decomposition)"
+title: "LRP-RLI-MED-062: How much of the word-reading gain is *phonics-route-compatible*? (reading-route decomposition)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,32 +25,15 @@ format:
 
 ## Overview
 
-LRP62 is the robust replacement for LRP59's single-mediator estimate. LRP59 asked
-how much of the intervention's word-reading effect flows specifically through
-**letter-sound** knowledge; that estimate was directionally informative but fragile
-(one measure as "the pathway", a very wide interval). Following the project review
-(`notes/2026-05-12-project-review.md`, sec. 124/167), LRP62 instead asks how much of
-the effect flows through the **phonics route as a whole** — decoding-compatible
-skills used *together* — versus a residual **lexical / whole-word-compatible** path.
+LRP62 is the robust replacement for LRP59's single-mediator estimate. LRP59 asked how much of the intervention's word-reading effect flows specifically through **letter-sound** knowledge; that estimate was directionally informative but fragile (one measure as "the pathway", a very wide interval). Following the project review (`notes/2026-05-12-project-review.md`, sec. 124/167), LRP62 instead asks how much of the effect flows through the **phonics route as a whole** — decoding-compatible skills used *together* — versus a residual **lexical / whole-word-compatible** path.
 
-We decompose the intervention's total effect on word reading $W$ into the **natural
-indirect effect (NIE)** transmitted through the phonics route, and the **natural
-direct effect (NDE)** — everything else — and report the **phonics-route share**
-$= \text{NIE} / \text{Total}$.
+We decompose the intervention's total effect on word reading $W$ into the **natural indirect effect (NIE)** transmitted through the phonics route, and the **natural direct effect (NDE)** — everything else — and report the **phonics-route share** $= \text{NIE} / \text{Total}$.
 
-_Mediator and outcome are measured at the same wave (read before the headline)._ The randomised contrast lives in the t1 → t2 window, so the route composite and
-the outcome ($W_{t2}$) are measured **contemporaneously** — temporal precedence of
-the route over word reading is **assumed, not observed**, and reverse/simultaneous
-influence within the wave cannot be ruled out. The phonics-route share is reported
-with this caveat stated alongside it (see the assumptions section). As a
-triangulation point, a **non-randomised sensitivity fit with the outcome at t3**
-(mediator still at t2) is reported in the temporal-ordering sensitivity section
-below.
+_Mediator and outcome are measured at the same wave (read before the headline)._ The randomised contrast lives in the t1 → t2 window, so the route composite and the outcome ($W_{t2}$) are measured **contemporaneously** — temporal precedence of the route over word reading is **assumed, not observed**, and reverse/simultaneous influence within the wave cannot be ruled out. The phonics-route share is reported with this caveat stated alongside it (see the assumptions section). As a triangulation point, a **non-randomised sensitivity fit with the outcome at t3** (mediator still at t2) is reported in the temporal-ordering sensitivity section below.
 
 ## The phonics-route composite {#sec-composite}
 
-The mediator is an **equal-weight, standardised-logit composite** of the phonics
-measures that have usable spread in the randomised window:
+The mediator is an **equal-weight, standardised-logit composite** of the phonics measures that have usable spread in the randomised window:
 
 - **Letter-sound knowledge** $L$ (YARC-LSK) and **phoneme blending** $B$.
 - **Phonetic spelling** $P$ is **excluded.** The measurement-sensitivity audit
@@ -57,23 +44,13 @@ measures that have usable spread in the randomised window:
   likewise floored and is post-only, so it cannot serve as a baseline-conditioned
   mediator.
 
-Each measure's Haldane-logit is standardised on its post distribution (the same
-scaler maps the baseline value), the two are averaged per child, and the composite
-is standardised to mean 0 / SD 1. Because the composite is continuous, the mediator
-leg is a **Normal** model; the outcome leg and the counterfactual NDE/NIE
-decomposition are identical to LRP59.
+Each measure's Haldane-logit is standardised on its post distribution (the same scaler maps the baseline value), the two are averaged per child, and the composite is standardised to mean 0 / SD 1. Because the composite is continuous, the mediator leg is a **Normal** model; the outcome leg and the counterfactual NDE/NIE decomposition are identical to LRP59.
 
 ## Phase 0 only — the key design decision
 
-The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group
-1 receives the intervention while group 2 is the wait-list control. After t2 both
-arms are treated, so `group` is no longer a treatment indicator. LRP62 therefore
-uses **the phase-0 transition only** (`phase_mode="itt"`), $n \approx 53$.
+The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group 1 receives the intervention while group 2 is the wait-list control. After t2 both arms are treated, so `group` is no longer a treatment indicator. LRP62 therefore uses **the phase-0 transition only** (`phase_mode="itt"`), $n \approx 53$.
 
-Repo sign convention: $G = 2 - \text{group}$, so $G=1$ is the intervention arm and
-$G=0$ the wait-list control. All effects below are reported in the
-**intervention-helps** direction (intervention − control), so **positive = the
-intervention raises reading**.
+Repo sign convention: $G = 2 - \text{group}$, so $G=1$ is the intervention arm and $G=0$ the wait-list control. All effects below are reported in the **intervention-helps** direction (intervention − control), so **positive = the intervention raises reading**.
 
 ## Causal structure (DAG)
 
@@ -87,15 +64,11 @@ intervention raises reading**.
   phonological memory $RW$, speech production $SP$ — pre-treatment causes of the
   route composite and $W_{t2}$.
 
-A joint model fits both legs simultaneously, including a $G \times M$ interaction so
-the decomposition admits exposure–mediator interaction. **NDE/NIE are computed by
-counterfactual simulation from the posterior (the g-formula), not as a product of
-coefficients.**
+A joint model fits both legs simultaneously, including a $G \times M$ interaction so the decomposition admits exposure–mediator interaction. **NDE/NIE are computed by counterfactual simulation from the posterior (the g-formula), not as a product of coefficients.**
 
 ## Assumptions — read this first {#sec-assumptions}
 
-The decomposition is causal **only under the following assumptions**; the
-phonics-route share is *not* assumption-free.
+The decomposition is causal **only under the following assumptions**; the phonics-route share is *not* assumption-free.
 
 - Randomisation in phase 0 delivers **no unmeasured confounding of $G \to Y$ and of
   $G \to M$** for free.
@@ -137,16 +110,7 @@ phonics-route share is *not* assumption-free.
   the window. The decomposition conditions on baselines, but this remains a
   structural limitation shared with LRP59.
 
-_Triangulation, not a precise causal split._ Read the output below as triangulation. With $n \approx 53$, contemporaneous
-mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect
-**wide intervals**. These are model-based g-formula decompositions under the stated
-assumptions, **not identified natural effects** (see the exposure-induced-confounder
-bullet above). "Most of the word-reading gain is phonics-route-compatible, with
-a residual lexical share that cannot be ruled out" is the honest result — not a
-point percentage. The temporal-ordering sensitivity section below refits with the
-**outcome at t3** (mediator at t2) as a further triangulation point for the
-same-wave caveat. LRP62 supersedes the single-mediator LRP59 as the way to talk
-about "how much is phonics".
+_Triangulation, not a precise causal split._ Read the output below as triangulation. With $n \approx 53$, contemporaneous mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect **wide intervals**. These are model-based g-formula decompositions under the stated assumptions, **not identified natural effects** (see the exposure-induced-confounder bullet above). "Most of the word-reading gain is phonics-route-compatible, with a residual lexical share that cannot be ruled out" is the honest result — not a point percentage. The temporal-ordering sensitivity section below refits with the **outcome at t3** (mediator at t2) as a further triangulation point for the same-wave caveat. LRP62 supersedes the single-mediator LRP59 as the way to talk about "how much is phonics".
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

@@ -16,6 +16,7 @@ All analyses are preliminary. Start with the document that matches your question
 | Where did the data come from?                         | [RLI data](../data/readme.md) and [historical cohort](../data/reading-language-memory/README.md) |
 | How do I refit and publish the model reports?         | [Refit runbook](runbooks/full-statistical-model-refit.md)                                        |
 | Why was a method chosen or changed?                   | [Notes and decision records](../notes/README.md)                                                 |
+| How are shared dependencies managed?                  | [Shared research utilities](shared-utilities.md)                                                 |
 | How is the code organised?                            | [Contributor instructions](../AGENTS.md)                                                         |
 
 ## Reports and dated findings
@@ -24,7 +25,7 @@ All analyses are preliminary. Start with the document that matches your question
 
 The [integrated study report](report/index.qmd) remains a draft. Several chapters are placeholders, and its data helper does not yet enforce every publication requirement. Use the fitted model reports for results while the integrated report is completed.
 
-The September findings notes summarise a specific earlier rebuild. Later changes can make those numbers or release statuses stale. The [notes guide](../notes/README.md) explains which records are current guidance and which are historical evidence.
+The September findings notes summarise an earlier rebuild. The October corrections postdate the latest full rebuild retained in the notes, so even its stored results need current release checks. The [notes guide](../notes/README.md) explains which records are current guidance and which are historical evidence.
 
 ## Maintaining the documentation
 

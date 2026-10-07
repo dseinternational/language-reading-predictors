@@ -1,4 +1,9 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Gain-factors family code review: findings
+
+**Historical record.** This review describes the code on 20 August. The later decisions govern period-1 sensitivity, score links and child-level validation. See [the later record](202608261200-gain-factors-575-decisions.md) and [METHODS.md](../METHODS.md).
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).

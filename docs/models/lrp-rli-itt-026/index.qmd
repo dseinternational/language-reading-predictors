@@ -1,5 +1,5 @@
 ---
-title: "LRPITT26: Available-case modified ITT analysis of receptive grammar (TROG-2) (RG)"
+title: "LRP-RLI-ITT-026: Available-case modified ITT analysis of receptive grammar (TROG-2) (RG)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -27,11 +31,7 @@ LRPITT26 is the available-case modified ITT analysis for receptive grammar (TROG
 
 _Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the offer contrast in the original full randomised cohort requires no baseline-covariate adjustment. This fit instead conditions on archive inclusion and observed analytic variables; a causal reading of $\tau$ in the fitted sample requires that selection did not induce an association between assigned arm and potential outcomes, and extending it to all 57 randomised children requires further missing-data assumptions and sensitivity. The own baseline $\gamma_{\text{own}}$ and linear age $\gamma_A$ are **precision terms only** — they may sharpen $\tau$ but do not identify effects after selection — and no cross-baseline conditioning is used. Attendance or sessions are never conditioned on (a DAG collider). **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher modelled outcome.
 
-_No agreed minimally-important difference._ Receptive grammar sits outside the ITT suite's education-lead-agreed ROPE
-thresholds, so no items-scale $\delta$ is defined for it. The report therefore gives
-the fitted-sample assigned-arm contrast $\tau$ (size, direction, and probability of benefit) but omits the
-$P(\text{benefit} \ge \delta)$ meaningful-benefit table that the other ITT outcomes
-carry.
+_No agreed minimally-important difference._ Receptive grammar sits outside the ITT suite's education-lead-agreed ROPE thresholds, so no items-scale $\delta$ is defined for it. The report therefore gives the fitted-sample assigned-arm contrast $\tau$ (size, direction, and probability of benefit) but omits the $P(\text{benefit} \ge \delta)$ meaningful-benefit table that the other ITT outcomes carry.
 
 ## Model
 
@@ -41,9 +41,7 @@ $$
        + \gamma_A\, A_{\text{std},i},
 $$
 
-with Beta-Binomial likelihood $T_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 32$. Priors follow the shared template in `priors.py`.
-HSGPs on age and own baseline are off by default.
+with Beta-Binomial likelihood $T_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 32$. Priors follow the shared template in `priors.py`. HSGPs on age and own baseline are off by default.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

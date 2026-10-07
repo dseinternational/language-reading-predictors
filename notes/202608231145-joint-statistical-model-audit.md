@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 # Joint statistical-model audit and proposed remediation, 2026-08-23
+
+**Historical record.** This audit predates the paired-model and release corrections. Read the later remediation before treating its findings as open work. See [the later record](202608240900-joint-588-remediation.md) and [METHODS.md](../METHODS.md).
 
 ## Status and scope
 

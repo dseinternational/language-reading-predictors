@@ -1,5 +1,5 @@
 ---
-title: "LRPITT10: Available-case modified ITT analysis of word reading (EWRSWR) (WR)"
+title: "LRP-RLI-ITT-010: Available-case modified ITT analysis of word reading (EWRSWR) (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -23,8 +27,7 @@ format:
 
 **In plain terms.** Did the children offered the intervention read more single words than those who were not — and how large, and how certain, is that difference? This model estimates the assigned-arm contrast among children with the required word-reading observations in the fitted analysis set. Randomisation created exchangeability in the original full randomised cohort, but conditioning on archive inclusion and observed analytic variables can break it. A causal reading of the fitted contrast therefore requires selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
-LRPITT10 is the available-case modified ITT analysis for word reading (EWRSWR) (`ewrswr`). The estimand is the assigned-arm contrast in the post-score $W_{\text{post}}$ among children with the required word-reading observations, using the RCT phase only (time 1 $\rightarrow$ time 2).
-This model supersedes LRP52.
+LRPITT10 is the available-case modified ITT analysis for word reading (EWRSWR) (`ewrswr`). The estimand is the assigned-arm contrast in the post-score $W_{\text{post}}$ among children with the required word-reading observations, using the RCT phase only (time 1 $\rightarrow$ time 2). This model supersedes LRP52.
 
 The original paper reported Mplus ANCOVAs adjusted for the corresponding t1 score, t1 age and gender, with full-information maximum likelihood for the small amount of missing data within its 54-child analysed cohort (28 intervention, 26 waiting control). That does not make the paper a full-57 analysis: three randomised children were lost to follow-up. The Bayesian model of record below uses the 53 children with observed t1 and t2 word-reading scores and adjusts for t1 word reading and age as precision terms. Its mandatory secondary sensitivity therefore first refits those same 53 outcomes using the screening word-reading and screening-age measures available for all 57 children, with an intercept prior anchored only to the pre-randomisation screening distribution. It then separates common-profile all-57 MAR standardisation from factual completion of the 29 and 28 randomised arms under explicit no-benefit and delta assumptions.
 
@@ -38,15 +41,9 @@ $$
        + \gamma_A\, A_{\text{std},i},
 $$
 
-with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 79$. Priors follow the shared template in `priors.py`.
-HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
-verdict).
+with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 79$. Priors follow the shared template in `priors.py`. HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity verdict).
 
-Word reading is heavily floored at *baseline* (t1, ~40% at zero) but not at the
-post-score (t2), so the floor rule (which gates on the t2 post-score) does not
-trip and the graded own-baseline specification is retained; the baseline floor
-simply makes $\gamma_{\text{own}}$ less informative.
+Word reading is heavily floored at *baseline* (t1, ~40% at zero) but not at the post-score (t2), so the floor rule (which gates on the t2 post-score) does not trip and the graded own-baseline specification is retained; the baseline floor simply makes $\gamma_{\text{own}}$ less informative.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

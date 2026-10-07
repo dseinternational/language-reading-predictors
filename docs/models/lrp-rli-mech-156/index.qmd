@@ -1,5 +1,5 @@
 ---
-title: "LRP156: GP knee-test — receptive vocabulary (RV) -> word reading (WR)"
+title: "LRP-RLI-MECH-156: GP knee-test, receptive vocabulary (RV) -> word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,31 +25,17 @@ format:
 
 ## Overview
 
-LRP156 is a **GP knee-test**: a nonparametric (**HSGP**) re-attempt of the LRP56 mechanism, built
-to test whether the receptive-vocabulary -> word-reading association has a **"knee"** — a level of
-receptive vocabulary beyond which it is associated with a more marked difference in word reading —
-the way [LRP58](../lrp-rli-mech-058) found for letter sounds.
+This model uses a Hilbert-space Gaussian process (HSGP) to estimate a smooth association between receptive vocabulary and word reading. The curve allows the slope to vary across the observed exposure range. It is a nonlinear companion to [MECH-056](../lrp-rli-mech-056/), which estimates a single slope.
 
-LRP56 itself was forced to a **linear** mechanism because the HSGP curve diverged (~300
-divergences, unmoved by `target_accept` 0.99), so its estimand is a single slope, not a shape, and
-no knee could be looked for. This variant switches the HSGP curve **back on** and lifts
-`target_accept` to **0.999** (the setting that stabilises the letter-sound curve in LRP58) so the
-curve gets a genuine chance to converge.
+The declared sampling target is `target_accept=0.999`. A high target can help sampling, but it does not guarantee convergence or validate a curve. Read the diagnostics for the current fit rather than carrying earlier run results into this report.
 
-_Non-convergence is itself the result._ If the curve still diverges at `target_accept` 0.999, that **non-convergence is the honest result**
-and the knee stays untestable for this exposure. Check the gate badge above before reading any
-shape into the curve.
+**Sampling limit.** If the fit diverges, withhold the curve and its shape summaries. A sampling failure does not show that the association is linear or that no change in slope exists. Read the current publication decision before interpreting the curve.
 
 ## Adjustment set
 
-Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general
-ability ($GA$) held — the criterion that reproduces LRP56/58 and dose-077 exactly. $R$'s observed
-confounders that also reach word reading are $\{A, HS, TR, RW\}$; group $G\,(= IG)$ is the always-in
-precision term and $W_{\text{pre}}$ the autoregressive baseline. This is **identical to LRP56** —
-only the mechanism's functional form (nonparametric curve vs single slope) changes.
+Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general ability ($GA$) held — the criterion that reproduces LRP56/58 and dose-077 exactly. $R$'s measured common causes of the exposure and word reading are $\{A, HS, TR, RW\}$; group $G\,(= IG)$ is the always-in precision term and $W_{\text{pre}}$ the autoregressive baseline. This is **identical to LRP56** — only the mechanism's functional form (nonparametric curve vs single slope) changes.
 
-_Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^R$ is an **adjusted
-association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
+_Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^R$ is an **adjusted association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

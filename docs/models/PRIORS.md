@@ -20,7 +20,7 @@ Use the fit's `priors_table.csv`, prior density panels and `config.json`. The ta
 - `EXTERNAL_PRIORS` explicitly describes variables created by the shared HSGP library.
 - A missing descriptor stops the fit. The report must not infer a prior's meaning from a variable name.
 
-The former June inventory and name-based lookup instructions have been removed. They predated the [descriptor decision](../../notes/202608311600-prior-descriptor-findings-637.md) and several prior changes. [The prior-inventory tests](../../tests/statistical_models/test_prior_inventory.py) check coverage against constructed models.
+The [descriptor decision](../../notes/202608311600-prior-descriptor-findings-637.md) explains why priors are recorded at construction rather than inferred from variable names. [The prior-inventory tests](../../tests/statistical_models/test_prior_inventory.py) check coverage against constructed models.
 
 ## Choose and check priors
 

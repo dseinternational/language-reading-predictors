@@ -12,32 +12,20 @@
 > must have their exact references and DOIs verified before they enter the report,
 > per `METHODS.md`.
 
-Date: 2026-06-23 — **Status: LOCKED** (supersedes the in-progress drafts in this
-note's history).
+Date: 2026-06-23 — **Status: LOCKED** (supersedes the in-progress drafts in this note's history).
 
 > [!IMPORTANT]
 > **Superseded on 2026-07-10.** After the critical reviews in `notes/202607091430-…` and `notes/202607091615-…` (issue #233), the team revised this structure — reversing the speech edge, adding hearing status, widening phonological memory, adding direct expressive-vocabulary → word-reading routes, and demoting phonetic spelling to an outcome. The current authoritative graph is [`dag/dag-language-reading.dagitty`](../dag/dag-language-reading.dagitty) and the decision record is [`notes/202607101100-dag-revision-team-decisions.md`](202607101100-dag-revision-team-decisions.md). This note is retained **unchanged as the historical 2026-06-23 record**; the `dag { … }` block and node definitions below describe the _previous_ structure.
 
 ## Purpose
 
-Records the final causal DAG for the **step-2 Bayesian models** (ITT, joint,
-mechanism, mediation, and a prospective dose-response) and the full deliberation
-that produced it: a multi-agent structural review followed by a sequence of
-targeted design decisions on the latent ability node, age, the intervention and
-dose nodes, taught vs standardised vocabulary, the reading/phonics route, phonetic
-spelling, and speech production. This is the design artefact those models should be
-built against; it changes no code yet.
+Records the final causal DAG for the **step-2 Bayesian models** (ITT, joint, mechanism, mediation, and a prospective dose-response) and the full deliberation that produced it: a multi-agent structural review followed by a sequence of targeted design decisions on the latent ability node, age, the intervention and dose nodes, taught vs standardised vocabulary, the reading/phonics route, phonetic spelling, and speech production. This is the design artefact those models should be built against; it changes no code yet.
 
 Machine-readable copy of **this 2026-06-23 structure**: the `dag { … }` block below. (The former `notes/dag-language-reading.dagitty` file was moved to [`dag/dag-language-reading.dagitty`](../dag/dag-language-reading.dagitty) and **revised on 2026-07-10**, so it no longer matches this note — see the supersession banner above.)
 
 ## The locked DAG
 
-This is the **authoritative base graph** — it encodes causal **structure only**.
-Exposure / outcome roles are **not** fixed here; they are assigned per analysis (ITT:
-`IG` exposure, `WR` outcome; mechanism: a skill exposure, `WR` outcome; dose-response:
-`IS` exposure, `WR` outcome; mediation: `IG` exposure with a skill mediator). Only
-`GA [latent]` is annotated, because being unobserved is a structural property, not an
-analysis-specific role.
+This is the **authoritative base graph** — it encodes causal **structure only**. Exposure / outcome roles are **not** fixed here; they are assigned per analysis (ITT: `IG` exposure, `WR` outcome; mechanism: a skill exposure, `WR` outcome; dose-response: `IS` exposure, `WR` outcome; mediation: `IG` exposure with a skill mediator). Only `GA [latent]` is annotated, because being unobserved is a structural property, not an analysis-specific role.
 
 ```
 dag {
@@ -92,9 +80,7 @@ A colour-coded Graphviz rendering of the DAG lives at [`dag/dag-language-reading
 
 ## Deliberation and decisions
 
-The graph began from an in-session draft and went through a multi-agent review
-(below) and roughly a dozen design decisions. Each is recorded with its rationale
-and the caution it carries.
+The graph began from an in-session draft and went through a multi-agent review (below) and roughly a dozen design decisions. Each is recorded with its rationale and the caution it carries.
 
 ### 1. General ability `GA` (latent)
 
@@ -242,26 +228,11 @@ and the caution it carries.
 
 ## Identification implications
 
-**ID-1 — ITT (`IG → WR`).** Point-identified, minimal adjustment set = ∅ (`IG` a
-randomised root; `GA` does not touch `IG`). Baselines and age are precision terms.
-**Do not condition on `IS`** (mediator + `GA`-collider).
+**ID-1 — ITT (`IG → WR`).** Point-identified, minimal adjustment set = ∅ (`IG` a randomised root; `GA` does not touch `IG`). Baselines and age are precision terms. **Do not condition on `IS`** (mediator + `GA`-collider).
 
-**ID-2 — Mechanisms / mediator→outcome slopes.** Every skill→`WR` and mediator→outcome
-relationship is confounded by latent `GA` and is **not point-identified** — report as
-an _adjusted association_, never "X drives Y." Age is now an **observed** confounder
-that must appear in every mechanism adjustment set. The subject random intercept is the
-partial RI-CLPM repair (removes time-invariant `GA` up to partial-pooling shrinkage),
-not full `GA` adjustment.
+**ID-2 — Mechanisms / mediator→outcome slopes.** Every skill→`WR` and mediator→outcome relationship is confounded by latent `GA` and is **not point-identified** — report as an _adjusted association_, never "X drives Y." Age is now an **observed** confounder that must appear in every mechanism adjustment set. The subject random intercept is the partial RI-CLPM repair (removes time-invariant `GA` up to partial-pooling shrinkage), not full `GA` adjustment.
 
-**ID-3 — Dose-response (`IS → WR`), collapsed over phases.** Estimable but
-**observational**: confounded by `GA → IS`/`GA → WR` (and `A`), with only the group
-contrast (≈ the ITT) being randomised. Use the all-phases mechanism machinery with `IS`
-in the mechanism role, adjust `{IG, A}`, **do not** condition on the reading mediators
-(for the total dose effect) and never on `IS` itself; prefer baseline-adjusted post over
-raw gains. Run a fixed-effect (full within-child) sensitivity to strip time-invariant
-`GA` completely; the **binding limitation is time-varying confounding** (period-specific
-engagement/health driving both dose and gain), which the child intercept does not
-remove. Report as a confounded within-child association.
+**ID-3 — Dose-response (`IS → WR`), collapsed over phases.** Estimable but **observational**: confounded by `GA → IS`/`GA → WR` (and `A`), with only the group contrast (≈ the ITT) being randomised. Use the all-phases mechanism machinery with `IS` in the mechanism role, adjust `{IG, A}`, **do not** condition on the reading mediators (for the total dose effect) and never on `IS` itself; prefer baseline-adjusted post over raw gains. Run a fixed-effect (full within-child) sensitivity to strip time-invariant `GA` completely; the **binding limitation is time-varying confounding** (period-specific engagement/health driving both dose and gain), which the child intercept does not remove. Report as a confounded within-child association.
 
 ## Cautions register (consolidated)
 
@@ -302,14 +273,7 @@ remove. Report as a confounded within-child association.
 
 ## Provenance
 
-Built from an in-session draft via: a 5-dimension multi-agent structural review
-(structure / arrows / identification / testable-implications / measurement, each
-adversarially verified) which machine-checked acyclicity and the adjustment-set logic
-and corrected several d-separation slips; a focused review of whether `IG`/`IS` should
-be limited to teaching targets (with an RLI-content mapping grounded in Burgoyne et al.,
-2012); and a computed analysis of removing `PS` (adjustment-set diffs verified in
-networkx). Structural facts in this note were re-verified with
-`output/replication/scratch/dag_v3_check.py`.
+Built from an in-session draft via: a 5-dimension multi-agent structural review (structure / arrows / identification / testable-implications / measurement, each adversarially verified) which machine-checked acyclicity and the adjustment-set logic and corrected several d-separation slips; a focused review of whether `IG`/`IS` should be limited to teaching targets (with an RLI-content mapping grounded in Burgoyne et al., 2012); and a computed analysis of removing `PS` (adjustment-set diffs verified in networkx). Structural facts in this note were re-verified with `output/replication/scratch/dag_v3_check.py`.
 
 ## Related notes
 

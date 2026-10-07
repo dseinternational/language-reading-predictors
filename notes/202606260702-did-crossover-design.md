@@ -1,4 +1,9 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Waitlist-crossover / difference-in-differences family (LRPDID) — design decisions
+
+**Historical record.** The current crossover model reports separate baseline, t2 and t3 arm gaps. The later gap compares randomised schedules; it is not an independent within-person replication or a catch-up mechanism. See [the later record](202608241100-did-t2-estimand-signoff.md) and [METHODS.md](../METHODS.md).
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
@@ -7,12 +12,7 @@ Date: 2026-06-26
 
 ## Scope
 
-A new statistical-model family (`kind="did"`, modules `lrpdid01–06`) that
-estimates the intervention effect a **second way** — within-person, using the
-waitlist arm's crossover — as a triangulation of the available-case modified ITT estimate
-(the `LRPITT01–11` suite). This note records the design decisions a future reader
-might question, because several are non-obvious and a couple of tempting
-shortcuts are wrong.
+A new statistical-model family (`kind="did"`, modules `lrpdid01–06`) that estimates the intervention effect a **second way** — within-person, using the waitlist arm's crossover — as a triangulation of the available-case modified ITT estimate (the `LRPITT01–11` suite). This note records the design decisions a future reader might question, because several are non-obvious and a couple of tempting shortcuts are wrong.
 
 ## The trial structure (confirmed from the data)
 
@@ -23,12 +23,7 @@ shortcuts are wrong.
 | P1 (t1→t2)      | ~73 sessions (treated)   | **0 (untreated)**             |
 | P2 (t2→t3)      | ~65 (treated, continues) | ~73 (treated — **crossover**) |
 
-So **waitlist-P1 is the only untreated cell anywhere** in the data; the immediate
-arm is treated in both periods (Burgoyne et al. 2012, the RLI RCT;
-doi:10.1111/j.1469-7610.2012.02557.x). Raw word-reading means already show the
-signature: the waitlist's period gain jumps from +2.0 (untreated P1) to +4.5
-(treated P2), while the immediate arm's gain is flat across the two periods
-(+4.6 → +4.4).
+So **waitlist-P1 is the only untreated cell anywhere** in the data; the immediate arm is treated in both periods (Burgoyne et al. 2012, the RLI RCT; doi:10.1111/j.1469-7610.2012.02557.x). Raw word-reading means already show the signature: the waitlist's period gain jumps from +2.0 (untreated P1) to +4.5 (treated P2), while the immediate arm's gain is flat across the two periods (+4.6 → +4.4).
 
 ## Estimand and identification
 
@@ -39,69 +34,27 @@ The cells of a 2 (arm) × 2 (period) design:
 | immediate | treated       | treated |
 | waitlist  | **untreated** | treated |
 
-The treatment coefficient `delta` is a **difference-in-differences**: the
-waitlist's P1→P2 gain change _minus_ the immediate arm's P1→P2 change. With an
-intercept, a period (P2-vs-P1) term, and a treated indicator the design matrix has
-three distinct rows — `(period, treated) ∈ {(0,1),(1,1),(0,0)}` — so it is full
-rank and `delta` is identified jointly by (a) the within-period-1 between-arm
-contrast (immediate vs waitlist) and (b) the waitlist's own within-child P1→P2
-crossover. A child random intercept differences out all **stable** child traits
-(ability, SES, baseline), so each child is partly their own control.
+The treatment coefficient `delta` is a **difference-in-differences**: the waitlist's P1→P2 gain change _minus_ the immediate arm's P1→P2 change. With an intercept, a period (P2-vs-P1) term, and a treated indicator the design matrix has three distinct rows — `(period, treated) ∈ {(0,1),(1,1),(0,0)}` — so it is full rank and `delta` is identified jointly by (a) the within-period-1 between-arm contrast (immediate vs waitlist) and (b) the waitlist's own within-child P1→P2 crossover. A child random intercept differences out all **stable** child traits (ability, SES, baseline), so each child is partly their own control.
 
 ### Decision 1 — DiD, **not** a naïve own-control
 
-The phrase "use the waitlist as their own controls" suggests a simple
-before/after on the waitlist arm alone. **That is confounded.** In the waitlist
-arm, P2 is _both_ "treated" _and_ "later/older", so period and treatment are
-collinear and a waitlist-only model cannot separate the intervention effect from
-maturation. The descriptive data make the trap concrete: the naïve waitlist
-crossover for **receptive vocabulary** is +1.12 items and looks like an effect —
-but the immediate arm's vocabulary accelerated _even more_ over the same window
-(+2.29), so the DiD is **−1.17** (i.e. null, matching the randomised result). The
-apparent vocabulary "effect" was maturation. **The immediate arm is therefore
-essential** as the time/maturation anchor; without it the within-person estimate
-is not interpretable.
+The phrase "use the waitlist as their own controls" suggests a simple before/after on the waitlist arm alone. **That is confounded.** In the waitlist arm, P2 is _both_ "treated" _and_ "later/older", so period and treatment are collinear and a waitlist-only model cannot separate the intervention effect from maturation. The descriptive data make the trap concrete: the naïve waitlist crossover for **receptive vocabulary** is +1.12 items and looks like an effect — but the immediate arm's vocabulary accelerated _even more_ over the same window (+2.29), so the DiD is **−1.17** (i.e. null, matching the randomised result). The apparent vocabulary "effect" was maturation. **The immediate arm is therefore essential** as the time/maturation anchor; without it the within-person estimate is not interpretable.
 
 ### Decision 2 — the immediate arm as the time anchor (and its limit)
 
-`beta_period` (the P2-vs-P1 effect) is identified mainly by the immediate arm,
-which is treated in both periods. So it is the _treated-trajectory_ time trend,
-**not** a pure untreated-maturation trend — it can carry diminishing returns and
-block-2 content. In practice the anchor is small on the logit scale
-(−0.15 to −0.43 across outcomes), so it does not drive `delta`; but it is an
-assumption, and it is weakest where the immediate arm is near the test ceiling in
-P2 (e.g. letter sounds: little P2 information left).
+`beta_period` (the P2-vs-P1 effect) is identified mainly by the immediate arm, which is treated in both periods. So it is the _treated-trajectory_ time trend, **not** a pure untreated-maturation trend — it can carry diminishing returns and block-2 content. In practice the anchor is small on the logit scale (−0.15 to −0.43 across outcomes), so it does not drive `delta`; but it is an assumption, and it is weakest where the immediate arm is near the test ceiling in P2 (e.g. letter sounds: little P2 information left).
 
 ### Decision 3 — Beta-Binomial on the logit scale, **not** raw gains
 
-A raw-gain DiD explodes for fast-saturating, bounded skills. For letter sounds the
-immediate arm masters the test in P1 and hits the **ceiling**, so its P2 gain
-collapses (means +6.93 → +1.18). A raw-gain DiD reads that collapse as a huge
-"negative time trend" and inflates the estimate to **+6.7 items** (vs the
-randomised +3.7). Modelling the **count** with a logit link fixes this: a child
-near the top of the scale making a small P2 gain is _expected_, not a spurious
-trend, so the modelled DiD is **+3.4 ≈ RCT +3.6**. This is the central reason the
-family reuses the suite's Beta-Binomial-on-logit / ANCOVA convention (post-count
-conditional on that period's pre-count) rather than differencing scores.
+A raw-gain DiD explodes for fast-saturating, bounded skills. For letter sounds the immediate arm masters the test in P1 and hits the **ceiling**, so its P2 gain collapses (means +6.93 → +1.18). A raw-gain DiD reads that collapse as a huge "negative time trend" and inflates the estimate to **+6.7 items** (vs the randomised +3.7). Modelling the **count** with a logit link fixes this: a child near the top of the scale making a small P2 gain is _expected_, not a spurious trend, so the modelled DiD is **+3.4 ≈ RCT +3.6**. This is the central reason the family reuses the suite's Beta-Binomial-on-logit / ANCOVA convention (post-count conditional on that period's pre-count) rather than differencing scores.
 
 ### Decision 4 — child random intercept (the own-control)
 
-`u_child ~ Normal(0, sigma_child)`, non-centred. This is what makes the estimate
-robust to stable between-child differences and gives the design its added value
-over the between-arm RCT.
+`u_child ~ Normal(0, sigma_child)`, non-centred. This is what makes the estimate robust to stable between-child differences and gives the design its added value over the between-arm RCT.
 
 ### Decision 5 — the graded own-baseline (`gamma_own`) is a treatment-affected control (#269)
 
-The **graded** DiD models (`lrp-rli-did-001`–`009`) condition on the period-start
-score via `gamma_own`. For the crossover arm's second period that score is
-**post-treatment** (measured after its first on-intervention block), so `gamma_own`
-adjusts a **treatment-affected baseline** (Rosenbaum 1984, doi:10.2307/2981697) and
-the child intercept does not restore the total-effect reading. The parallel-trends
-assumption also lives on the **logit-with-ceiling** scale, not the raw-count scale.
-The off-floor P/N models (DID-011/012) already drop the own-baseline term for
-exactly this reason (#257); the graded δ is reported with the caveat surfaced in
-its report callout rather than with the term removed (removing it would change the
-graded parameterisation, and the concern is disclosed, not silent).
+The **graded** DiD models (`lrp-rli-did-001`–`009`) condition on the period-start score via `gamma_own`. For the crossover arm's second period that score is **post-treatment** (measured after its first on-intervention block), so `gamma_own` adjusts a **treatment-affected baseline** (Rosenbaum 1984, doi:10.2307/2981697) and the child intercept does not restore the total-effect reading. The parallel-trends assumption also lives on the **logit-with-ceiling** scale, not the raw-count scale. The off-floor P/N models (DID-011/012) already drop the own-baseline term for exactly this reason (#257); the graded δ is reported with the caveat surfaced in its report callout rather than with the term removed (removing it would change the graded parameterisation, and the concern is disclosed, not silent).
 
 ## What this is — and is not
 
@@ -119,8 +72,7 @@ graded parameterisation, and the concern is disclosed, not silent).
 
 ## Results (reporting config)
 
-`delta` reproduces the single-outcome RCT `tau` for every outcome, and returns the
-null for vocabulary; all six converge cleanly (R-hat ≤ 1.002, 0 divergences):
+`delta` reproduces the single-outcome RCT `tau` for every outcome, and returns the null for vocabulary; all six converge cleanly (R-hat ≤ 1.002, 0 divergences):
 
 | Outcome              | DiD δ (logit) | δ items | RCT τ / items |
 | -------------------- | ------------: | ------: | ------------: |
@@ -130,14 +82,7 @@ null for vocabulary; all six converge cleanly (R-hat ≤ 1.002, 0 divergences):
 | TE taught expressive |         +0.30 |    +1.5 |  +0.32 / +1.5 |
 | R receptive vocab    |         −0.00 |    −0.1 |  +0.01 / +0.2 |
 
-The session **dose-response** variant (`lrpdid06`) has a positive `beta_dose`
-(+0.17 per 1 SD of sessions attended, P(>0) = 0.997), but the session-count
-variation here is near-binary (most treated children cluster near full
-attendance), so this is weak evidence that the crossover signal scales with
-_intensity_ rather than the treated flag — consistent with the aligned note's
-caution on the same dose signal. The period-resolved letter-sound dose model
-`lrpdid07` (and a within-treated analysis) is the better test of a genuine
-dose-response.
+The session **dose-response** variant (`lrpdid06`) has a positive `beta_dose` (+0.17 per 1 SD of sessions attended, P(>0) = 0.997), but the session-count variation here is near-binary (most treated children cluster near full attendance), so this is weak evidence that the crossover signal scales with _intensity_ rather than the treated flag — consistent with the aligned note's caution on the same dose signal. The period-resolved letter-sound dose model `lrpdid07` (and a within-treated analysis) is the better test of a genuine dose-response.
 
 ## Implementation
 

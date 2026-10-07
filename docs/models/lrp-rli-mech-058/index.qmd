@@ -1,5 +1,5 @@
 ---
-title: "LRP58: Mechanism model — letter-sound knowledge (LS) -> word reading (WR)"
+title: "LRP-RLI-MECH-058: Mechanism model, letter-sound knowledge (LS) -> word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,18 +25,11 @@ format:
 
 ## Overview
 
-LRP58 estimates the adjusted association $f^L$ between letter-sound knowledge and word reading,
-using all three phase transitions. The nonparametric **HSGP** mechanism curve is the deliverable
-here (the shape of the letter-sound → reading relationship) and is retained; after the #265
-reparameterisation (standardised GP input, a moderate-lengthscale prior, and a smaller basis) it
-clears the strict zero-divergence gate at reporting tier with the curve intact.
+LRP58 estimates the adjusted association $f^L$ between letter-sound knowledge and word reading, using all three phase transitions. The nonparametric **HSGP** mechanism curve is the deliverable here (the shape of the letter-sound → reading relationship) and is retained; after the #265 reparameterisation (standardised GP input, a moderate-lengthscale prior, and a smaller basis) it clears the strict zero-divergence gate at reporting tier with the curve intact.
 
 ## Adjustment set
 
-Observed parents of $L$ (LS) under the revised DAG (#245): $\{A, HS, IG, IS, SP\}$.
-The revision drops $EV \to LS$ (speech $SP$ is now the code cause), so the old
-$E$/$R$ adjusters are **removed** — and conditioning on $E$, a common effect of
-$SP$ and $RW$ that both reach $W$, would in fact **open a collider path**.
+Observed parents of $L$ (LS) under the revised DAG (#245): $\{A, HS, IG, IS, SP\}$. The revision drops $EV \to LS$ (speech $SP$ is now the code cause), so the old $E$/$R$ adjusters are **removed** — and conditioning on $E$, a common effect of $SP$ and $RW$ that both reach $W$, would in fact **open a collider path**.
 
 - $G$ — group ($IG$); always conditioned on via $\beta_G$.
 - $A$ — age; conditioned on linearly by default ($\gamma_A\,z(\text{age})$).
@@ -41,16 +38,9 @@ $SP$ and $RW$ that both reach $W$, would in fact **open a collider path**.
 - $SP$ (`deapp_c`) — speech production, now a cause of letter-sound knowledge. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading.
 
-_DAG decision: B is NOT in the adjustment set._ Phoneme blending $B$ is a descendant of $L$ in the literacy-development cascade
-($L \to \cdots \to B$) and should **not** be conditioned on: doing so would
-change the estimand toward a direct-only component and can introduce collider
-bias. The same argument excludes $F$ (CELF) and $P$ (phonetic spelling) from the
-adjustment set.
+_DAG decision: B is NOT in the adjustment set._ Phoneme blending $B$ is a descendant of $L$ in the literacy-development cascade ($L \to \cdots \to B$) and should **not** be conditioned on: doing so would change the estimand toward a direct-only component and can introduce collider bias. The same argument excludes $F$ (CELF) and $P$ (phonetic spelling) from the adjustment set.
 
-This is the single most sensitive modelling decision in the mechanism-model
-set. If a reviewer believes $B$ is an independent cause of $W$ not mediated
-through $L$, they should fit the alternative (conditioning on $B$) and
-compare $f^L$ estimates.
+This is the single most sensitive modelling decision in the mechanism-model set. If a reviewer believes $B$ is an independent cause of $W$ not mediated through $L$, they should fit the alternative (conditioning on $B$) and compare $f^L$ estimates.
 
 ### Interpretation caveats
 

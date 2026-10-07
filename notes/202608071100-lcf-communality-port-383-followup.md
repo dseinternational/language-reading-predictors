@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
+> [!NOTE]
+> Reference updated by a LLM-based AI tool (Codex/GPT-6).
+
 # The lcf loading geometry moves to a pooled-budget communality parameterisation (#383 follow-up)
 
 > [!NOTE]
@@ -48,4 +51,4 @@ The legacy free pair (`TruncatedNormal(0, 1, lower=0)` loadings, `HalfNormal(1)`
 
 ## The `rlm-mm-001` psense exemption is retired (the second follow-up)
 
-The #383 issue thread recorded that `rlm-mm-001` "is no longer a legitimate psense exemption: #381 lists it as the one family exempt 'on account of its non-converged posterior', and that ground is gone". The code side was already closed (#480 wired psense into `fit_rlm_corr_factor`; the current reporting fit passes the full gate and carries a measured `psense_summary.csv` — 22 parameters, 4 informational `factor_corr_pairs` conflict flags). What remained stale was the record: `notes/202607261700-psense-coverage-backfill.md` still named `rlm-mm-001` "the one true exemption". That note now carries a dated supersession warning and a closing section, so both exemptions it recorded are closed with measurements, not waivers.
+The #383 issue thread recorded that `rlm-mm-001` "is no longer a legitimate psense exemption: #381 lists it as the one family exempt 'on account of its non-converged posterior', and that ground is gone". The code side was already closed (#480 wired psense into `fit_rlm_corr_factor`; the current reporting fit passes the full gate and carries a measured `psense_summary.csv` — 22 parameters, 4 informational `factor_corr_pairs` conflict flags). What remained stale was the record: [historical record](https://github.com/dseinternational/language-reading-predictors/blob/043c72db2211b9cf067fd8d1b076fda8fe597dc9/notes/202607261700-psense-coverage-backfill.md) still named `rlm-mm-001` "the one true exemption". That note now carries a dated supersession warning and a closing section, so both exemptions it recorded are closed with measurements, not waivers.

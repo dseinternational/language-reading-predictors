@@ -1,8 +1,9 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 <!--
-Historical bug-report draft, reviewed and posted by a human.
-See language-reading-predictors#453. Version details below describe the original reproduction.
--->
+Historical bug-report draft, reviewed and posted by a human. See language-reading-predictors#453. Version details below describe the original reproduction. -->
 
 **Title:** `compute_log_prior` / `compute_log_likelihood` fail for any transform whose name contains an underscore (`LKJCorr`, `LogExpM1`)
 
@@ -105,9 +106,7 @@ OS: Darwin 25.5.0 (arm64)
 Installed via conda-forge
 ```
 
-Both reproducers above were re-run on this environment; the two error messages are
-quoted from that run. Originally observed on PyMC 6.1.0 / PyTensor 3.1.2, so the
-behaviour is unchanged across both releases.
+Both reproducers above were re-run on this environment; the two error messages are quoted from that run. Originally observed on PyMC 6.1.0 / PyTensor 3.1.2, so the behaviour is unchanged across both releases.
 
 `cholesky_corr` and `log_exp_m1` are the only two shipped transform names containing an underscore — checked exhaustively over `pymc.distributions.transforms` — so they are the only two affected.
 

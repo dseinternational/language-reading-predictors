@@ -1,11 +1,15 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ::: {.callout-note}
 Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 ## Results
 
-The aligned per-protocol design has no clean randomised treatment coefficient.
-Every coefficient below, including the cohort contrast, is an adjusted association.
+The aligned per-protocol design has no clean randomised treatment coefficient. Every coefficient below, including the cohort contrast, is an adjusted association.
 
 This section reports how each predictor tracks the aligned post-score. Because the cohort was defined by who actually followed the protocol rather than by random assignment, no term here is causal; each one is an association that could be driven by other differences between children.
 

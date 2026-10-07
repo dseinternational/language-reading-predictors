@@ -1,5 +1,5 @@
 ---
-title: "LRP-CA-006: Concurrent conditional associations — skills → expressive vocabulary (per wave)"
+title: "LRP-RLI-CA-006: Concurrent conditional associations, skills → expressive vocabulary (per wave)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).

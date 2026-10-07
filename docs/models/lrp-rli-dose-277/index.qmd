@@ -1,5 +1,5 @@
 ---
-title: "LRP77base: Dose-response (pooled dose slope) — comparator to LRP77"
+title: "LRP-RLI-DOSE-277: Dose-response (pooled dose slope), comparator to LRP77"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,24 +25,9 @@ format:
 
 ## Overview
 
-LRP77base is the **no-period-variation companion** to [LRP77](../lrp-rli-dose-077/). It is
-the identical dose-response model — Beta-Binomial conditional change on word
-reading ($W$, $N = 79$), the same on-intervention indicator, post-crossover arm
-term, own baseline, linear age and subject random intercept — except the
-within-child attendance deviation enters as a **single pooled slope**
-$\beta_{\text{dose}}$ instead of the partial-pooled per-period slopes
-$\beta_{\text{dose}[p]}$. It fits **no** cumulative-dose control, exactly as LRP77
-does not.
+LRP77base is the **no-period-variation companion** to [LRP77](../lrp-rli-dose-077/). It is the identical dose-response model — Beta-Binomial conditional change on word reading ($W$, $N = 79$), the same on-intervention indicator, post-crossover arm term, own baseline, linear age and subject random intercept — except the within-child attendance deviation enters as a **single pooled slope** $\beta_{\text{dose}}$ instead of the partial-pooled per-period slopes $\beta_{\text{dose}[p]}$. It fits **no** cumulative-dose control, exactly as LRP77 does not.
 
-Its sole purpose is the nested **leave-one-child-out PSIS** comparison against
-LRP77 (`scripts/compare_statistical_models.py`): *does letting the attendance
-slope vary by period improve prediction for a child the model has not seen?*
-Given the weak Phase-1 dose structure, LRP77 is expected to shrink toward this
-model and the comparison to be near-indistinguishable; it is read cautiously at
-this $n$ because the dynamic companions were not estimable. See the LRP77 report
-for the full estimand, the extensive/intensive split, the unblocked latent-ability
-path, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations
-caveat.
+Its sole purpose is the nested **leave-one-child-out PSIS** comparison against LRP77 (`scripts/compare_statistical_models.py`): *does letting the attendance slope vary by period improve prediction for a child the model has not seen?* Given the weak Phase-1 dose structure, LRP77 is expected to shrink toward this model and the comparison to be near-indistinguishable; it is read cautiously at this $n$ because the dynamic companions were not estimable. See the LRP77 report for the full estimand, the extensive/intensive split, the unblocked latent-ability path, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations caveat.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 
