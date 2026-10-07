@@ -7,7 +7,7 @@ DAG-focused gain-factors model (#127; adjustment set re-derived against the revi
 2026-07-10 DAG, ``dag/dag-language-reading.dagitty``, #247). The off-floor LRPGF05
 restricted to on-intervention period rows (excluding the waitlist arm's untreated
 period 1). Associations with the off-floor status of phonetic spelling (PS) across the
-period transitions (Beta-Binomial logit with the suite floor rule, child random
+period transitions (Bernoulli logit on the off-floor indicator, child random
 intercept).
 
 Under the revised DAG the parents of PS are age, general ability, intervention, letter

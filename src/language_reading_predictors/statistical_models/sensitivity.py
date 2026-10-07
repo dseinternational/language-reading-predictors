@@ -628,9 +628,9 @@ LEVEL_SENSITIVITY_SIGMA_CHILD_SIGMAS = (0.5, 1.0, 1.5)
 # release decision is prior-dominant and therefore needs sweep evidence (#390);
 # extend it if power-scaling flags another did fit — lrp-rli-did-101 (the
 # independent-prior intercept companion) flags exactly as its anchored parent
-# does, which is itself evidence the anchor is not what makes tau_t2
-# prior-dominant. ``mu_dose`` rides its own grid around its ``Normal(0, 1)``
-# default with the same half/default/1.5x geometry as the proximal tau grid.
+# does; prior dominance persists under that alternative anchor. ``mu_dose``
+# uses its own grid around ``Normal(0, 1)``, with the proximal tau grid's
+# half/default/1.5x scales.
 
 DID_SENSITIVITY_MODEL_IDS = (
     "lrp-rli-did-001",
@@ -654,8 +654,8 @@ DID_SENSITIVITY_MU_DOSE_SIGMAS = (0.5, 1.0, 1.5)
 
 # Per-model cell target_accept floors, raised above the primary's recorded value.
 # Cells always run at max(primary, this floor, any --cell-target-accept), so a
-# floor can only make integration stricter; it never relaxes the primary's
-# contract, and stricter integration does not change the posterior. Declared
+# floor never relaxes the primary's sampling contract. It changes sampler
+# tuning rather than the model's target posterior distribution. Declared
 # here, not on the command line, so a registry rebuild reproduces it.
 #
 # lrp-rli-did-007: at its primary's 0.97 the mu_dose cell at prior scale 1.5
@@ -1028,19 +1028,12 @@ def assert_primary_sampling_contract(
     keys: tuple[str, ...] = _PRIMARY_MATCHED_SENSITIVITY_KEYS,
     label: str | None = None,
 ) -> None:
-    """Fail before fitting if the selected preset differs from the primary fit.
+    """Require selected sampling settings and the config name to match the primary.
 
-    The primary may have been produced with a supported ``--target-accept``
-    override (or a different preset entirely); sweeping it with mismatched
-    sampling and attaching the result would bind evidence produced under a
-    different contract. Shared by the family sweep runners (#488 review):
-
-    - the level runner matches every key including ``target_accept`` (no level
-      primary carries an override, so any difference is a mistake);
-    - the did runner matches ``draws``/``tune``/``chains`` here and *adopts* the
-      primary's own recorded ``target_accept`` for its cells, because did-007's
-      registered spec legitimately overrides the preset (0.97) and a sweep of
-      that fit must reproduce its contract, not refuse it.
+    Callers choose which settings to check. Some check target acceptance here;
+    others adopt the primary's recorded value separately to retain supported model
+    or command overrides. A sensitivity sweep must preserve its primary's sampling
+    contract.
     """
     for key in keys:
         observed = getattr(sampling, key)

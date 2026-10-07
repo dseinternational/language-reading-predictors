@@ -3,12 +3,8 @@
 
 """Immutable command-level options for one statistical-model run.
 
-The fit CLI used to implement ``--target-accept`` by replacing
-``dse_research_utils.statistics.models.sampling.get_sampling_configuration`` at
-module scope.  That mutation leaked outside the requested fit and made the value
-reaching a model depend on import order.  A context variable gives the unchanged
-``fit(config)`` model-module API a scoped, concurrency-safe route to explicit run
-options while the registry migrates model families incrementally.
+A context variable supplies run options to the ``fit(config)`` API without
+changing shared sampling functions or leaking overrides to other contexts.
 """
 
 from __future__ import annotations

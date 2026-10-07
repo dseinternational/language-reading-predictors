@@ -1,24 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Lazy discovery of runnable statistical-model modules (#165, #361 Phase 3).
+"""Discover convention-named models without importing their Bayesian graphs.
 
-Replaces the hand-maintained import block + ``MODELS`` dict in
-``scripts/fit_statistical_model.py``. Any submodule of
-``language_reading_predictors.statistical_models`` that defines its **own**
-top-level ``fit(config)`` function is a runnable model, registered under its
-**canonical CLI id** — the module name (canonical underscore form since #168
-Phase 2, e.g. ``lrp_rli_itt_001``) rewritten with hyphens (``lrp-rli-itt-001``).
-Adding a new model is then just dropping in a new ``lrp_.../rlm...`` module - no
-registry edit. Legacy ids (``lrpitt01``) still resolve: the fit CLIs build a
-legacy-alias index over these keys via ``model_ids``.
+Discovery selects filenames matching ``_MODEL_MODULE`` and converts underscores
+to hyphens for CLI IDs. Loading then verifies that the module defines its own
+``fit(config)`` callable. Imported ``fit`` symbols do not qualify.
 
-Keying by module name (not ``SPEC.model_id``) is deliberate: most modules expose a
-module-level ``SPEC``, but some (e.g. the adjusted model) build their spec lazily
-via ``get_spec()`` so the DAG-only path imports without the Bayesian stack. Every
-runnable model does, however, define a top-level ``fit`` - that is the invariant
-we discover on. The ``fit.__module__ == module`` check ignores any ``fit`` symbol
-merely imported into an infrastructure module.
+Using filenames avoids importing ``SPEC`` during discovery and also supports
+modules that build a specification lazily. Fit CLIs resolve legacy aliases
+through ``model_ids``.
 """
 
 from __future__ import annotations

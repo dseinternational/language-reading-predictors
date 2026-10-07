@@ -50,10 +50,9 @@ def build_adjusted_model(
     baseline via ``gamma_own`` - the gain framing shared with the mechanism
     models. Each predictor enters as a single **standardised** linear term with a
     fixed weakly-informative ``Normal(0, predictor_slope_sigma)`` slope. There is
-    **no** phase intercept and **no** child random intercept: with one row per
-    child the coefficients are genuinely between-child associations (a random
-    intercept would tilt them toward the within-child question - see the LRP65
-    docstring). Passing a single-element ``predictors`` gives the bivariate
+    no phase or child random intercept. With one row per child, the coefficients
+    describe between-child associations; these data cannot estimate within-child
+    associations. Passing a single-element ``predictors`` gives the bivariate
     (baseline-only-adjusted) association used for the shared-variance comparison.
 
         eta_i = alpha + gamma_own * logit(W_pre_i) + sum_k beta_k * z_{k,i}

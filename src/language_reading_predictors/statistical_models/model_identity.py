@@ -100,12 +100,8 @@ def _graph(outputs: Sequence[Variable], inputs: Sequence[Variable] = ()) -> dict
             if isinstance(value, (np.random.Generator, np.random.RandomState)):
                 record["shared"] = {"random_generator": _class_name(value)}
             else:
-                # Shape and dtype only. What is *inside* a shared node is the
-                # design, not the structure, and hashing it here as well would
-                # move ``structure_sha256`` whenever the data move — collapsing
-                # the split ``design_sha256`` exists to provide, so a refusal
-                # could no longer say whether the model code or only the data
-                # changed (2026-09-05 review).
+                # Hash shared values separately as design, so value changes
+                # can be distinguished from changes to graph structure.
                 array = np.asarray(value)
                 record["shared"] = {"dtype": str(array.dtype), "shape": list(array.shape)}
         else:
@@ -139,9 +135,7 @@ def model_design_identity(model: pm.Model | None) -> dict[str, Any]:
             "design_arrays": list(design),
         }
     except Exception as exc:  # noqa: BLE001 - fitting is possible; reuse fails closed
-        # Carries the schema version too, so a failure record is distinguishable
-        # from a success one by shape as well as by its null hashes; the reuse
-        # checks refuse on the missing hashes rather than comparing two failures.
+        # Missing hashes refuse reuse, including comparisons of two failures.
         return {
             "schema_version": 2,
             "structure_sha256": None,

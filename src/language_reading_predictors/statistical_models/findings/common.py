@@ -152,22 +152,17 @@ def _kf_most_resolved_row(
     resolution_decimals: int | None = None,
     tie_breakers: Sequence[tuple[str, bool]] = (),
 ) -> dict:
-    """Return the row whose direction is clearest, never the largest estimate.
+    """Rank rows by how far their direction probability lies from 0.5.
 
     The ranking is distance of ``P(positive)`` from 0.5.  This avoids presenting
     differently-scaled coefficients as though their raw magnitudes were
     comparable, and it keeps the selection rule tied to uncertainty.
 
-    ``resolution_decimals`` and ``tie_breakers`` are opt-in (the default keeps
-    every existing builder's behaviour): a builder whose rows can all sit at the
-    resolution ceiling passes the number of decimals at which two probabilities
-    count as tied — chosen well above the Monte-Carlo noise in ``P`` (the
-    concurrent family uses 2, i.e. ties to the nearest 1 %) — and a sequence of
-    ``(column, ascending)`` secondary keys that decide among tied rows on a
-    stated, data-meaningful basis (the concurrent family's primary wave first,
-    then the larger items-scale contrast — 2026-08-22 adjusted-family review,
-    extension follow-up: ``rlm-ca-001``'s headline wave had flipped t1 → t2
-    between two refits on a 1e-4 difference in ``P``).
+    ``resolution_decimals`` optionally rounds that distance before ranking.
+    ``tie_breakers`` supplies ``(column, ascending)`` secondary keys. The
+    concurrent family rounds to 1% and prefers the earliest wave, then the
+    largest absolute items contrast. Rounding is a selection rule, not an
+    estimate of Monte Carlo precision.
     """
     if prob_col not in df.columns:
         raise _KeyFindingsUnavailable(f"{prob_col} is missing")

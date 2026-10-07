@@ -1,27 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Whether a fit may publish, and why.
+"""Compatibility exports for publication checks.
 
-**A re-export facade since #637 stage 3c.** The 4,130-line ``release.py`` this
-replaces was the third of the dependency hubs the maintainability review named. It
-is now six modules, in the order the decision is actually made:
-
-* :mod:`~release.base` - the readers, filenames and thresholds every check shares.
-* :mod:`~release.robustness` - the treatment-effect gate: whether a causal headline
-  survives its prior-sensitivity and floor-grid evidence.
-* :mod:`~release.blending` - the phoneme-blending response-link pair gates.
-* :mod:`~release.family_checks` - per-family checks over a stored fit directory.
-* :mod:`~release.dependence` - joint dependence pairing and its measured consequence.
-* :mod:`~release.publication` - the ordered decision that reads all of the above.
-
-The edges run one way: each check reads ``base``, only ``publication`` reads the
-checks, and the checks do not read each other. That was not true before the split -
-the shared readers lived beside the decision, so every check depended on the module
-that depended on it.
-
-Every name is re-exported here so existing call sites keep working; it is a
-temporary compatibility seam, not an architecture.
+``base`` supplies shared readers and thresholds. ``robustness``, ``blending``,
+``family_checks`` and ``dependence`` own the checks; ``publication`` combines
+them in the required decision order. New code should import from the owner.
 """
 
 from __future__ import annotations

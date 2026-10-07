@@ -90,9 +90,8 @@ def build_mechanism_model(
     child-level random intercept ``u_child = sigma_child * u_child_raw`` with
     ``u_child_raw ~ Normal(0, 1, dims="child")`` and
     ``sigma_child ~ HalfNormal(sigma_child_prior_sigma)``. Required for
-    honest standard errors on β_G, γ's, and f_mech because the 157 rows per
-    mechanism fit are three phase-transitions per child and therefore not
-    independent.
+    modelling dependence among each child's repeated transitions. This does
+    not remove confounding by latent general ability.
 
     ``moderator_symbol`` (default None): when set, adds a LINEAR moderation of
     the mechanism effect by the moderator post-score M. Two standardised terms
@@ -101,10 +100,10 @@ def build_mechanism_model(
         ... + gamma_mod * z(M) + gamma_int * z(logit L_post) * z(M)
 
     where ``z(.)`` is the standardised (mean-0, sd-1) transform computed on the
-    kept rows. ``gamma_int > 0`` means letter-sound converts to the outcome
-    *more* strongly for higher-M children. Both coefficients use the regularising
+    kept rows. ``gamma_int > 0`` means the exposure's logit slope increases
+    at higher moderator values. Both coefficients use the regularising
     ``gamma_cross_prior()`` (Normal(0, 0.3)). The HSGP ``f_mech`` is unchanged
-    (it stays a function of the *raw* ``logit L_post``); the GP-varying-slope
+    (it stays a function of the standardised exposure); the GP-varying-slope
     refinement is deliberately deferred. The caller is responsible for not also
     passing the moderator as a plain confounder (else its main effect would be
     represented twice and be collinear) — the pipeline strips it from
@@ -138,8 +137,9 @@ def build_mechanism_model(
     ``prepared.covariates`` (the pipeline standardises the continuous ones and adds
     missing-indicators); they enter as linear ``gamma_{c}`` terms with the
     regularising cross-coupling prior, exactly as in ``build_itt_model`` (#245).
-    Age and group need no entry here: age is absorbed by the phase-specific
-    intercepts and group is always in ``beta_G``.
+    Group is always in ``beta_G``. Include ``"A"`` in ``confounder_symbols``
+    to adjust for age through a linear term, an age GP or the age moderator.
+    Phase intercepts alone do not adjust for age differences within a period.
 
     ``mechanism_is_covariate`` (default False): treat the *exposure* as a
     standardised continuous covariate (a key of ``prepared.covariates``, e.g.
@@ -219,12 +219,11 @@ def build_mechanism_model(
     ``alpha + beta = kappa`` the variance inflation over Binomial is
     ``(kappa + n) / (kappa + 1)``, so being within 10% of Binomial variance needs
     ``kappa >= 10 (n - 1) - 1`` — 779 at ``n = 79`` and 1689 at ``n = 170``, both of
-    which ``HalfNormal(50)`` gives vanishing mass. The prior therefore *enforces* a
-    floor on overdispersion (about 3.3x at the prior median for word reading, 5.9x
-    for the vocabulary tests) rather than leaving the near-Binomial limit — the
-    ordinary hypothesis "no extra-Binomial variation" — available.
+    which ``HalfNormal(50)`` gives vanishing mass. The prior strongly favours
+    overdispersion without imposing a strict minimum. At its median the variance
+    multiplier is about 3.3 for word reading and 5.9 for the vocabulary tests.
     ``"halfnormal_inverse_sqrt"`` puts ``1 / sqrt(kappa) ~ HalfNormal(kappa_sigma)``
-    instead, whose tail does reach that limit; it is the parameterisation the ITT
+    instead, which gives more mass near zero dispersion; it is the parameterisation the ITT
     family offers as a sensitivity and ``level_factors`` adopted as its default
     (#584 decision 4). ``kappa_sigma`` is the scale of whichever family is selected.
 
@@ -478,7 +477,7 @@ def build_mechanism_model(
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:
             if s in {"G", "A"}:
-                continue  # G already in beta_G; A handled via age GP
+                continue  # Group and age enter through separate terms.
             gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{s}")
             eta = eta + gamma_c * confounder_data[s]
 
@@ -663,13 +662,8 @@ def build_mechanism_model(
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if kappa_prior_family == "halfnormal_inverse_sqrt":
-            # Dispersion-scale parameterisation (#605), so the near-Binomial limit is
-            # reachable. ``HalfNormal`` on the concentration cannot get there: at
-            # n = 79 (word reading) coming within 10% of Binomial variance needs
-            # kappa > 779 and at n = 170 (the vocabulary tests) kappa > 1689, both of
-            # which HalfNormal(50) gives effectively zero mass — so the registered
-            # prior enforces roughly threefold and sixfold overdispersion a priori.
-            # Same constructor as the ITT sensitivity and the level-factors default.
+            # The dispersion-scale prior gives more mass near the Binomial limit
+            # than HalfNormal(50) on concentration (#605).
             kappa = _rlm_dispersion_kappa(
                 float(_priors.inv_sqrt_kappa_prior().sigma) if kappa_sigma is None else kappa_sigma
             )

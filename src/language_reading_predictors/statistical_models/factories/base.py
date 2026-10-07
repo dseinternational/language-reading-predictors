@@ -1,13 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Shared construction helpers every family factory uses.
+"""Shared model construction helpers.
 
-The pieces more than one family factory needs: the built-model wrapper, the
-outcome-tier prior scales, the child random intercept, the phase-zero
-broadcasts, the baseline standardiser, the bivariate LKJ residual block and
-the adjusted-predictor resolver. Kept separate so a family module never has
-to import a sibling (#637 stage 3).
+Family factories import these helpers without importing one another.
 """
 
 from __future__ import annotations
@@ -34,10 +30,8 @@ from language_reading_predictors.statistical_models.preprocessing import (
     standardise,
 )
 
-# Basis count for the mechanism-curve HSGP (issue #265). Fewer functions than the
-# generic default (20) shrink the parameter space feeding the boundary-geometry
-# funnel; at n ~ 157 with a smooth curve, ~12 is more resolution than the data
-# support. Scoped to f_mech so other GP-bearing models keep the default.
+# Ten basis functions reduce the mechanism HSGP's sampling problems near the
+# boundary (issue #265). Other HSGP terms retain the shared default of 20.
 _MECH_HSGP_M = 10
 
 
@@ -198,19 +192,9 @@ def _standardise_child_baseline(
 
 PayloadT = TypeVar("PayloadT", bound=FittedPayload, covariant=True)
 
-#: The prepared-data shape a family fits on. Defaulted to :class:`PreparedData`,
-#: which is what all but the panel families use, so an existing
-#: ``BuiltModel[SomePayload]`` annotation keeps its meaning (#637 stage 4).
-#:
-#: Without this the attribute was typed as the union of all three shapes, and a
-#: pipeline reading ``built.prepared.pre_counts`` — perfectly well-defined for the
-#: shape its own factory returns — produced two type errors per access. That one
-#: union accounted for 343 of the 1,080 errors keeping the family pipelines out of
-#: strict type checking.
-#: Deliberately unbounded: the survival family fits its own ``SurvivalPanel``,
-#: which lives in a module that imports this one, so naming every shape here
-#: would close a cycle. The default carries the common case, and each factory's
-#: return annotation states the shape it actually builds on.
+#: The prepared-data type defaults to the common :class:`PreparedData` shape.
+#: Each factory names its actual type. This remains unbounded because importing
+#: the survival family's panel type here would create a circular import.
 PreparedT = TypeVar("PreparedT", default=PreparedData, covariant=True)
 
 
@@ -396,7 +380,7 @@ def _rlm_group_nuisance(frame, eta):
     """Add non-interpretable group-nuisance dummies for the Byrne cohort factor.
 
     ``readgrp`` is observational: with three groups, two ``Normal(0, 1)`` dummy
-    slopes (reference = the largest group, average readers) absorb cohort
+    slopes (reference = the largest fitted group) absorb cohort
     composition exactly as ``beta_group_nuisance`` does in the RLI concurrent
     family - flagged non-interpretable, never a group effect estimate.
     """
@@ -441,13 +425,9 @@ def _rlm_dispersion_kappa(dispersion_prior_sigma: float, *, rationale: str | Non
 def default_of(fn, param: str) -> float:
     """The default value of keyword ``param`` in factory ``fn``'s signature.
 
-    Makes the factory the single source of truth for a prior-scale default, so a
-    a settings fallback in the pipeline cannot silently drift
-    from the factory it feeds (the failure Copilot caught on #209: the adjusted
-    fallback was re-hardcoded and lagged the reconciled factory default). Prefer
-    this over re-typing the number: if ``param`` is ever renamed the lookup raises
-    ``KeyError`` loudly at fit time rather than falling back to a stale literal.
-    ``test_pipeline_fallback_defaults`` guards that this stays in step.
+    Read pipeline fallback defaults from the factory to keep them in step.
+    A renamed or absent parameter raises ``KeyError`` instead of returning a
+    stale literal.
     """
     return inspect.signature(fn).parameters[param].default
 

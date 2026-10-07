@@ -14,7 +14,8 @@ answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial
 inverse-logit mean does not know that: the fitted dose-084 posterior puts 8 of its
 160 rows below one third in posterior mean and 7.0 % of its row-by-draw mass below
 chance, with a worst row at 100 %. This companion constrains the mean to
-``1/3 + 2/3 * expit(eta)``, so the model cannot predict below-chance performance.
+``1/3 + 2/3 * expit(eta)``, so the expected score proportion is at least one third. Individual observed or
+predicted counts can still fall below that mean floor.
 
 **Why this family in particular.** The #608 decision named the dose family as the
 case that defeats the "observational families are exempt" argument. `METHODS.md`

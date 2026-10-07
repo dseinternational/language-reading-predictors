@@ -3,14 +3,10 @@
 
 """The adjustment set a fit actually conditioned on.
 
-``ModelSpec.adjustment`` records what was *requested*. What is fitted can differ:
-Family run plans add revised-DAG confounders, the factor families add an ability
-covariate and upstream-skill baselines, and the loader drops any
-covariate that turns out constant on the fitted rows. :func:`effective_adjustment`
-builds the record that goes into ``config.json`` naming, for every term that
-carries a coefficient, its source column, wave and missingness role — plus the
-requested-but-dropped terms, explicitly (#258 review P1). Shared by the factor
-families and the mechanism family, so it sits below both (#394 step 6).
+``ModelSpec.adjustment`` records requested terms. Family plans add terms, and
+loaders remove covariates that are constant on the fitted rows.
+:func:`effective_adjustment` records each fitted term's source, wave and
+missingness role in ``config.json``, alongside requested terms that were dropped.
 """
 
 from __future__ import annotations
@@ -35,56 +31,25 @@ def effective_adjustment(
     moderator_interaction: bool = False,
     exposure_terms: tuple[dict, ...] = (),
 ) -> dict:
-    """Describe the adjustment set the model **actually fitted**.
+    """Describe fitted terms and requested covariates dropped by the loader.
 
-    ``spec.adjustment`` records what was *requested*; it is not what is fitted.
-    Family-declared ``adjust_for`` values once failed to reach ``config.json``, so
-    a model could report ``{G, A, W_pre}`` while conditioning on hearing, speech,
-    sessions and their missingness indicators — a material misdescription that made
-    exact auditing impossible (#258 review, P1). And a covariate that turns out
-    constant on the fitted rows is dropped by the loader and gets no coefficient, so
-    listing it would imply a term that was never estimated.
+    ``skill_baselines`` enter at each period's pre wave. Bounded
+    ``measure_confounders`` enter at its post wave. ``ability_covariate`` is the
+    factor families' t1 ability measure, fitted as ``gamma_ability`` across waves.
 
-    The returned record therefore names, for every term that carries a coefficient,
-    its source column, its measurement wave, and whether it is a missingness
-    indicator — plus the requested-but-dropped terms, explicitly.
+    ``requested_adjust_for`` preserves the plan before constant covariates are
+    removed. It defaults to ``adjust_for`` when the two sets are identical.
 
-    ``skill_baselines`` records the gain-factor ``skill_symbols``, which — unlike the
-    ``measure_confounders`` of the mechanism/mediation families — enter at the period
-    **pre** (baseline) wave, not the post wave (#247). They are always fitted (the
-    keep-mask requires their baselines), so they never appear in ``dropped_constant``.
-
-    ``ability_covariate`` records the gain-/level-factor cognitive-ability adjuster
-    (block design), a between-child t1 baseline broadcast across the panel and fitted
-    as ``gamma_ability``. It was previously absent from the record even though the
-    factory conditions on it, so the audited set understated the fitted set by one
-    term across the whole factor family (this review's finding B2).
-
-    ``requested_adjust_for`` is the plan declaration before the loader removes a
-    constant covariate. It defaults to ``adjust_for`` for callers whose fitted and
-    requested sets are identical.
-
-    ``moderator_symbol`` records the mechanism family's linear moderation terms. The
-    factory always fits a moderator main effect (``gamma_mod``) and, when
-    ``moderator_interaction``, an exposure-by-moderator product (``gamma_int``);
-    neither reached the record, so a fit could name a term in ``requested`` and omit
-    it from ``fitted`` while estimating a coefficient for it (#586 finding 9). The
-    clearest case is age moderation (mech-073), where the factory deliberately drops
-    the separate linear ``gamma_A`` because ``gamma_mod`` *is* the age adjustment —
-    so age was listed as requested, absent from the fitted terms, and adjusted for
-    all along. They are recorded under their own ``moderator*`` kinds, never
-    relabelled as confounders: a moderator that descends from the exposure is not a
-    backdoor adjuster, and the record must not imply that it is.
+    Moderators have their own term kinds. A moderator main effect can supply the
+    age adjustment instead of a separate ``gamma_A``. Calling a term a moderator
+    does not imply that it controls confounding, especially if the exposure can
+    cause it.
     """
     requested_adjust_for = adjust_for if requested_adjust_for is None else requested_adjust_for
     terms = []
     for s in skill_baselines:
-        # Upstream-skill DAG-parent adjusters, entered as their period baseline
-        # (pre-wave) logit — the ANCOVA lag that precedes that period's treatment.
-        # ``descriptive_skills`` names the declared exceptions (#575 finding 9):
-        # gf-012/gf-013 enter R/E although they sit *downstream* of the outcome
-        # under the revised DAG, purely to describe an association — recording
-        # them as DAG-parent adjusters would misstate the adjustment rationale.
+        # Downstream skills declared as descriptive associates must not be
+        # labelled as upstream adjustment terms in the causal graph.
         terms.append(
             {
                 "term": f"{s}_pre",
@@ -140,10 +105,7 @@ def effective_adjustment(
             }
         )
     if ability_covariate and ability_covariate in prepared.covariates:
-        # Cognitive-ability (block-design) adjuster — a between-child t1 baseline
-        # broadcast across the panel, fitted as ``gamma_ability``. Guarded on
-        # presence so an ability covariate that went constant (and was dropped by
-        # the loader) is reported under ``dropped_constant``, not as fitted.
+        # A constant ability covariate belongs in dropped_constant, not fitted.
         terms.append(
             {
                 "term": ability_covariate,
@@ -164,10 +126,6 @@ def effective_adjustment(
             }
         )
     for s in baseline_symbols:
-        # Multi-outcome ANCOVA (the joint-mechanism transition design): each
-        # jointly fitted outcome keeps its own autoregressive baseline, so the
-        # record carries one term per outcome rather than the singular
-        # ``baseline_symbol``.
         terms.append(
             {
                 "term": f"{s}_pre",

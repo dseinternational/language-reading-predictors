@@ -3,7 +3,10 @@
 
 """LRPPL101 - wave-pooled level association: letter-sound knowledge (L) -> word reading (W).
 
-Comparator for LRPPL01 with a single intercept: beta_mech then also carries the secular co-movement of both measures across waves. Reported to bound that contribution, never as the headline.
+Comparator for LRPPL01 with a single intercept. The exposure retains its
+between-child and within-child split, but no wave intercept accounts for shared
+changes across waves. Compare the fits to assess sensitivity to that adjustment;
+the comparison does not give a bound on the contribution of shared change.
 
 One Beta-Binomial likelihood over every child-wave row, with letter-sound knowledge at the same
 wave as the standardised exposure and a child random intercept carrying the repeated

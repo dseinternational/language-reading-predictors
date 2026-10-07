@@ -10,8 +10,7 @@ sounds correctly produced in a picture-naming task.
 
 The gain target spans min -23.5, max 17.8, median 0.00, mean 0.19,
 std 5.74, skew -0.62, with ~28% negative and ~31% zero
-observations (n = 152). Regression from the mean dominates gain
-targets across the suite.
+observations (n = 152).
 
 This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable vowel

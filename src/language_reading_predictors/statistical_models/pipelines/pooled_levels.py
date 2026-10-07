@@ -50,7 +50,7 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Wave-pooled between-child level association for one exposure/outcome pair."""
+    """Fit pooled level associations, including a between/within-child split."""
     require_spec(spec, "pooled_levels", outcome=True)
 
     plan = _pooled.resolve_pooled_levels_run_plan(spec)

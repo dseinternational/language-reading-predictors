@@ -15,8 +15,9 @@ draws from separate fits under a working-independence assumption:
 2. the **decoding-specificity contrast** ``Delta = beta(LS->N) - beta(LS->W)``,
    currently paired from ``mech-096`` and ``mech-101``.
 
-The paired fits share children, so the true joint posterior has a cross-outcome
-covariance the pairing sets to zero. This model fits both outcomes together at each
+The paired fits share children, so their estimates can depend on shared
+observations. Pairing independent draws does not model that dependence. This model fits
+both outcomes together at each
 wave with an **LKJ residual correlation** between them, which turns both quantities
 into within-model deterministics.
 

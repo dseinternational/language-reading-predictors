@@ -7,12 +7,10 @@
 between-child cross-measure correlation matrix of the stable child levels. The
 within-child companion also reports the correlation matrix of wave-specific
 departures from those levels and their matched contrast. Per-measure fitted
-cells and common-window growth use the shared historical summaries. LOO is not
-computed because no out-of-sample prediction target has been defined and
-implemented for this family - not because several likelihood nodes preclude one;
-they share an observation coordinate and could be summed per child-wave row
-(2026-08-23 joint audit, finding 8). ``plan.loo_reason`` is the statement of
-record. Descriptive throughout; the cohort is observational.
+cells and common-window growth use the shared historical summaries. Prediction
+for a new child uses grouped child-level K-fold refits. Ordinary PSIS-LOO is
+disabled; ``plan.loo_reason`` records why. Descriptive throughout; the cohort
+is observational.
 """
 
 from __future__ import annotations

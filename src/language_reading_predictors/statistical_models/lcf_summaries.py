@@ -3,12 +3,9 @@
 
 """Descriptive and comparison summaries for the longitudinal correlated-factor (LCF) model.
 
-The LCF family's triangulation, items-scale translation and concurrent-comparison
-computations (#394 pillar 6): mostly-pure functions of the fitted context and built
-model that return DataFrames, with table persistence left to the family pipeline.
-Kept separate from the inference algorithms in :mod:`lcf_inference`, and out of the
-pipeline monolith, so the summary calculations are testable without an output
-directory, Quarto template or Matplotlib session.
+Functions return observed comparisons and items-scale translations as tables.
+The family pipeline saves them. Likelihood and prior recovery live in
+:mod:`lcf_inference`.
 """
 
 from __future__ import annotations
@@ -134,9 +131,6 @@ def items_scale(
                 slope_z = lam_m * lam_k * rho / (lam_k**2 + sig_k**2)
                 # Δitems_m per +1 item of k at the mean operating point.
                 items_slope = slope_z * (sd_m / sd_k) * (info_m / info_k)
-                # Median + inner-50% bands alongside the mean: the key-findings
-                # headline reads this table and the house lead statistic is the
-                # median (2026-08-21 review, finding 10).
                 rows.append(
                     {
                         "wave": w,

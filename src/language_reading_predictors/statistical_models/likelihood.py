@@ -3,10 +3,9 @@
 
 """Beta-binomial likelihood helpers used by the statistical-model factories.
 
-The ordinary logit implementation lives in the shared package and remains
-re-exported here.  The RLI phoneme-blending sensitivity additionally needs a
-mechanically justified three-choice guessing floor while retaining the same
-Beta-binomial observation family.
+The ordinary logit implementation is re-exported from the shared package.
+The RLI phoneme-blending companion adds a floor under the assumed random-guessing
+mechanism while retaining the Beta-Binomial observation family.
 """
 
 from __future__ import annotations
@@ -53,17 +52,10 @@ def invert_score_mean_link(
 ) -> Any:
     """Map a score mean back onto the inverse-logit (unit) scale.
 
-    The inverse of :func:`apply_score_mean_link`, needed wherever a location is
-    computed *from observed scores* and then used as a logit-scale quantity — the
-    level family's empirical-Bayes intercept anchor being the case in point (#584
-    decision 2). Anchoring a guessing-floor fit on the raw observed logit would put
-    the intercept prior in the wrong place: with a pooled t1 blending proportion of
-    0.49 the ordinary anchor is logit(0.49) = -0.03, while the value the floor link
-    actually needs is logit((0.49 - 1/3) / (2/3)) = -1.15.
-
-    A score mean at or below the floor has no representation on the unit scale — the
-    link cannot produce it — so this raises rather than returning an infinite or
-    undefined anchor.
+    Invert :func:`apply_score_mean_link` before converting an observed score
+    location to a linear-predictor anchor. For the guessing-floor link, require
+    a mean strictly between 1/3 and 1 so its logit is finite. The ordinary link
+    returns its input without range validation.
     """
 
     if score_mean_link == "logit":

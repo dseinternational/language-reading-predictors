@@ -78,8 +78,8 @@ class MediationData:
     M_pre_std: np.ndarray | None = None
     route_symbols: tuple[str, ...] = ()
     #: Off-floor (Bernoulli) OUTCOME (#228 item 12, e.g. nonword N): the outcome leg
-    #: is a Bernoulli on the off-floor indicator (post > 0) with no own-baseline term,
-    #: so ``decompose`` reads no ``b_W`` and reports NIE/NDE on the off-floor
+    #: is a Bernoulli on the off-floor indicator (post > 0) with a binary baseline
+    #: term. ``decompose`` reads ``b_own_offfloor`` and reports NIE/NDE on the off-floor
     #: risk-difference (probability) scale (``n_trials_W`` is set to 1, collapsing the
     #: ``words_*`` columns onto the risk difference). Default False = graded outcome.
     off_floor: bool = False
@@ -176,14 +176,12 @@ def _build_outcome_leg(
     ``mediator_node`` (``z_med`` for LRP59, the route composite for LRP62). Must
     be called inside an open ``pm.Model`` context so the nodes register.
 
-    ``outcome_kind="beta_binomial"`` (default) fits the graded post count and is
-    **byte-identical** to the original build. ``"bernoulli_offfloor"`` (#228 item 12,
-    a heavily-floored outcome such as nonword N) instead fits a Bernoulli on the
-    off-floor indicator ``post > 0`` (node ``y_offfloor``, no ``kappa_Y``) and
-    **drops the own-baseline term** ``b_W * W1`` — mirroring the off-floor ITT / DiD /
-    gain-factor convention (the ``Normal(1, ·)`` autoregressive prior does not
-    transfer to a binary indicator, and a floored baseline logit is degenerate). In
-    that case ``W1_d`` is unused (may be ``None``).
+    ``outcome_kind="beta_binomial"`` (default) fits the graded post count with
+    baseline term ``b_W * W1``. ``"bernoulli_offfloor"`` fits a Bernoulli on
+    ``post > 0`` (node ``y_offfloor``, no ``kappa_Y``) and replaces the graded
+    baseline with ``b_own_offfloor * own_offfloor``. The binary baseline prior
+    is ``Normal(0, 1)`` because the graded autoregressive prior does not apply
+    to an indicator. ``W1_d`` is unused on this path and may be ``None``.
     """
     off_floor = outcome_kind == "bernoulli_offfloor"
     cross_values = dict(cross_values or {})
@@ -669,7 +667,7 @@ class TwoMediatorData:
     #: the g-formula must draw it conditional on the simulated first mediator.
     chain: bool = False
     #: Off-floor (Bernoulli) second mediator (e.g. floored nonword decoding N, med-081):
-    #: its leg models P(mediator > 0) with no dispersion / denominator / own-baseline,
+    #: its leg models P(mediator > 0) with a binary own-baseline term and no dispersion,
     #: and the g-formula draws it as a Bernoulli indicator, not a Beta-Binomial count.
     second_mediator_offfloor: bool = False
     #: Per-leg cross baseline regressors restored by #585, keyed by mediator
@@ -767,7 +765,7 @@ def build_two_mediator_model(
     if second_mediator_offfloor:
         # The regressor entering the outcome leg for an off-floor mediator is the
         # off-floor INDICATOR (mediator > 0), not a standardised count logit — it has
-        # no dispersion, denominator or own-baseline. zE_mean/zE_sd are placeholders
+        # no count dispersion or count denominator. zE_mean/zE_sd are placeholders
         # (the g-formula draws a Bernoulli indicator, so no destandardisation applies).
         zE = (E2 > 0).astype(float)
         zE_mean, zE_sd = 0.0, 1.0
@@ -887,8 +885,7 @@ def build_two_mediator_model(
         )
         mu_E = pm.Deterministic(f"mu_{mE}", mu_E, dims="obs_id")
         if second_mediator_offfloor:
-            # Bernoulli off-floor leg: models P(mediator > 0); no dispersion, no
-            # denominator, no own-baseline (mirrors the off-floor outcome leg).
+            # Bernoulli off-floor leg with the binary baseline already in mu_E.
             pm.Bernoulli(
                 f"{mE}_offfloor",
                 logit_p=mu_E,

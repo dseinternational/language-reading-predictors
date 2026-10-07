@@ -23,7 +23,7 @@ the gain factors' ``gamma_int_A_ability`` onto the latent growth rate.
 
 **Still an adjusted, GA-confounded association, never causal.** Block design is an
 off-DAG ability proxy and latent general ability is the unobserved common cause; the
-child random intercept only partially adjusts (``dag/dag-language-reading.dagitty``,
+child random intercept does not control latent general ability (``dag/dag-language-reading.dagitty``,
 ``METHODS.md``). Baseline age is likewise not randomised. Read ``gamma_int_k`` /
 ``gamma_age_k`` / ``gamma_k`` as adjusted associations. Exploratory at n~54:
 intervals are wide; the deliverable is the *direction* of ``gamma_int_k`` per

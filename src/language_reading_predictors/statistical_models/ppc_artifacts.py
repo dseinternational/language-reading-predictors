@@ -1,13 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Posterior-predictive artefacts: coverage CSV, calibration panel, overlays.
+"""Write coverage tables, calibration panels and predictive overlays.
 
-The #318 posterior-predictive suite, shared by every family: it computes the
-coverage statistic from the existing ``posterior_predictive`` group (no new
-sampling), routes by outcome-node kind (bounded count, binary off-floor,
-measurement/latent) and writes the calibration and overlay figures. Split out of
-``pipeline.py`` for #394.
+These checks use the saved ``posterior_predictive`` group without new sampling.
+The outcome node determines whether to check counts, off-floor rates or latent
+measurements.
 """
 
 from __future__ import annotations
@@ -46,18 +44,11 @@ _PREDICTIVE_COLOUR = CHART_COLOURS[0]
 _OBSERVED_COLOUR = CHART_COLOURS[1]
 
 
-# Posterior-predictive check suite (issue #318) --------------------------------
-# The stock ArviZ overlay pooled every likelihood node onto one unlabelled axis and
-# offered no verdict. The redesign emits, from the existing posterior_predictive
-# group (no new sampling): a computed coverage statement (ppc_summary.csv), a
-# per-observation calibration panel, and — for single-measure count families — a
-# relabelled distribution overlay. Floor-rule / binary nodes report off-floor RATE
-# coverage by group cell instead (per-observation 0/1 interval coverage is
-# degenerate). See notes/202607151942-ppc-coverage-redesign.md.
+# Binary nodes need group-cell rate coverage because individual 0/1 intervals
+# provide little information about calibration. See
+# notes/202607151942-ppc-coverage-redesign.md.
 
-# Families whose single likelihood node flattens several measures with different
-# denominators (6..170), so a shared count axis for the overlay would pool them —
-# the meaninglessness #271 item 2 flagged. They still get coverage + calibration.
+# Split stacked measures so different score maxima do not share a count axis.
 _PPC_MULTI_OUTCOME_KINDS = {"joint", "lcsm", "growth"}
 # Of those, ``joint`` splits its own per-outcome overlays and calibration tables in
 # ``fit_joint`` (``save_joint_posterior_predictive_plot``), so the generic
@@ -67,18 +58,9 @@ _PPC_FAMILY_OWN_OVERLAY_KINDS = {"joint"}
 _PPC_BINARY_NODES = {"y_offfloor", "y_event"}
 # Bounded-count outcome nodes that take the count-interval treatment.
 _PPC_COUNT_NODES = {"y_post", "y_obs", "score"}
-# Families carrying one bounded-count likelihood node PER MEASURE (rather than one
-# node flattening several). Their node names are measure-suffixed, so they used to
-# miss ``_PPC_COUNT_NODES`` by name and fall through to the measurement/latent
-# overlay — publishing no coverage statistic and no calibration panel, and pooling
-# denominators of 90/32/34 on one axis (2026-08-21 historical-families review,
-# finding 4). They take the count treatment once per node instead.
+# Measure-suffixed count nodes need coverage and calibration for each measure.
 _PPC_PER_NODE_KINDS = {"historical_joint"}
-# Mediation families carry one likelihood per LEG (mediator(s) + outcome). Only the
-# outcome leg used to reach the PPC writer, so the released coverage summary and
-# calibration panel said nothing about mediator fit — the leg the indirect effect
-# is built from (#585 finding 8). These get a per-leg writer that routes each node
-# by its own likelihood kind.
+# Mediation checks each mediator and outcome using its own likelihood kind.
 _PPC_MEDIATION_KINDS = {"mediation", "mediation_multi"}
 
 
@@ -111,10 +93,9 @@ def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") ->
 def cell_outcome_labels(context: StatisticalFitContext, node: str, outcomes: Sequence[str]) -> list[str] | None:
     """One outcome symbol per flattened cell of ``node``, from the saved cell map.
 
-    ``None`` when no map is present or it does not align, so a per-outcome split
-    is skipped rather than misaligning a measure with another's counts. Reads the
-    map back rather than re-deriving it — a reconstructed index is what silently
-    misaligned the prior-predictive checks before.
+    Return ``None`` when the map or outcome list is absent, the map is empty or
+    its largest index exceeds the declared outcomes. Read the factory's saved
+    ordering rather than reconstructing it from the fitted rows.
     """
     cd = getattr(context.trace, "constant_data", None)
     if cd is None or not outcomes:
@@ -324,17 +305,14 @@ def _save_multi_outcome_ppc_overlays(context: StatisticalFitContext, node: str, 
     """One overlay per measure for a stacked multi-outcome likelihood.
 
     ``joint`` / ``lcsm`` / ``growth`` flatten every measure into a single likelihood
-    node, so a pooled overlay puts scales with different maxima on one axis and has
-    no interpretable predictive distribution. This was previously skipped outright
-    for those families; it is emitted per measure now that the factories persist a
-    cell map (``y_post_cell_outcome`` for the joint family, ``y_obs_cell_outcome``
-    for the stacked LCSM / growth likelihoods), which is the same selection the
-    prior-predictive checks use. The map is read back, never re-derived — a
-    reconstructed index is what silently misaligned those checks before.
+    node. Use the saved cell map to separate measures with different score
+    maxima, as the prior-predictive checks do. Joint models store
+    ``y_post_cell_outcome``; stacked LCSM and growth models store
+    ``y_obs_cell_outcome``.
 
     The first measure keeps the unsuffixed filename the report partials expect;
-    the rest are suffixed. Falls back to the pooled overlay only when no map is
-    present, since that is a single-measure node reaching here by another route.
+    the rest are suffixed. If labels are unavailable, fall back to the pooled
+    overlay and warn that the per-measure check could not be drawn.
     """
     plan = getattr(context, "resolved_plan", None)
     outcomes = [str(o) for o in (getattr(plan, "outcomes", ()) or ())]
@@ -504,8 +482,8 @@ def _ppc_calibration_figure(
     """Per-observation calibration panel: observed vs posterior-predictive median.
 
     Observed score (x) against the predictive median with a 90% interval (y) and a
-    ``y = x`` diagonal; points off the diagonal are directly-readable mis-fits, and
-    observations whose observed score falls outside the 90% range are flagged.
+    ``y = x`` diagonal. Flag observed scores outside the 90% predictive range;
+    a point away from the diagonal can also reflect ordinary outcome variation.
     Writes ``ppc_calibration.png`` (+ the per-observation data CSV); a per-measure
     caller passes its own ``filename_stem`` so the panels do not overwrite.
     """
@@ -565,8 +543,8 @@ def _ppc_offfloor_figure(
     """Floor-rule PPC figure: observed off-floor rate vs its predictive rate by cell.
 
     Writes ``posterior_predictive_check.png`` (the floor-rule analogue of the count
-    overlay: the observed rate should sit inside the model's predictive range for
-    each cell) plus the per-cell data CSV.
+    overlay) plus the per-cell data CSV. Coverage across cells checks whether the
+    predictive ranges capture the observed rates.
     """
     with guard_optional(
         context,

@@ -16,8 +16,8 @@ Conventions
 - RCT (randomised) phase is ``time in {1, 2}`` — that is, the pre-score is
   ``time == 1`` and the post-score is ``time == 2``. The ITT models use this
   phase only.
-- Mechanism models (LRP56-LRP58) stack all three phase transitions
-  ``(t1 -> t2, t2 -> t3, t3 -> t4)`` with a phase indicator.
+- Family run plans choose among stacked transitions, per-wave levels and
+  single-baseline-to-later-wave designs.
 - Missing pre-scores in the chosen phase are dropped with a printed warning.
 """
 
@@ -53,12 +53,8 @@ from language_reading_predictors.statistical_models.measures import (
 # ---------------------------------------------------------------------------
 
 
-# The scalar transforms moved to ``dse_research_utils.statistics.transforms`` in
-# v0.12.0 (``logit_safe`` is the shared ``haldane_logit``; the other repositories
-# had derived the same correction independently). Re-exported here under this
-# module's established names, which ~200 call sites and the methods chapter use.
-# Note the shared module also has a ddof=0, NaN-unaware, non-raising
-# ``standardize`` — a different function; these models want ``standardise``.
+# Preserve the established transform imports. The shared ``standardize``
+# differs from ``standardise`` in its handling of missing values and zero spread.
 logit_safe = haldane_logit
 
 
@@ -102,7 +98,7 @@ class PreparedData:
     n_children: int
     n_phases: int
     dropped_rows: int
-    """Number of rows dropped due to missing pre-scores or group."""
+    """Number of rows dropped by the loader or later factory restrictions."""
     phase_mode: str
     """``"itt"`` (RCT phase only), ``"all"`` (three stacked transitions),
     ``"levels"`` (four per-timepoint score rows), or ``"span"`` (one row per
@@ -255,19 +251,14 @@ def derive_nonverbal_ability_composite(df: pd.DataFrame) -> pd.Series | None:
     A raw sum also has no reference-sample ambiguity, whereas standardising the
     components first would depend on which rows happened to be loaded.
 
-    What it is for: the suite adjusts for measured ability with Block Design
-    alone, and the two subtests correlate at 0.664, so a single subtest is
-    roughly a 0.66-reliable measure of what they share while the sum is roughly
-    0.80-reliable. The composite exists so an ability-adjusted result can be
-    re-read with the more reliable measure.
+    The composite tests sensitivity to adjusting for two measured subtests
+    rather than Block Design alone. Their correlation does not establish the
+    reliability of either score without further measurement assumptions.
 
-    What it is **not**: an improved measure of the latent general ability ``GA``
-    of the causal diagram. Both subtests are perceptual-organisation tasks, so
-    their shared variance is a narrow visuospatial factor — the domain of
-    relative strength in the Down syndrome profile — and ``GA`` stays
-    unmeasured. Returns ``None`` when either component is absent, so a dataset
-    without both subtests is a no-op rather than a silent single-subtest
-    fallback.
+    Both subtests are perceptual-organisation tasks. The composite measures
+    a narrow visuospatial domain; the causal diagram's latent general ability
+    ``GA`` remains unmeasured. Return ``None`` if either component is absent
+    rather than silently falling back to a single subtest.
     """
     if V.BLOCKS not in df.columns or V.OBJASS not in df.columns:
         return None
@@ -280,9 +271,9 @@ def add_nonverbal_ability_composite(df: pd.DataFrame) -> pd.DataFrame:
     """Add the ``objass_c`` column so a fit can name it as its ability covariate.
 
     A no-op when either subtest is absent. Unlike the hearing covariates this
-    adds no missing indicator: both subtests are complete for all 54 analysed
-    children, so the composite is complete wherever ``blocks`` is, and a fit
-    naming it drops exactly the rows a fit naming ``blocks`` drops.
+    adds no missing indicator. Both subtests are complete for the 54 children
+    in the analysed RLI sample, so the two adjusters retain the same rows there.
+    With other data, the composite is missing if either component is missing.
     """
     composite = derive_nonverbal_ability_composite(df)
     if composite is None:
@@ -343,10 +334,8 @@ MISSINGNESS_INDICATOR_PAIRS: dict[str, str] = {
 #: than the state *at* that wave — so they are correctly read from the transition's
 #: **pre** row, not its post row.
 #:
-#: Only ``attend`` (cumulative intervention sessions) has this semantics: it counts
-#: sessions delivered *during* the pre -> post interval, and it is recorded at t1-t3
-#: with no t4 value at all, which is what a "sessions during the following interval"
-#: variable looks like.
+#: ``attend`` counts sessions during the following pre -> post interval.
+#: It is recorded at t1-t3, with no t4 value.
 #:
 #: Everything else in an adjustment set is a **state** (hearing status, speech
 #: production, phonological memory), measured at every wave, and the authoritative
@@ -377,9 +366,9 @@ def split_covariates_by_wave(
 #: factor families** (gain / level factors) these are read at the pre-randomisation
 #: **baseline** (t1), not the contemporaneous post wave: at the period-1 post wave (t2)
 #: they may already be treatment-affected, so conditioning on them there would adjust a
-#: descendant of the exposure and bias the randomised effect toward the null (review
+#: descendant of the exposure and bias the randomised effect (review
 #: finding A1; team decision 2026-07-13, ``notes/202607130922-statistical-models-methodology-review.md``).
-#: Hearing status (``hs``) is exogenous to a language intervention and stays
+#: Hearing status (``hs``) is assumed unaffected by the intervention and stays
 #: contemporaneous (post). Each parent's ``_missing`` indicator follows its parent.
 BASELINE_CONFOUNDER_BASES: frozenset[str] = frozenset({"deapp_c", "erbto"})
 
@@ -418,16 +407,17 @@ def add_apt_derived_scores(df: pd.DataFrame) -> pd.DataFrame:
 
     ``aptinfo_x2``
         The score doubled, i.e. counted in half marks out of 80. Every observed
-        fractional part is exactly 0.5, so this is lossless and preserves the
-        proportion (``k/40 == 2k/80``) and hence the whole logit mean structure.
-        This is the primary encoding. It does assert 80 exchangeable trials where
-        there are 40 partial-credit items, which overstates per-child precision;
-        the Beta-Binomial concentration absorbs part of that, and the comparator
-        below tests what it is worth.
+        fractional part is exactly 0.5, so this preserves the score proportion
+        (``k/40 == 2k/80``). Haldane-corrected baseline logits can still differ
+        because the denominator changes.
+        This is the primary encoding. Treating half marks as exchangeable
+        trials changes the likelihood's trial count and may alter inferred
+        precision, even with Beta-Binomial overdispersion. The comparator below
+        tests sensitivity to that choice.
     ``aptinfo_r40``
-        The score rounded to the nearest whole mark, out of 40. Honest about the
-        trial count, but perturbs 44% of rows by up to half a mark. The registered
-        denominator-sensitivity comparator for the doubled fit.
+        The score rounded to the nearest whole mark, out of 40. This retains
+        the item count but perturbs 44% of rows by up to half a mark. This is
+        the registered denominator-sensitivity comparator for the doubled fit.
 
     Both are no-ops when the source column is absent, so loaders for the historical
     cohort are unaffected.
@@ -529,14 +519,20 @@ def load_and_prepare(
         Use this for t1-only baselines in ``"all"``/``"levels"`` mode (where a
         per-row pull would be NaN after t1). Missing values trigger complete-case
         dropping like ``covariates``.
+    post_covariates
+        Additional standardised covariates from each transition's post row.
+        In ``"levels"`` mode these come from the same row as ``covariates``.
+    require_observed
+        Covariates whose filled values must be excluded using their
+        ``{col}_missing`` indicators for an observed-case sensitivity.
     drop_missing_pre
-        If True (default), rows with any missing pre-score (for the symbols in
-        ``pre_required``) or missing group are dropped and a warning is printed
-        with the dropped-row count.
+        If True (default), drop rows with missing required pre-scores, group,
+        age or requested covariates. Also apply ``require_any_post``. If False,
+        the caller must handle these missing values. Warn on excluded rows.
     require_any_post
-        If True (default), also drop a constructed row when every requested
-        outcome is missing. Set False only when a factory needs that row to recover
-        a pre-randomisation baseline (for example t1 age/outcome) before applying
+        If True (default) and ``drop_missing_pre`` is True, also drop a
+        constructed row when every requested outcome is missing. Set False
+        only when a factory needs that row to recover a pre-randomisation baseline (for example t1 age/outcome) before applying
         its own explicit target-outcome mask. Missing outcomes remain ``NaN`` and
         must never reach a likelihood.
     pre_required
@@ -751,10 +747,10 @@ def load_and_prepare(
         )
 
     # COMPLETE-CASE sensitivity (#258 review). ``hs`` / ``deapp_c`` / ``erbto`` reach
-    # the frame already mean-filled, with a ``{col}_missing`` flag carrying the
-    # unknown group as its own adjustment level. That keeps every child, but
-    # mean-imputation plus an indicator does **not** by itself guarantee adequate
-    # confounding control — it assumes the imputed group's confounder effect is
+    # the frame already filled, with a ``{col}_missing`` flag carrying the
+    # unknown group as its own adjustment level. Filling with an indicator
+    # does not guarantee adequate confounding control. It assumes the imputed
+    # group's confounder effect is
     # captured by a single intercept shift. ``require_observed`` drops the imputed
     # rows so a fit can be re-run on genuinely observed confounders only, and the
     # two compared. The indicators then go constant (all zero) and are dropped
@@ -791,10 +787,10 @@ def load_and_prepare(
             f"(wait-list control); found invalid raw value(s) {invalid.tolist()}"
         )
 
-    # Recode so G = 1 is the intervention arm and G = 0 the control arm. This
-    # gives the "positive = intervention benefit" sign convention for every
-    # coefficient on G (tau, tau_i/tau_k, beta_G, b_G, b_GM, a_G). See the
-    # "Sign convention" section of METHODS.md.
+    # Recode so G = 1 is the immediate arm and G = 0 the waitlist arm.
+    # Main arm coefficients compare immediate with waitlist on the fitted scale.
+    # Interactions require their own interpretation.
+    # See the "Sign convention" section of METHODS.md.
     G = (2 - raw_group.astype(np.int64)).astype(np.int64)
 
     A_months = merged[V.AGE].to_numpy(dtype=float)
@@ -928,10 +924,10 @@ def load_and_prepare_lagged_outcome(
     LRP59/LRP62 mediation models (issue #84): mediator at t2, outcome at a later
     wave, so the mediator precedes the outcome in time.
 
-    Caveat (carried by the caller into the report): the t2 -> ``outcome_time``
-    increment is **not randomised** — both arms are treated after t2 — so the
-    treatment effect on the later outcome is no longer a clean randomised
-    contrast. Use only as a triangulation point, not a headline estimate.
+    At the later wave both arms have received intervention. Assignment still
+    randomises early-start versus delayed-start schedules, but no longer compares
+    treated with untreated children. Temporal ordering alone does not remove
+    mediator-outcome confounding. Reports use this as a sensitivity analysis.
 
     Subjects in the ITT base who have no ``outcome_symbol`` score at
     ``outcome_time`` get ``NaN`` post-counts; the mediation factory drops those
@@ -1822,17 +1818,7 @@ class LongitudinalPanel:
     data_path: str = ""
     """Absolute path of the source CSV used to construct the panel."""
     data_sha256: str = ""
-    """SHA-256 digest of the source CSV.
-
-    :class:`PreparedData` and :class:`WavePanel` have always carried this, and
-    ``reporting.write_run_metadata`` reads it off whatever container the pipeline
-    attached, so a panel without it wrote ``data_sha256: null`` into every
-    ``config.json`` built from it — the whole ``historical_growth`` and
-    ``historical_joint`` families. That is not merely thin provenance: the
-    historical-joint prior-companion binding requires the checksum **on both
-    fits** and fails closed when either is absent, so a check meant to prove two
-    fits read the same data could never pass for the only study it governs
-    (2026-08-27, closing #588)."""
+    """SHA-256 digest of the source CSV, required for companion-fit binding."""
 
     @property
     def all_waves(self) -> tuple[int, ...]:
@@ -2701,11 +2687,6 @@ def load_rlm_wave_battery(
     )
 
 
-# Moved out of ``factories`` by #637 stage 3. It builds a row-restricted
-# ``PreparedData``, so it belongs beside that dataclass: ``level_factors``
-# reached into ``factories`` for it through a function-local import while
-# ``factories`` imported ``level_factors`` at module level, which is one of the
-# two dependency cycles the maintainability review named.
 def _subset(prepared: PreparedData, keep: np.ndarray, *, reason: str = "factory_stage") -> PreparedData:
     """Return a copy of ``prepared`` restricted to rows where ``keep`` is True.
 

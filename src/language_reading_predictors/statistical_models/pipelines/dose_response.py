@@ -4,8 +4,8 @@
 """Dose-response orchestration (LRP-RLI-DOSE, #104 Phase 2).
 
 ``fit_dose_response`` reuses the mechanism-family backbone — Beta-Binomial
-conditional change, phase intercepts, subject random intercept — with cumulative
-intervention sessions as the focal predictor. It also owns
+conditional change, phase intercepts, subject random intercept, with
+sessions attended during each period as the focal predictor. It also owns
 :func:`write_dose_slope_summary`, the per-period dose-slope table that the DiD
 family's dose companions publish from their own fits (#394 step 6).
 """
@@ -475,13 +475,10 @@ def write_dose_slope_summary(
 
     ``dose_scaler`` is the standardisation the fitted slope is per-1-SD *of*,
     persisted as ``dose_mean_sessions`` / ``dose_sd_sessions``. The default
-    (``None``) reads the loader scaler ``ctx.prepared.covariate_scalers[dose_covariate]``,
-    which is correct for the dose_response family — its factory fits the
-    loader-standardised dose directly. The DiD dose companions must pass their
-    fitted payload's treated-rows scaler instead: ``build_did_model``
-    re-standardises sessions among treated P1/P2 rows only, so the loader scaler
-    would misstate their per-session calibration (and contradict the
-    ``dose_standardization`` block the same fit records in ``config.json``).
+    (``None``) reads the loader scaler ``ctx.prepared.covariate_scalers[dose_covariate]``.
+    Both family callers pass the fitted payload's scaler because their factories
+    re-standardise attendance over fitted treated rows. The loader scaler need
+    not match that population and would then misstate the per-session units.
 
     ``marginal_row_mask`` restricts the natural-scale ``dose_marginal_summary``
     average (and the matching prior pushforward) to a boolean subset of the

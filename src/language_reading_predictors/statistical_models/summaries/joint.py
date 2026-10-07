@@ -258,10 +258,10 @@ def gamma_interaction_summary(
 ) -> dict[str, float]:
     """Summarise the linear-moderation coefficients ``gamma_int`` / ``gamma_mod``.
 
-    Reports the posterior mean, equal-tailed central interval at coverage
+    Reports the posterior median and mean, equal-tailed central interval at coverage
     ``ci_prob`` (same convention as :func:`tau_summary_itt`), and ``P(coef > 0)``
     for each coefficient present in the trace. ``gamma_int`` is the moderation
-    (>0: the standardised mechanism effect strengthens with the moderator);
+    (>0: the mechanism's logit slope increases with the moderator);
     ``gamma_mod`` is the moderator main effect at the mean of the mechanism.
     """
     posterior = trace.posterior

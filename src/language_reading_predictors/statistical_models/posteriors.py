@@ -17,14 +17,7 @@ REPORTING_CI_PROB = 0.89
 
 
 def band50(draws: np.ndarray) -> tuple[float, float]:
-    """Inner 50 % equal-tailed band ``(lo25, hi75)`` reported alongside the headline.
-
-    A single inner band so the summary builders that report only a headline
-    ``ci_prob`` interval can also carry the inner 50 % equal-tailed interval
-    without re-deriving quantiles at each call site. The wider ITT / growth
-    summaries use the shared ``eti_bands`` helper; this covers the families that
-    emit a single headline interval.
-    """
+    """Return the 25th and 75th percentiles for the inner 50% interval."""
     if np.size(draws) == 0:
         raise ValueError("Cannot summarise an empty posterior sample.")
     lo, hi = equal_tail_interval(draws, prob=0.5, axis=None, nonfinite="propagate")
@@ -84,12 +77,7 @@ def loo_delta(loo_a: az.ELPDData, loo_b: az.ELPDData) -> dict[str, float]:
 
 
 def beta_summary(trace: xr.DataTree, name: str, ci_prob: float) -> dict[str, float]:
-    """Posterior mean, equal-tailed ``ci_prob``-coverage interval, and P(>0) for ``name``.
-
-    The interval is equal-tailed at ``ci_prob`` coverage, not an HDI — the parameter
-    was previously named ``hdi``, which misdescribed it (the callers already pass
-    ``ctx.reporting.ci_prob``).
-    """
+    """Summarise ``name`` with median, mean, equal-tailed intervals and P(>0)."""
     draws = trace.posterior[name].stack(sample=("chain", "draw")).values
     lo, hi = equal_tail_interval(draws, prob=ci_prob, axis=None, nonfinite="propagate")
     lo50, hi50 = band50(draws)
@@ -105,10 +93,9 @@ def beta_summary(trace: xr.DataTree, name: str, ci_prob: float) -> dict[str, flo
 
 
 def coef_row(label: str, draws: np.ndarray, hdi_prob: float) -> dict[str, str | float]:
-    """Posterior mean, equal-tailed central interval and ``P(coef > 0)``.
+    """Return a labelled coefficient summary with equal-tailed intervals.
 
-    Equal-tailed quantiles at coverage ``hdi_prob`` — the same convention as
-    :func:`reporting.tau_summary_itt` (not a highest-density interval).
+    ``hdi_prob`` retains its legacy name but sets equal-tailed coverage.
     """
     d = np.asarray(draws).reshape(-1)
     lo, hi = equal_tail_interval(d, prob=hdi_prob, axis=None, nonfinite="propagate")

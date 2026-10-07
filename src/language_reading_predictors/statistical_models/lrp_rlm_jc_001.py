@@ -18,13 +18,11 @@ Window: the suite's complete-case waves 1-3 core across all three measures
 syndrome only) where a kept child has **all three** measures observed. The
 correlation matrix is shared across the three reading groups (a stated
 assumption at this n); the subject-intercept SDs and overdispersion are
-group-indexed per the 2026-07-16 heterogeneity decision. PSIS-LOO is not
-computed, and **not** because the model carries one likelihood node per
-measure: those nodes share an observation coordinate, so their contributions
-could be summed per child-wave row. What is missing is a defined and
-implemented prediction target - a new occasion for a known child and a new
-child require different quantities to be integrated. The run plan's
-``loo_reason`` carries the full statement (2026-08-23 joint audit, finding 8).
+group-indexed per the 2026-07-16 heterogeneity decision. The prediction target
+is a new child in a replicate cohort. New-child validation integrates that
+child's latent offsets over their population distribution and must pass the
+validation checks before its predictive scores are reported. Conditional
+leave-one-cell-out diagnostics address a different prediction target.
 
 **Descriptive natural-history evidence, not an intervention effect:**
 ``readgrp`` is a cohort factor with no causal warrant, and a between-child
@@ -66,9 +64,8 @@ SPEC = ModelSpec(
         # HalfNormal(50) on kappa itself gave the near-Binomial limit a prior
         # probability of 0.001 at these denominators, and 20 of 27 fitted cells
         # had a kappa posterior no narrower than its prior. 1/sqrt(kappa) ~
-        # HalfNormal(0.25) preserves the old prior's median variance inflation
-        # at every denominator while letting "no extra-Binomial dispersion" be
-        # an ordinary outcome. See priors.inv_sqrt_kappa_prior.
+        # HalfNormal(0.25) roughly retains the old median variance inflation
+        # while giving the near-Binomial limit appreciable prior support. See priors.inv_sqrt_kappa_prior.
         dispersion_prior_sigma=0.25,
         lkj_eta=2.0,
     ),

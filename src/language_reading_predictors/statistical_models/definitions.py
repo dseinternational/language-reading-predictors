@@ -3,13 +3,12 @@
 
 """Lightweight registry of the Bayesian statistical models.
 
-A pure-data description of every fitted model — id, kind, outcome, family and
+A pure-data description of every registered model: id, kind, outcome, family and
 editorial status — with **no heavy imports** (no PyMC, no factories), so it can be
 imported cheaply by the report (to code-generate a model register) and by any
 tooling that needs the catalogue without paying to import the model-building code.
 
-This mirrors the vocabulary-growth report's ``vocab_growth.models.definitions``. It
-deliberately duplicates the lightweight metadata that otherwise lives on each
+The registry duplicates the lightweight metadata that otherwise lives on each
 module's ``SPEC`` (the ``ModelSpec`` in ``context.py``); the test
 ``tests/test_model_definitions.py`` guards the two against drift.
 """
@@ -432,7 +431,7 @@ _DID = [
     ),
     # Waitlist-crossover extensions (#226). The floored P/N models fit off-floor
     # prevalence at t1/t2/t3; their clean t2 arm gaps complement, but do not duplicate,
-    # the ITT siblings' baseline-floor-risk transition estimands.
+    # the ITT siblings' baseline-floor-risk off-floor status estimands.
     _d(
         "lrpdid08",
         "did",
@@ -554,8 +553,8 @@ _DID = [
         base="lrpdid01",
     ),
     # #576 material qualification 2: the dispersion prior at a low (18-item) and a
-    # high (170-item) denominator, on the dispersion scale that can reach the
-    # near-Binomial limit the family default cannot.
+    # high (170-item) denominator. The dispersion-scale prior places more mass
+    # near the Binomial limit than the family default.
     _d(
         "lrpdid105",
         "did",
@@ -629,8 +628,7 @@ _MECH = [
         "W",
         "phonological memory (word/nonword repetition) -> word reading",
     ),
-    # GP knee-test variants (do the vocabulary / blending / dose curves have a knee,
-    # as letter sounds do?). Re-attempt the HSGP curve the linear models could not fit.
+    # GP variants test curvature in the vocabulary, blending and dose associations.
     _d(
         "lrp156",
         "mechanism",
@@ -740,7 +738,7 @@ _MECH = [
     # Tier-1 decoding-specificity mini-suite (notes/202607172330-tier1-decoding-specificity-spec.md):
     # matched *linear* letter-sound slopes for the L->N vs L->W convergent-discriminant
     # contrast (1A) and the negative-control-outcome panel (1B). All linear_mechanism so
-    # the cross-outcome forest/contrast is like-for-like.
+    # slopes use a common model form. Their score units still differ by outcome.
     _d(
         "lrp96",
         "mechanism",
@@ -875,8 +873,8 @@ _MECH = [
         "lrp58",
     ),
     # --- #586 Batch C estimand and prior sensitivities (#603, #604, #605) -------
-    # Each is matched term-for-term to its pooled comparator and differs in exactly
-    # one declared setting, so a difference is attributable to that setting alone.
+    # Each matches its pooled comparator apart from one declared setting.
+    # Interpret differences with matched rows and scales, allowing for sampling error.
     # None is causal; every coefficient in the family is an adjusted association.
     _d(
         "lrp301",
@@ -923,16 +921,12 @@ _MECH = [
         "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp97 fit (n = 170) (#605)",
         "lrp97",
     ),
-    # --- Composite-ability reliability check on the ability-adjusted panel ------
-    # The 1NN panel and lrp258 adjust for ``blocks`` alone, and the obvious rebuttal
-    # is that this is one noisy subtest. Block Design and Object Assembly correlate
-    # at 0.664 over the 54 analysed children, so a single subtest is roughly a
-    # 0.66-reliable measure of what they share while the sum ``objass_c`` is roughly
-    # 0.80-reliable. Each of these mirrors its 1NN/258 parent exactly except for the
-    # ability adjuster, so a difference is attributable to reliability alone. What
-    # the two subtests share is a narrow visuospatial factor, NOT the latent ``GA``
-    # of the DAG: these are still adjusted associations, and a screening regression
-    # expects agreement with the parent rather than movement.
+    # --- Composite-ability sensitivity on the ability-adjusted panel ----------
+    # Replace Block Design with its raw sum with Object Assembly. Their correlation
+    # does not establish either score's reliability without measurement assumptions.
+    # Differences reflect changed measurement and adjustment, not reliability alone.
+    # Both subtests measure a narrow visuospatial domain; the DAG's latent general
+    # ability remains unmeasured, so the results remain adjusted associations.
     _d(
         "lrp306",
         "mechanism",
@@ -1179,9 +1173,7 @@ _MECH = [
     ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
     # so the ordinary inverse-logit outcome mean permits below-chance expected
-    # scores, and the lrp87 posterior carries the LARGEST below-chance share of any
-    # registered B fit (12.1 % of the mass, above LRPITT08's 8.9 %, #619). The pair
-    # releases together or not at all. Scope is the model of record: lrp187 is a
+    # scores (#619). Both fits release together or are withheld together. Scope is the model of record: lrp187 is a
     # declared interventional relabelling companion whose numbers reproduce lrp87's,
     # so it is exempt and its prose names the paired headline.
     _d(
@@ -1336,9 +1328,8 @@ _STRUCT = [
         "period-resolved intervention dose -> phoneme blending",
     ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
-    # so the ordinary inverse-logit mean permits below-chance expected scores, and
-    # the lrp84 posterior uses that room (7.0 % of the mass, #619). This family is
-    # the case #608 used to reject exempting observational families: its focal
+    # so the ordinary inverse-logit mean permits below-chance expected scores.
+    # The dose family is covered by #608 too: its focal
     # estimand is the natural-scale treated-row dose marginal, published in items,
     # so it inherits the link exactly as a randomised contrast does.
     _d(
@@ -1500,8 +1491,7 @@ _ALIGNED.append(
     )
 )
 # Phoneme blending is response-link sensitive: each item has three alternatives, so
-# the ordinary inverse-logit mean permits below-chance expected scores, and the
-# al-006 posterior uses that room (2/54 rows, 4.9 % of the mass, #619). The pair
+# the ordinary inverse-logit mean permits below-chance expected scores. The pair
 # releases together or not at all, mirroring lrpitt08/08b, lrplf06/06b and
 # lrpgf06/06f. Scope is the model of record: the dose sensitivity variant is out.
 _ALIGNED.append(
@@ -1646,8 +1636,7 @@ _GAIN += [
 ]
 _GAIN += [
     # Phoneme blending is response-link sensitive: each item has three alternatives,
-    # so the ordinary inverse-logit mean permits below-chance expected scores — and
-    # the gf-006 posterior uses that room (15/161 rows, 10.7 % of the mass, #596).
+    # so the ordinary inverse-logit mean permits below-chance expected scores (#596).
     # The pair releases together or not at all, mirroring lrpitt08/08b and
     # lrplf06/06b. Scope is the model of record: the treated-only (lrpgf06b) and
     # moderation (lrpgf06m) variants carry a recorded, dated exemption.
@@ -1927,8 +1916,7 @@ _CA = [
         "letter sounds -> word reading holding nonword decoding fixed (#421 Tier 1)",
     ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
-    # so the ordinary inverse-logit mean permits below-chance expected scores, and
-    # the ca-007 posterior uses that room (9.7 % of the mass, #619). The pair
+    # so the ordinary inverse-logit mean permits below-chance expected scores. The pair
     # releases together or not at all. Every coefficient stays an association --
     # the #608 policy binds association and contrast alike, because the natural
     # scale it is reported on is what the link determines.
@@ -1964,7 +1952,7 @@ _LCF = [
 # decoding N) fitted jointly with an LKJ cross-outcome dependence block, so the
 # quantities the suite reports as product-of-marginals sensitivities become
 # within-model deterministics. jm-001 is the per-wave LEVELS design #421 specifies
-# (matched to ca-010 / ca-011; reports the identified share-retained AND Delta);
+# (matched to ca-010 / ca-011; reports within-model share-retained and Delta);
 # jm-002 is the phase-stacked ANCOVA companion (matched to mech-096 / mech-101) that
 # re-reports the Tier-1 Delta on its original parameterisation. Descriptive.
 _JM = [
@@ -1988,7 +1976,7 @@ _JM = [
 ]
 
 
-#: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
+#: Every registered model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
     for d in (

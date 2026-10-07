@@ -20,9 +20,9 @@ least :data:`FLOOR_THRESHOLD` of its post-scores at zero (computed arm-blind)
    eligible children, retaining the graded Beta-Binomial ``tau`` only as a
    flagged, detection-limited secondary.
 
-Because eligibility is defined by an observed pre-randomisation score, the arm
-contrast remains causal for that observed subgroup. Missing baseline-floor status
-is excluded and must be reported explicitly by arm.
+Eligibility uses an observed pre-randomisation score. A causal reading of the
+subgroup arm contrast still requires the selection and missing-data assumptions
+in ``METHODS.md``. Report excluded baseline-floor status by arm.
 
 See ``notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`` and the
 "Floored outcomes" section of issue #119.

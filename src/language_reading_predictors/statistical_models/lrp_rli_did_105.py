@@ -1,30 +1,23 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPDID105 - dispersion-prior sensitivity for LRPDID10 (basic concept knowledge, F).
+"""LRPDID105 - dispersion-prior sensitivity for LRPDID10 (basic concepts, F).
 
-The **low-denominator** half of the family's dispersion check (#576 material
-qualification 2); LRPDID106 is the high-denominator half.
+This is the low-denominator member of the DiD dispersion check. LRPDID106
+checks a high-denominator outcome.
 
-Every graded DiD fit takes ``kappa ~ HalfNormal(50)`` on the Beta-Binomial
-concentration. A half-normal on the concentration cannot reach the near-Binomial
-limit ``kappa >> n``, so for a long test it imposes a *floor* on the estimated
-over-dispersion: at ``n = 170`` the prior median already implies roughly 5.9 times
-Binomial variance, and the model cannot conclude that a child's score is close to
-Binomial even if the data say so. The same prior on an 18-item test is far more
-permissive, because a modest ``kappa`` is already large relative to ``n``.
+The reference prior ``kappa ~ HalfNormal(50)`` has support at every positive
+concentration, but gives the near-Binomial region very little probability for
+long tests. Variance inflation is ``(n + kappa) / (1 + kappa)``. At ``n = 170``,
+the prior median concentration implies about 5.9 times Binomial variance. At
+smaller denominators the same concentration gives less extra variation.
 
-This companion refits LRPDID10 with the dispersion-scale parameterisation the ITT and
-level families use — ``1 / sqrt(kappa) ~ HalfNormal(0.25)``, with ``kappa`` retained
-as a Deterministic — which *can* reach the near-Binomial limit. Nothing else changes.
-
-Read the pair LRPDID105/LRPDID106 together. If the arm gaps are stable at both
-denominators, the concentration prior is a nuisance choice the conclusions do not
-turn on. If the high-denominator fit moves and the low-denominator one does not, the
-prior's ceiling — not the data — was setting the dispersion, and the family default
-should be revisited rather than the individual result reinterpreted.
-
-Reading rules are LRPDID10's; the dispersion prior changes no term's causal status.
+This companion uses ``1 / sqrt(kappa) ~ HalfNormal(0.25)``, which gives the
+near-Binomial region appreciable prior support. ``kappa`` remains a derived
+quantity and the other settings are unchanged. Compare arm-gap and dispersion
+summaries with the parent to assess sensitivity. The two outcome checks differ
+in more than their denominators, so their comparison cannot isolate a
+denominator effect. No term's causal status changes.
 """
 
 from language_reading_predictors.statistical_models.context import (

@@ -12,12 +12,10 @@ the crossover cell contrast, not an isolated treatment-presence effect.
 Treated-row-standardised sessions enter with partial-pooled per-period slopes
 ``beta_dose_phase[p] = mu_dose + sigma_dose * z_p``.
 
-The live question is whether the dose-gain slope varies by period; it is answered
-by a **nested PSIS-LOO** of this model against its pooled-dose comparator,
-LRPDID07base, in ``compare_statistical_models.py``. The word-reading analogue
-(LRP77) found the dose slope **constant across periods** (LOO preferred the pooled
-model), so the most likely outcome here is "no period variation at this n" - a
-useful, publishable negative result.
+A nested PSIS-LOO comparison against the pooled-dose comparator, LRPDID07base,
+in ``compare_statistical_models.py`` asks whether period-specific dose slopes
+improve the declared predictive score. Preference for a pooled model does not
+establish that the underlying slopes are constant.
 
 The session slopes are observational intensive-margin associations, potentially
 confounded by general ability and attendance selection. Cumulative sessions are
@@ -45,8 +43,8 @@ SPEC = ModelSpec(
     causal_status="none for session-dose coefficients",
     # The dose companion carries the same period-varying-slope-over-child-intercept
     # geometry as the dose_response family: 2 divergences at the reporting preset's
-    # 0.95, 0 at 0.97 (R-hat 1.0005, min ESS 6,308). The default seed is fixed, so
-    # this reproduces the stored fit exactly. See
+    # 0.95, 0 at 0.97 (R-hat 1.0005, min ESS 6,308). These diagnostics describe
+    # the recorded fit; each new fit must pass the convergence gate. See
     # notes/202608050649-reporting-refit-predictive-checks.md.
     target_accept=0.97,
     model_settings=DiDModelSettings(

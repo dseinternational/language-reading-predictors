@@ -238,9 +238,7 @@ def tau_summary_itt(
     # as a secondary diagnostic and use the per-draw AME for the headline claim.
     prob_logit_pos = float(np.mean(tau_draws > 0))
     prob_ame_pos = float(np.mean(marginal > 0))
-    # Posterior mean retained as a *secondary* field on each scale (issue #144):
-    # the median leads (transformation-invariant, and it discounts the
-    # winner's-curse right tail), but the mean is kept available for reference.
+    # The median leads under the house convention; retain the mean for reference.
     tau_mean = float(np.mean(tau_draws))
     marg_mean = float(np.mean(marginal))
 
@@ -282,12 +280,12 @@ def tau_summary_offfloor(
 ) -> dict[str, float]:
     """Summarise the post-hoc binary off-floor exploratory effect (#119/#341).
 
-    For the ``bernoulli_offfloor`` model, ``expit(eta)`` is ``Pr(post > 0 at t2)``
-    (the probability of coming off the floor), so the marginal-effect machinery of
-    :func:`tau_summary_itt` returns exactly the off-floor quantities: the logit
-    scale is the log-odds of coming off the floor, and the probability scale is
-    the average **risk difference** in off-floor probability between the
-    intervention and control arms. The keys match :func:`tau_summary_itt` (so the
+    For the ``bernoulli_offfloor`` model, ``expit(eta)`` is ``Pr(post > 0 at t2)``.
+    This is off-floor prevalence, not necessarily a floor exit: some children
+    were already off the floor at baseline. The coefficient is an assigned-arm
+    log-odds contrast; the probability-scale summary is the average **risk
+    difference** in off-floor prevalence between the intervention and control
+    arms. The keys match :func:`tau_summary_itt` (so the
     report and CSV share a schema); the off-floor interpretation is documented in
     the floored-outcome report.
     """
@@ -298,8 +296,9 @@ def offfloor_mover_table(prepared: PreparedData, symbol: str) -> pd.DataFrame:
     """Per-arm off-floor "mover" counts for a floored outcome (floor-rule, #119).
 
     Returns, for each randomised arm, the number of children with a non-missing
-    post-score, how many came **off the floor** (``post > 0`` at t2), how many
-    stayed at the floor, and the off-floor proportion. ``prepared.G`` uses the
+    post-score, how many were **off the floor** (``post > 0`` at t2), how many
+    were at the floor, and the off-floor proportion. These are follow-up states,
+    not baseline-to-follow-up transitions. ``prepared.G`` uses the
     positive-benefit coding (1 = intervention, 0 = wait-list control).
     """
     post = np.asarray(prepared.post_counts[symbol], dtype=float)

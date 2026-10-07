@@ -3,15 +3,10 @@
 
 """Typed settings and a resolved run plan for block-exposure models.
 
-The block-exposure family estimates a staggered block-2 teaching association from
-the RLI levels panel.  This module replaces its free-form ``ModelSpec.extra``
-boundary with immutable settings and a validated plan resolved before an output
-transaction is opened or study data are loaded (#394 pillar 4).
-
-The migration is deliberately structural: registered models keep the same rows,
-covariate timing, likelihood, priors, fitted equation, diagnostics and artefacts.
-``delta`` remains an adjusted association under a parallel-trends assumption, not
-a randomised treatment effect.
+The plan describes staggered block-2 teaching in the RLI levels panel and is
+validated before loading data or opening an output transaction. ``delta`` is an
+adjusted association; a causal reading would require parallel untreated trends
+and the other stated assumptions.
 """
 
 from __future__ import annotations

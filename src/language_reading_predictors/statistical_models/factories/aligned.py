@@ -94,12 +94,9 @@ def build_aligned_model(
 
     post = prepared.post_counts[own].astype(np.int64)
     cohort = prepared.G.astype(float)
-    # Enter the own baseline on the *raw* logit scale, like every sibling factory
-    # (ITT, mechanism, gain/level-factors, DiD): the ``gamma_own ~ Normal(1, 0.5)``
-    # prior encodes "logit-post ≈ logit-pre" (a slope near 1 in logit units), which
-    # only holds on the raw logit scale. Standardising the baseline here (as before)
-    # left that prior mean of 1 meaning "1 logit per SD of baseline logit" — an
-    # unintended, measure-dependent prior for this precision term.
+    # Keep the graded baseline on the raw logit scale: the shared
+    # Normal(1, 0.25) prior is centred on a slope of one logit per baseline logit.
+    # Standardising would change that calibration to one logit per baseline SD.
     own_pre_logit = prepared.pre_logit[own]
 
     coords = {"obs_id": np.arange(prepared.n_obs)}

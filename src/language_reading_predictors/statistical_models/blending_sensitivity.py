@@ -1,15 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Trace-backed release evidence for the phoneme-blending response link.
+"""Release evidence for the phoneme-blending response link.
 
 Phoneme blending (``B``) has ten three-alternative forced-choice items.  The
 ordinary logit mean used by the main ITT model permits expected scores below
 chance, whereas the registered robustness companion constrains the mean to
-``1/3 + 2/3 * expit(eta)``.  Because that modelling choice changes the scientific
-conclusion, neither fit is sufficient release evidence on its own.
+``1/3 + 2/3 * expit(eta)``.  That modelling choice can change the reported
+contrast, so release requires both fits.
 
-This module validates the two completed reporting fits, recomputes their
+For the ITT family, this module validates both reporting fits, recomputes their
 items-scale estimands and convergence checks from the saved traces, verifies
 identical fitted children and treatment assignments, and writes a
 content-addressed two-trace bundle.  Reports consume only the small installed CSV.
@@ -17,7 +17,10 @@ The full trace recomputation runs at build time, and the central archive manifes
 is written only after it passes; every later check (report render, key findings,
 ``release.evaluate_publication``) byte-binds the installed CSV to that manifest
 and re-hashes both current fit directories, so a stale or edited pair cannot be
-quoted anywhere without failing closed (2026-08-20 ITT review, finding 1).
+released through these checks (2026-08-20 ITT review, finding 1).
+
+The other paired families use stored-artefact checks below. They follow the same
+pairing policy without reopening and recomputing the two traces.
 """
 
 from __future__ import annotations
@@ -473,7 +476,7 @@ def _load_fit_record(
 
 
 def _check_pair(primary: _FitRecord, companion: _FitRecord) -> None:
-    """Require the two traces to differ only in the declared score-mean link."""
+    """Require matching fit definitions and fitted rows apart from the score link."""
 
     shared = (
         "config_name",
@@ -1251,13 +1254,8 @@ _PLAN_PROSE_FIELDS: tuple[str, ...] = (
 #: ``ModelSpec.kind`` -> the module and function that resolve its run plan. Used to
 #: re-resolve a stored fit's plan from its module and detect a fit whose recorded
 #: plan no longer matches what the code would produce today (#608 decision 2, as
-#: amended). There is no central resolver registry in the package, so this map is
-#: the one place the seven stored-artefact families' resolvers are named together;
-#: ``test_blending_sensitivity`` asserts it covers every gated family.
-#: Derived, not maintained (#637 stage 4). Every family has a resolver in
-#: :data:`family_registry.FAMILIES`, so the currency check below works for any
-#: gated family rather than for the seven someone remembered to list. The gates
-#: themselves are still declared per family; only this lookup is derived.
+#: amended). Derived from :data:`family_registry.FAMILIES`; the gates remain
+#: declared per family. Tests require coverage of every gated family.
 _PLAN_RESOLVERS: dict[str, tuple[str, str]] = {
     kind: (descriptor.settings_module, descriptor.resolver_name) for kind, descriptor in _FAMILIES.items()
 }
@@ -1268,9 +1266,7 @@ def _normalise_plan_value(value: Any) -> Any:
 
     ``config.json`` is JSON, so every tuple a resolver produces comes back as a
     list. Comparing a freshly resolved plan against a stored one without this
-    reports every tuple-valued field as drifted -- a fact about serialisation, not
-    about the fit. Getting this wrong turns the check into noise, which is worse
-    than not having it.
+    falsely reports every tuple-valued field as changed.
     """
     if isinstance(value, (tuple, list)):
         return [_normalise_plan_value(item) for item in value]
@@ -1445,23 +1441,15 @@ def _evaluate_stored_blending_link_pair(
     registered: tuple[str, str],
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Shared body of the stored-artefact pair gates (level, DiD, gain).
+    """Check a registered blending pair using its stored fit artefacts.
 
-    Returns ``{"required", "ready", "reason", "cards"}``. ``required`` is read from
-    the fit's own resolved plan **and** from the registered pair, so a ``B`` fit in
-    this family that sits outside the pair fails closed rather than publishing
-    unpaired, exactly as the ITT gate treats an unregistered ``B`` ITT fit.
+    Return ``{"required", "ready", "reason", "cards"}``. An explicitly required
+    unregistered pair fails closed. Require matching data, fitted rows and sampling
+    configuration, passed stored convergence checks, opposite score links, and
+    current resolved plans that differ only in the permitted link and pairing fields.
 
-    The two cards must come from the same data (``data_sha256``), the same fitted
-    rows (``fitted_data_identity.digest``) and the same sampling configuration; both
-    must have passed their own stored convergence gate; and the two must genuinely
-    differ in link. Anything else is not a pair, and a reader shown one card without
-    the other would take a below-chance-permitting estimate for the whole answer.
-
-    Evidence strength is one rung below the ITT archive — the cards come from stored
-    artefacts rather than a trace recomputation — but the policy is not: the gate
-    fails closed on anything it cannot verify, so the lighter apparatus does not
-    become a lighter rule.
+    This check enforces the pairing policy using stored artefacts. It does not
+    recompute estimates from traces as the ITT archive validator does.
     """
     directory = Path(output_dir).resolve()
     try:
@@ -1508,8 +1496,8 @@ def _evaluate_stored_blending_link_pair(
                 "the two fits do not carry opposite score-mean links "
                 f"({sorted(links)}), so they are not a link-sensitivity pair"
             )
-        # The run-plan digests must *differ* only in the link, so they are compared
-        # by refusing agreement on everything else rather than on the digest itself.
+        # Compare data, rows and sampling configuration before checking the
+        # structural plans. Plan digests themselves differ with the score link.
         compared = [
             ("data_sha256", "dataset"),
             ("fitted_rows_digest", "fitted rows"),
@@ -1577,13 +1565,10 @@ def _evaluate_stored_blending_link_pair(
 
 
 def _pair_provenance_note(primary: Mapping[str, Any], companion: Mapping[str, Any]) -> str:
-    """Say plainly where the two halves came from, when that is not one place.
+    """Disclose differing source or environment provenance across paired fits.
 
-    Neither a differing commit nor a differing environment lock is a defect -- the
-    companion is registered later than its primary by construction, and a dependency
-    bump between the two fits changes nothing the run plan governs. But a reader
-    comparing two cards deserves to know they were produced under different
-    conditions rather than having to reconstruct it from ``config.json``.
+    The pairing policy records these differences without requiring equality. Its
+    structural checks bind the data, fitted rows and resolved model plans.
     """
     notes: list[str] = []
     if primary["source_commit"] != companion["source_commit"]:
@@ -1770,17 +1755,11 @@ def evaluate_did_blending_link_pair(
     config: Mapping[str, Any] | None = None,
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Is this DiD ``B`` fit releasable beside its opposite-link twin? (#576 finding 2)
+    """Check the DiD blending fit beside its registered opposite-link companion.
 
-    The same policy the ITT and level pairs enforce, applied to the family that had
-    no version of it. ``lrp-rli-did-003`` fits the ordinary logit Beta-Binomial for a
-    ten-item, three-alternative forced-choice test, and that link permits fitted means
-    below the one-third guessing level. On the ITT side the matching sensitivity
-    roughly halved the item-scale estimate, so this is material rather than cosmetic;
-    and the ITT companion does **not** validate the DiD fit, because the longitudinal
-    random-intercept likelihood lets t1 and t3 data inform the t2 posterior.
-
-    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    The ordinary link permits expected scores below one third. The ITT companion
+    cannot validate this longitudinal fit, whose likelihood and fitted rows differ.
+    See :func:`_evaluate_stored_blending_link_pair` for the stored-artefact checks.
     """
     from language_reading_predictors.statistical_models.did import (
         DID_BLENDING_COMPANION_MODEL_ID,
@@ -1802,26 +1781,14 @@ def evaluate_aligned_blending_link_pair(
     config: Mapping[str, Any] | None = None,
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Is this onset-aligned ``B`` fit releasable beside its opposite-link twin? (#619)
+    """Check the onset-aligned blending fit beside its opposite-link companion.
 
-    ``lrp-rli-al-006`` fits the ordinary logit Beta-Binomial score mean for a
-    ten-item, three-alternative forced-choice test, and its stored posterior puts
-    4.9 % of its row-by-draw mass below the guessing floor, with a worst row at
-    98.0 %.
+    Link sensitivity applies to this observational cohort contrast too. The card is
+    ``cohort_marginal.csv``; the family declares no minimally important difference
+    for a non-randomised contrast. The cumulative-session dose sensitivity is outside
+    the model-of-record pairing scope.
 
-    Nothing here is randomised — the per-protocol cohort contrast is confounded by
-    age-at-onset and cohort/timing — and that is deliberately not an exemption: the
-    #608 decision binds association and contrast alike, because any quantity
-    reported on the natural scale inherits the link dependence regardless of what
-    identifies it. The card checked is therefore ``cohort_marginal.csv``, not a
-    ROPE row; this family declares no minimally-important difference for a
-    non-randomised contrast.
-
-    Scope is the model of record: the cumulative-session dose variant
-    (``use_dose``) is a collider-conditioned sensitivity reported beside the
-    headline, so its plan does not declare the pairing.
-
-    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    See :func:`_evaluate_stored_blending_link_pair` for the stored-artefact checks.
     """
     from language_reading_predictors.statistical_models.aligned import (
         ALIGNED_BLENDING_COMPANION_MODEL_ID,
@@ -1846,25 +1813,12 @@ def evaluate_concurrent_blending_link_pair(
     config: Mapping[str, Any] | None = None,
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Is this concurrent ``B`` fit releasable beside its opposite-link twin? (#619)
+    """Check the concurrent blending outcome fit beside its opposite-link companion.
 
-    ``lrp-rli-ca-007`` fits the ordinary logit Beta-Binomial score mean for a
-    ten-item, three-alternative forced-choice outcome, and its stored posterior puts
-    9.7 % of its row-by-draw mass below the guessing floor.
-
-    Every coefficient in this family is an adjusted association, and that is not an
-    exemption: the #608 decision binds association and contrast alike, because the
-    link determines the mapping onto the natural scale that
-    ``concurrent_marginals.csv`` reports.
-
-    The link governs blending as the **outcome**. Models where B is a *predictor*
-    are untouched — it enters those as a standardised same-wave logit covariate, not
-    as a modelled score mean — so they return "no link pairing" here.
-
-    Unlike the other families this one publishes a table rather than a single card,
-    so no scalar estimate is extracted; see :data:`_CONCURRENT_PAIR_SPEC`.
-
-    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    The link controls the outcome mean and its natural-scale marginals. It does not
+    change blending used as a predictor. This family publishes a marginals table
+    rather than one headline card; see :data:`_CONCURRENT_PAIR_SPEC` and
+    :func:`_evaluate_stored_blending_link_pair`.
     """
     from language_reading_predictors.statistical_models.concurrent import (
         CONCURRENT_BLENDING_COMPANION_MODEL_ID,
@@ -1889,23 +1843,13 @@ def evaluate_dose_blending_link_pair(
     config: Mapping[str, Any] | None = None,
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Is this dose-response ``B`` fit releasable beside its opposite-link twin? (#619)
+    """Check the dose-response blending fit beside its opposite-link companion.
 
-    ``lrp-rli-dose-084`` fits the ordinary logit Beta-Binomial score mean for a
-    ten-item, three-alternative forced-choice outcome, and its stored posterior puts
-    7.0 % of its row-by-draw mass below the guessing floor.
+    The focal treated-row dose marginal is reported in items and depends on the
+    score-mean link, although it remains an adjusted association. Every registered
+    blending dose fit is a model of record.
 
-    This is the family the #608 decision used to close the "observational families
-    are exempt" argument, so it is worth restating here: ``METHODS.md`` defines every
-    dose fit's focal estimand as the **natural-scale treated-row dose marginal**, and
-    ``dose_marginal_summary.csv`` publishes it in items. A quantity reported on the
-    natural scale inherits the link regardless of what identifies it — that no dose
-    slope is causal changes what the number *means*, not what scale it is on.
-
-    This family has no variant role, so every registered ``B`` dose fit is a model of
-    record.
-
-    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    See :func:`_evaluate_stored_blending_link_pair` for the stored-artefact checks.
     """
     from language_reading_predictors.statistical_models.dose_response import (
         DOSE_BLENDING_COMPANION_MODEL_ID,
@@ -1930,28 +1874,14 @@ def evaluate_mediation_blending_link_pair(
     config: Mapping[str, Any] | None = None,
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Is this mediation ``B`` fit releasable beside its opposite-link twin? (#619)
+    """Check the mediation blending outcome fit beside its opposite-link companion.
 
-    ``lrp-rli-med-087`` fits the ordinary logit Beta-Binomial mean for a ten-item,
-    three-alternative forced-choice **outcome**, and its stored posterior carries the
-    largest below-chance share of any registered ``B`` fit: 12.1 % of its row-by-draw
-    mass, above LRPITT08's 8.9 %.
+    The outcome link enters every simulated outcome mean in the g-formula. It does
+    not alter the separate mediator leg. The ``total`` row is the headline card.
+    The declared interventional relabelling companion is exempt because it reuses
+    the model-of-record numbers and refers readers to that paired headline.
 
-    The link matters here in a way it does not elsewhere in the policy. Every NDE,
-    NIE and total is a difference of *simulated outcome means* accumulated by the
-    g-formula, so the link enters the counterfactual simulation cell by cell rather
-    than any summary afterwards. There is no downstream number to correct.
-
-    It governs the **outcome** only: the mediator is a separate leg with its own
-    measure, and no registered mediation model has phoneme blending as its mediator.
-
-    Scope is the model of record. ``lrp-rli-med-187`` declares ``companion_of`` and
-    is, by this family's own contract, an ``interventional`` relabelling whose
-    numbers reproduce the natural-effects fit exactly — so it is exempt on the
-    boundary the level window comparator, the gain variants and the aligned dose
-    sensitivity already draw, and its prose names the paired headline.
-
-    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    See :func:`_evaluate_stored_blending_link_pair` for the stored-artefact checks.
     """
     from language_reading_predictors.statistical_models.mediation_settings import (
         MEDIATION_BLENDING_COMPANION_MODEL_ID,
@@ -1976,25 +1906,13 @@ def evaluate_gain_blending_link_pair(
     config: Mapping[str, Any] | None = None,
     plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Is this gain-factor ``B`` fit releasable beside its opposite-link twin? (#596)
+    """Check the gain-factor blending fit beside its opposite-link companion.
 
-    ``lrp-rli-gf-006`` fits the ordinary logit Beta-Binomial score mean for a
-    ten-item, three-alternative forced-choice test, and its stored posterior uses the
-    room that link allows: 15 of 161 fitted rows have posterior-mean expected
-    proportions below one third, 10.7 % of the row-by-draw mass sits below chance and
-    the worst row puts 99.8 % of its mass there. ``lrp-rli-gf-306`` refits the same
-    model under ``1/3 + 2/3 * expit(eta)``.
+    ITT and level companions cannot validate this transition-stacked likelihood.
+    Pairing applies to the model of record; treated-only and moderation variants
+    have dated exemptions in ``notes/202608251100-gain-blending-guessing-floor-596.md``.
 
-    Neither the ITT nor the level companion validates this fit: the gain family
-    stacks three period transitions under a shared child random intercept and
-    conditions on the own baseline, so it is a different likelihood over different
-    rows. Scope is the **model of record** — the treated-only ``lrp-rli-gf-106`` and
-    moderation ``lrp-rli-gf-206`` variants carry a recorded, dated exemption
-    (``notes/202608251100-gain-blending-guessing-floor-596.md``), for the same reason
-    ``release.gate_applies`` already skips them: the pairing governs the fit whose
-    card is published as this family's blending headline.
-
-    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    See :func:`_evaluate_stored_blending_link_pair` for the stored-artefact checks.
     """
     from language_reading_predictors.statistical_models.gain_factors import (
         GAIN_BLENDING_COMPANION_MODEL_ID,

@@ -1,11 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""The fit's own record of itself: ``config.json``, identities and trace reuse.
+"""Write ``config.json``, fit identities and the trace-reuse contract.
 
 Resolves a family's run plan for the metadata writer, digests the fitted rows,
 the executable model design and the environment, and both writes and checks the
-versioned trace-reuse contract (#637 stages 1 and 3).
+versioned trace-reuse contract.
 """
 
 from __future__ import annotations
@@ -54,10 +54,9 @@ from language_reading_predictors.statistical_models.provenance import (
 def _json_safe(value):
     """Return a reconstructable JSON representation of model settings.
 
-    ``ModelSpec.extra`` is intentionally free-form. Most registered settings are
-    primitives, tuples or mappings, but a few families use NumPy scalars,
-    dataclasses or callables. Serialising those with ``default=str`` alone loses
-    structure and can make an old fit impossible to reconstruct.
+    Preserve the structure of typed settings and free-form archived
+    ``ModelSpec.extra`` values where possible. Callables are stored by name;
+    unsupported objects fall back to text.
     """
 
     if value is None or isinstance(value, (str, bool, int)):
@@ -200,12 +199,8 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
     if spec.kind == "itt":
         effective_adjustment = [name for name in plan.adjust_for if name in covariates]
     elif spec.kind == "dose_response":
-        # The loaded covariate of a dose fit is its **exposure**, not an adjuster, so
-        # the generic "everything in prepared.covariates" fallback recorded the
-        # adjustment set as ``["attend"]`` — naming the exposure while omitting arm,
-        # age and the baselines the model actually conditions on (#587 finding 10).
-        # The family writes the real record under ``extra.effective_adjustment``; the
-        # exposure is named here as an exposure.
+        # Exclude dose exposures from the covariate adjusters. The family records
+        # its full adjustment set under ``extra.effective_adjustment``.
         exposure = {
             settings.get("dose_covariate"),
             settings.get("dose_stage_covariate"),
@@ -302,10 +297,7 @@ _REUSE_CONTRACT_SCHEMA_VERSION = 2
 
 
 #: ``config.json`` key holding the whole serialised contract. The contract is
-#: written and compared as one value (#637 stage 1): the previous arrangement
-#: computed the contract, persisted a hand-picked subset of its fields at the top
-#: level and then compared the full field list, so ``model_design_identity`` — in
-#: the list, never written — made every writer-to-reader round trip fail.
+#: written and compared as one value so both operations bind the same fields.
 REUSE_CONTRACT_KEY = "reuse_contract"
 
 
@@ -334,10 +326,7 @@ _REUSE_CONFIG_FIELDS = (
     "dropped_by_reason",
     "fitted_subject_identity",
     "fitted_data_identity",
-    # 2026-08-22 ITT audit, finding 6. A stored fit written before these existed
-    # carries neither, so reuse against it is now refused by name rather than
-    # silently authorised — the fail-closed reading, since those posteriors were
-    # never checked this way.
+    # Reuse requires both model-design and dependency identities.
     "model_design_identity",
     "environment_lock_sha256",
     "model_recipe_file",
@@ -345,7 +334,7 @@ _REUSE_CONFIG_FIELDS = (
 
 
 def _sha256_path(path: str | Path) -> str:
-    """The shared streaming file digest (#662); identical bytes and output."""
+    """Return the shared streaming file digest."""
     return _shared_sha256_file(path)
 
 
@@ -416,9 +405,7 @@ def _reuse_compatibility_contract(
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "fitted_data_identity": _fitted_data_identity(context),
         "model_design_identity": _model_design_identity(context),
-        # Already computed and written beside every fit; it simply was never
-        # compared, so a posterior sampled under a different dependency set could
-        # be reused unchallenged.
+        # Bind the posterior to the current dependency lock.
         "environment_lock_sha256": _environment_lock_sha256(),
         "model_recipe_file": recipe_path.name if recipe_path.is_file() else None,
     }
@@ -443,12 +430,7 @@ def require_reuse_compatibility(context: StatisticalFitContext, source_dir: str 
     current_data = current.get("fitted_data_identity") or {}
     if not isinstance(current_data, Mapping) or not current_data.get("digest"):
         raise ValueError("reuse-trace cannot verify the current fitted rows and observations")
-    # Same fail-closed reading for the graph, matching the sub-fit runner's own
-    # check. ``model_design_identity`` records a *reason* rather than raising when
-    # a graph cannot be fingerprinted, and that reason is deterministic — so
-    # without this a stored fit written under the failure and a current run
-    # hitting the same failure compare equal below and authorise reuse with no
-    # graph verification at all (2026-09-05 review).
+    # Matching failure reasons cannot establish that the model graphs match.
     current_identity = current.get("model_design_identity") or {}
     if not isinstance(current_identity, Mapping) or not (
         current_identity.get("structure_sha256") and current_identity.get("design_sha256")
@@ -457,10 +439,7 @@ def require_reuse_compatibility(context: StatisticalFitContext, source_dir: str 
 
     stored = previous.get(REUSE_CONTRACT_KEY)
     if not isinstance(stored, Mapping):
-        # Fail closed. A stored fit written before the contract was serialised as
-        # one value carries only the historical top-level subset, so the fields it
-        # never recorded could not be compared at all — the reading those
-        # posteriors were never checked under.
+        # Archived top-level fields cannot establish the complete reuse contract.
         raise ValueError(
             "reuse-trace compatibility check failed for the prior publication: "
             f"{REUSE_CONTRACT_KEY} (the prior config.json predates the serialised "
@@ -653,11 +632,8 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         # match without writing raw subject identifiers to the artefact bundle.
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "fitted_data_identity": reuse_contract["fitted_data_identity"],
-        # The whole trace-reuse contract, serialised once as the value
-        # ``require_reuse_compatibility`` compares (#637 stage 1). The top-level
-        # fields above are the published consumer surface — the release evaluator
-        # and the blending-pair gates read ``fitted_data_identity`` from there —
-        # and are deliberately left alone; this block is what binds reuse.
+        # Reuse compares this complete value. Keep the top-level fields for
+        # existing release and blending-pair consumers.
         REUSE_CONTRACT_KEY: _json_safe(reuse_contract),
         "ci_prob": context.reporting.ci_prob,
         # Persist the named sampling preset independently of its numeric settings.

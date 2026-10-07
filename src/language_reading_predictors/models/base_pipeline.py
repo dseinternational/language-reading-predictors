@@ -99,9 +99,8 @@ class EstimatorPipeline:
 
         Missing values in the predictor frame are cast from pandas nullable
         ``pd.NA`` to numpy ``np.nan`` but left unimputed. LightGBM handles
-        NaN natively, and imputing here would discard informative
-        missingness (e.g. ``agespeak`` is NaN in 80/152 rows and almost
-        certainly correlates with developmental trajectory).
+        NaN natively. Retaining missing values lets the fitted trees use
+        missingness patterns when they help prediction.
         """
         section_header("Prepare data")
 
@@ -442,12 +441,9 @@ class EstimatorPipeline:
         max, and member count. Must run after
         :meth:`permutation_importance_analysis`.
 
-        Motivation: dominant *constructs* are more stable across variants
-        than dominant individual features — within-construct substitution
-        (e.g. ``b1exto`` ↔ ``eowpvt`` ↔ ``aptinfo``) is mostly noise. The
-        construct-level view surfaces which *domains* matter rather than
-        which specific instrument won the permutation-importance race on
-        this particular fit.
+        The construct view groups related measures whose individual
+        importances can change when they share predictive information.
+        It does not establish that a construct causes the outcome.
         """
         from language_reading_predictors.data_variables import Variables as V
 
@@ -512,19 +508,17 @@ class EstimatorPipeline:
           variance but low-consistency effect.
         - ``feature_shap_spearman`` — Spearman rank correlation between
           the feature value and its SHAP value. Sign gives the direction
-          of effect; magnitude gives monotonicity. +1 is clean
-          monotonic positive; −1 is clean monotonic negative; near-0 is
-          non-monotonic or bimodal.
+          of predictive association; magnitude describes rank alignment.
+          A value near zero can reflect a weak, noisy or non-monotonic
+          relationship and does not distinguish these explanations.
         - ``shape_flag`` — a categorical verdict:
           ``"monotonic_+"`` / ``"monotonic_-"`` when ``|spearman| > 0.7``,
           ``"noisy_+"`` / ``"noisy_-"`` when ``0.3 < |spearman| ≤ 0.7``,
           and ``"non_monotonic"`` otherwise.
 
         Reads ``context.shap_values`` so must run after
-        :meth:`shap_analysis`. A feature with low permutation importance
-        *and* ``non_monotonic`` / high-spread SHAP is a candidate for
-        drop on direction grounds, even when importance alone would be
-        borderline.
+        :meth:`shap_analysis`. The flags describe the fitted predictions;
+        they are not tests of direction or rules for selecting predictors.
         """
         from scipy import stats as _stats
 

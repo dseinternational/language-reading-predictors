@@ -9,11 +9,9 @@ variables (for example ``trait_corr_chol`` versus ``trait_corr_chol_cholesky``)
 while the posterior keeps the random-variable names, so the stock log-likelihood /
 log-prior recovery rejects the inputs.
 
-Both routines are pure functions of a fitted trace (plus the built model and its
-typed payload) and return xarray objects — no output directory, Quarto template,
-Matplotlib session or console dependency — so they can be tested independently of
-report publication (issue #394, pillar 7). The family pipeline's LOO-stitching
-orchestration composes them with the shared reporting helpers.
+Both routines take a fitted trace and its rebuilt model, then return xarray
+objects without publishing output. The family pipeline combines their results
+with shared reporting helpers.
 """
 
 from __future__ import annotations

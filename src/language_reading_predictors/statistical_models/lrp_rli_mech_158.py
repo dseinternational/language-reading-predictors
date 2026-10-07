@@ -35,14 +35,12 @@ silently omitted LRP58's ``outcomes=("W", "L")``, six-basis HSGP and tight
 ``InverseGamma(8, 8)`` lengthscale, so it also differed in loading contract and
 functional form — three changes the comparison was never meant to include.
 
-**How to read it.** If the mechanism curve agrees with LRP58's, the imputation is not
-driving the result and LRP58 stands as the primary (higher-powered) fit. If they
-diverge, the imputation *is* load-bearing and neither fit should be reported without
-the other. Note what the comparison can and cannot show either way: complete-casing
-selects a **different population**, in which the association may genuinely differ, so
-a divergence is not by itself evidence that imputation "drives" LRP58's result. The
-comparator is smaller and so has wider intervals **by construction** — that is the
-price of the restriction, not a finding.
+**How to read it.** Compare the mechanism curves and their uncertainty to
+assess sensitivity to the missing-data rule. Agreement does not establish that
+imputation was harmless. A difference can reflect the missing-data treatment,
+selection into the complete-case population or sampling uncertainty. The
+smaller complete-case fit can be less precise, but narrower or wider intervals
+are not guaranteed by its row count alone.
 
 Same caveats as LRP58: latent general ability is **not** adjusted for and the child
 random intercept does not stand in for it, so ``f^L`` is an **adjusted association**,
@@ -65,9 +63,9 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-    # Matches LRP58: HSGP curve kept, target_accept lifted for boundary steps. A
-    # few boundary divergences remain (the HSGP geometry LRP58 also shows);
-    # disclosed in the report rather than removed by dropping the curve.
+    # Matches LRP58: HSGP curve kept, target_accept lifted for boundary steps.
+    # Nonlinear shape findings require zero divergences; disclosure alone
+    # does not satisfy the convergence gate.
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         # Identical to LRP58 ...

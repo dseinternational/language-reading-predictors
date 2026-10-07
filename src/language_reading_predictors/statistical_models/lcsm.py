@@ -3,16 +3,10 @@
 
 """Typed settings and a resolved run plan for latent change-score models.
 
-The LCSM family covers the original reading-change coupling model and the
-crossover-aware reverse, reciprocal-dominance and lagged change-on-change
-variants.  This module replaces their free-form ``ModelSpec.extra`` boundary
-with immutable settings and validates the complete graph shape before a fit
-context is created or the RLI panel is loaded (#394 pillar 4).
-
-The migration is structural: registered models retain the same measures,
-couplings, priors, rows, diagnostic variables and artefacts.  Cross-process
-couplings remain adjusted or exploratory associations; only a window-1 arm
-contrast has randomised causal warrant.
+The family includes reading-change, reverse, reciprocal and lagged-change
+couplings. Settings validate the graph before context or data operations.
+Cross-process couplings are associations. Only the first-window arm contrast
+can support a causal reading under the stated assumptions.
 """
 
 from __future__ import annotations
@@ -379,10 +373,7 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
     if reading_symbol not in outcomes:
         raise ValueError(f"{spec.model_id}: outcome_symbol {reading_symbol!r} is not in outcomes {outcomes!r}")
 
-    # `is None`, not falsy-or: an explicitly-empty coupling set (a couplings-free
-    # comparator) must stay empty rather than silently fitting the full LRP67
-    # default graph (2026-08-21 review, finding 8). The factory already makes the
-    # same None-versus-empty distinction.
+    # None selects the default graph; an explicit empty set disables couplings.
     couplings = (
         settings.couplings
         if settings.couplings is not None

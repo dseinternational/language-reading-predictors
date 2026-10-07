@@ -28,17 +28,9 @@ def _kf_build_concurrent(output_dir: str | Path, config: Mapping) -> list[dict[s
     rows = df[(df["adjustment"] == "adjusted") & (df["scale"] == "+1 SD") & converged]
     if rows.empty:
         raise _KeyFindingsUnavailable("no converged adjusted +1 SD concurrent marginals are present")
-    # Several wave × predictor rows routinely sit at P(>0) ≈ 1 in this family, so
-    # the "most resolved row" has to be decided among ties on a stated basis:
-    # rows whose P(>0) agree to the nearest 1 % are tied (2 decimals — an order
-    # of magnitude above the Monte-Carlo noise in P at 36 000 draws; 3 decimals
-    # still flipped on a 1e-4 difference), and ties go to the family's primary
-    # wave first (the first declared wave is the primary fit — the largest
-    # sample; the later waves are sub-fits), then to the larger items-scale
-    # contrast within that wave. Without this the headline wave flipped between
-    # two refits of ``lrp-rlm-ca-001`` (t1 → t2; P(>0) 0.99967 / 0.99958 against
-    # 0.99944 / 0.99953) on noise below anything the box reports (2026-08-22
-    # adjusted-family review, extension).
+    # Round direction resolution to 1% to avoid selecting on tiny differences
+    # near P(>0) = 1. Break ties by the earliest wave, then the largest absolute
+    # items contrast. The earliest wave need not be the pipeline's anchor fit.
     rows = rows.assign(
         _kf_timepoint=pd.to_numeric(rows["timepoint"], errors="coerce"),
         _kf_abs_items=pd.to_numeric(rows["items_median"], errors="coerce").abs(),

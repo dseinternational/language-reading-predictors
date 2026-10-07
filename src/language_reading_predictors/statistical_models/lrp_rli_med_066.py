@@ -65,7 +65,7 @@ SPEC = ModelSpec(
         "via letter-sound knowledge (L) vs phoneme blending (B)?"
     ),
     outcome_symbol="W",
-    mechanism_symbol=None,  # two mediators; named in extra["mediators"]
+    mechanism_symbol=None,  # The two mediator symbols are declared in model_settings.mediators.
     adjustment=[
         "G",
         "A",

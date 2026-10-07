@@ -3,11 +3,8 @@
 
 """Console banners, report-template publication and the model-graph render.
 
-The presentation surface every family fit shares: the start-of-fit and
-end-of-fit panels, the LOO summary row, the copy of ``index.qmd`` plus the
-shared Quarto partials into the fit's output directory, and the Graphviz render
-of the built model. Split out of ``pipeline.py`` for #394 so orchestration
-modules depend on presentation rather than containing it.
+Shared helpers print fit panels and LOO summaries, copy report templates and
+partials, and draw the model graph.
 """
 
 from __future__ import annotations
@@ -92,9 +89,7 @@ def copy_report_template(context: StatisticalFitContext) -> None:
     else:
         rprint(f"  [yellow]No report template found at {src}[/yellow]")
 
-    # Copy the shared Quarto partials alongside the report so ``{{< include
-    # _partials/... >}}`` resolves at render time in the output dir (issue #125
-    # step 0a). Quarto resolves includes relative to the rendered file.
+    # Quarto resolves includes relative to the report, so copy partials beside it.
     partials_src = os.path.join(DOCS_DIR, "models", "_partials")
     partials_dst = os.path.join(context.output_dir, "_partials")
     if os.path.isdir(partials_src):
@@ -134,11 +129,8 @@ def render_model_graph(context: StatisticalFitContext) -> None:
 
 
 def _graphviz(model):
-    # Raster PNG output (not SVG): the DAG's many nodes/edges make a large SVG
-    # slow to browse, so render to PNG and bump DPI to keep the lightbox legible.
-    # The Noto Sans styling is the shared helper's (since dse-research-utils 0.16.0);
-    # only the DPI is ours. Imported locally because the shared module imports PyMC
-    # at module scope.
+    # Use PNG at 150 DPI for legible graphs without large SVGs. The shared helper
+    # supplies fonts; import it locally because it imports PyMC at module scope.
     from dse_research_utils.statistics.models.pymc_utils import model_to_graphviz
 
     return model_to_graphviz(model, dpi=150)

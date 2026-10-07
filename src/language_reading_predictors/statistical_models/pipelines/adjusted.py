@@ -14,8 +14,8 @@ they live together here. RLM plans may target all three observational groups or
 a pre-specified subset; nuisance dummies are fitted only when the selected frame
 contains more than one group.
 
-Nothing in either cohort is randomised. Every predictor slope is an adjusted
-association, and the natural-scale contrasts translate a +1 SD difference into
+The reported predictors were not randomised in either cohort. Every slope is an
+adjusted association, and the natural-scale contrasts translate a +1 SD difference into
 outcome items for readability — not into an effect of changing the predictor.
 """
 

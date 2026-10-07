@@ -1,30 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Typed settings and a resolved run plan for the gain-factor family (#391 finding 6).
+"""Typed settings and a validated plan for gain-factor models.
 
-Mirrors the ITT family's :mod:`itt` run-plan pattern for the gain-factor
-(``kind="gain_factors"``) models. A model module declares its settings; the plan
-is resolved and **validated before any data are loaded or an output directory is
-reset**, then a single object drives data preparation, factory construction and
-the ``config.json`` / ``model_recipe.md`` audit trail. This removes the untyped
-``spec.extra`` boundary (where a misspelled key silently defaulted) and records the
-resolved design, estimand, causal status, analysis population and missing-data
-assumption alongside every fit.
+The model stacks transitions and predicts each post-score from its pre-score,
+with a child random intercept. The headline averages the assignment contrast
+over period 1, while later transitions inform shared parameters. A period-1-only
+refit checks sensitivity to that borrowing. Causal interpretation requires the
+selection, missing-data and model assumptions in ``METHODS.md``.
 
-The gain-factor design is a period-stacked ANCOVA: the post-score is regressed on
-the child's own pre-score with a non-centred child random intercept. The headline
-randomised quantity is the **period-1 average marginal effect** of random
-assignment. Since the #391 finding 3 decision (2026-07-22) the causal headline is
-**interaction-free**: treatment-by-covariate interactions are estimated on all
-stacked periods — including post-crossover rows with no untreated comparison — so
-a headline that nets them out is partly model-dependent extrapolation. Headline
-specifications therefore may not declare a ``trt`` interaction; the pre-specified
-moderation questions live on in explicitly associational **moderation variants**
-(``moderation_variant=True``), whose interaction-aware marginal keeps the #391
-finding 1 netting and is labelled model-dependent rather than causal. Every skill
-/ ability / interaction term is a latent-ability-confounded **adjusted
-association**, never a causal effect.
+Headline models exclude treatment interactions. Explicit moderation variants
+estimate them using all periods and report model-dependent associations. Skill,
+ability and interaction coefficients remain adjusted associations.
 """
 
 from __future__ import annotations
@@ -98,17 +85,9 @@ _KAPPA_PRIOR_FAMILIES = frozenset({"halfnormal_concentration", "halfnormal_inver
 def resolve_active_interactions(interactions: Any, *, treated_only: bool) -> tuple[tuple[str, str], ...]:
     """The interactions a fit actually contains, given ``treated_only``.
 
-    In a treated-only fit every kept row is on intervention, so the treatment
-    indicator is constant and unidentified; ``build_gain_factors_model`` drops it and
-    every interaction naming it. The ``b`` companions still *declare* those pairs, on
-    purpose — it keeps each companion a one-line diff from its parent so the two are
-    directly comparable — so the declared and effective sets legitimately differ and
-    both are worth recording.
-
-    This is the single definition of that rule for everything downstream of the
-    factory: the run plan, the reported coefficient names and the covariate
-    marginals. The factory keeps its own copy, since it accepts raw keyword
-    arguments from any caller; ``test_gain_factors.py`` pins the two together.
+    Treatment is constant in a treated-only fit, so its term and all interactions
+    naming it are dropped. Keep the declared and active sets in the fit record.
+    The factory repeats this guard for direct callers; tests check agreement.
     """
     pairs = tuple(tuple(p) for p in interactions)
     if not treated_only:
@@ -220,11 +199,7 @@ class GainFactorsModelSettings:
             or not self.gamma_own_prior_sigma > 0
         ):
             raise ValueError(f"gamma_own_prior_sigma must be a positive number, got {self.gamma_own_prior_sigma!r}")
-        # Adjustment-set hygiene (#575 finding 11, mirroring the level family's
-        # #584 checks and adding the typed vocabulary). The resolver used to
-        # accept any string: ``adjust_for=("attend",)`` loaded cleanly and fitted
-        # a ``gamma_attend`` on the declared post-treatment collider that every
-        # gain report promises is never conditioned on.
+        # The family excludes treatment-affected dose covariates from adjustment.
         unknown_adjusters = sorted(set(self.adjust_for) - _ALLOWED_ADJUSTERS)
         if unknown_adjusters:
             raise ValueError(
@@ -265,13 +240,8 @@ class GainFactorsModelSettings:
                 "score_mean_link applies to the graded Beta-Binomial mean; the "
                 f"{self.likelihood!r} branch has no score mean to map"
             )
-        # Interaction terms must name something the model actually builds (#455).
-        # build_gain_factors_model raises the same way, but only once make_context has
-        # reset an output directory and the loader has read the panel; the vocabulary
-        # is fixed by skill_symbols and ability_covariate, both settings fields, so it
-        # can be checked at declaration. This deliberately mirrors the factory's set
-        # exactly — including "trt" for treated_only fits, which the factory also
-        # allows — so the two cannot disagree about what is buildable.
+        # Check the factory's term vocabulary before loading data. Treated-only
+        # declarations may name trt; active-interaction resolution removes it.
         valid_terms = self.interaction_vocabulary()
         for pair in self.interactions:
             for term in pair:
@@ -296,15 +266,8 @@ class GainFactorsModelSettings:
                     "immaterial); each product enters the linear predictor once"
                 )
             seen_pairs.add(key)
-        # #391 finding 3 decision (2026-07-22): the causal headline is interaction-free.
-        # Treatment interactions are estimated on all stacked periods — including
-        # post-crossover rows with no untreated comparison — so a headline that nets
-        # them out is partly model-dependent extrapolation, and one that ignores them
-        # is the pre-#395 bug. Only an explicitly associational moderation variant may
-        # declare a trt pair; everything else (headline primaries AND their treated-only
-        # companions, which stay a one-line diff from their parents) must not. Checked
-        # after the vocabulary loop so a typo'd term reads as a typo, not as a
-        # finding-3 violation.
+        # Treatment moderation uses post-crossover data and belongs in an
+        # explicitly associational variant. Check vocabulary errors first.
         trt_pairs = tuple(p for p in self.interactions if "trt" in p)
         if self.moderation_variant:
             if self.treated_only:
@@ -440,8 +403,7 @@ class GainFactorsRunPlan:
     def as_dict(self) -> dict[str, Any]:
         """Return the JSON-ready run-plan contract for ``config.json``."""
         d = asdict(self)
-        # asdict turns the interaction pairs into lists; keep them as [a, b] lists
-        # (JSON has no tuples) — round-trips fine and reads cleanly.
+        # Use lists for the JSON representation of interaction pairs.
         d["interactions"] = [list(p) for p in self.interactions]
         # Record what was actually fitted alongside what was declared. A treated-only
         # fit drops its trt interactions, so recording only the declared list would
@@ -603,15 +565,9 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         )
 
     # The mandatory phoneme-blending link pairing (#596, under the #608 policy).
-    # Scope is the **model of record** — the interaction-free graded primary whose
-    # B card is published as this family's headline. A treated-only companion and a
-    # moderation variant are outside it for the same reason ``release.gate_applies``
-    # already skips them, and for the reason the level family excludes its window
-    # comparator: the pairing governs the fit whose card is the headline, and
-    # requiring a floor twin of every variant would demand fits that do not exist —
-    # fail-closed doing damage rather than work. That exemption is recorded and
-    # dated in notes/202608251100-gain-blending-guessing-floor-596.md; their reports
-    # say where the paired headline lives instead. Off-floor fits have no score mean.
+    # Treated-only and moderation variants have dated exemptions in
+    # notes/202608251100-gain-blending-guessing-floor-596.md. Off-floor fits
+    # model binary status and have no graded score mean.
     model_of_record = not settings.treated_only and not settings.moderation_variant
     link_pair_required = own == "B" and not off_floor and model_of_record
     link_companion = (

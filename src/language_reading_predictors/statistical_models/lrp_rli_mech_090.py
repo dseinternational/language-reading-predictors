@@ -30,7 +30,7 @@ parents of RW are {A, GA, HS} - and nothing else:
   parent. Blocks every ``RW <- HS -> {TR RV TE EV SP PA LS} -> W`` route at its
   root.
 - GA (general ability) is latent and unadjustable - the child random intercept
-  proxies its time-invariant part, so the slope stays an adjusted association,
+  does not control latent GA, so the slope stays an adjusted association,
   never a causal effect.
 
 **No session-dose backdoor** - unlike LRP88/LRP89. The DAG has no ``IG -> RW``
@@ -49,7 +49,8 @@ Linear mechanism: required for a covariate exposure (the HSGP curve, its priors
 and the readiness-threshold post-processing all assume a bounded-count logit
 input). The estimand is the LINEAR RW -> W adjusted association (a single slope,
 not a shape). ``erbto`` is also measured with error; non-negligible error
-attenuates the slope toward zero.
+can distort the slope, with no guaranteed direction in this adjusted nonlinear
+model.
 """
 
 from language_reading_predictors.statistical_models.context import (
@@ -69,8 +70,8 @@ SPEC = ModelSpec(
     mechanism_symbol="erbto",
     adjustment=["G", "A", "W_pre"],
     # Age enters as a linear gamma_A term; the subject random intercept handles the
-    # non-independent rows (up to 3 phases x 53 children) and proxies the
-    # time-invariant part of latent ability.
+    # non-independent rows (up to 3 phases x 53 children). It does not
+    # control unmeasured general ability.
     model_settings=MechanismModelSettings(
         # Only the outcome (W) is a bounded-count measure here; the exposure is the
         # erbto covariate, so the measure complete-case mask is W alone.

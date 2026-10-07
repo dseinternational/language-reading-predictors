@@ -1,14 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Fit-context wrappers over the report figure modules.
+"""Read fit context, call the report drawing modules and register their tables.
 
-The drawing lives in the focused modules — :mod:`effect_plots`,
-:mod:`predicted_scores`, :mod:`arm_overlap`, :mod:`trajectory_plots`. This module
-holds the fit-context side: pull the draws, labels and denominators off a
-:class:`StatisticalFitContext`, hand them to the drawing module, register the
-tables, and guard the whole thing so a plotting failure never costs an expensive
-fit. Split out of ``pipeline.py`` for #394.
+Optional-artefact guards record plotting failures without stopping the fit.
+Drawing lives in :mod:`effect_plots`, :mod:`predicted_scores`,
+:mod:`arm_overlap` and :mod:`trajectory_plots`.
 """
 
 from __future__ import annotations
@@ -57,10 +54,8 @@ def _draw_did_cell_panel(
 ) -> None:
     """One DiD cell-PPC panel: replicated median/interval vs observed, by cell.
 
-    ``ci_prob`` is the coverage the ``replicated_*_lo`` / ``_hi`` columns were
-    computed at. The legend used to say "95% interval" unconditionally while the
-    table was written at the house 89% (#576 lower-severity 1), which is the one
-    error a reader cannot catch by looking harder at the figure.
+    ``ci_prob`` must match the coverage used for the ``replicated_*_lo`` and
+    ``replicated_*_hi`` columns so the legend describes the plotted interval.
     """
     x = np.arange(len(cell_ppc))
     labels = cell_ppc["cell"].str.replace("_", "\n").tolist()
@@ -91,10 +86,7 @@ def save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -
     ``did_cell_ppc_mean`` (cell mean) and ``did_cell_ppc_zero_rate`` (proportion
     at zero).
 
-    One guard per figure (#576 lower-severity 7). A single guard around both
-    registered only the *mean* filename, so a failure while drawing the second
-    figure was recorded against the first — leaving the manifest naming a skip for a
-    file that exists and saying nothing about the one that does not.
+    Each figure has its own guard so a failure names the affected file.
     """
     for stem, ylabel, name in (
         ("mean", "cell mean", "did_cell_ppc_mean"),
@@ -367,7 +359,7 @@ def write_group_trajectory(
 
     ``extra_effect_*`` names a second child-level random effect on a subset of rows
     (LRPDID13's waitlist-crossover deviation), which must be integrated for the curve
-    to be population-level rather than fitted-child conditional (#576 finding 5).
+    to describe the child population rather than the fitted children.
     """
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
     from language_reading_predictors.statistical_models.measures import MEASURES
@@ -535,8 +527,7 @@ def save_forest_plot(
     """Forest plot of the causal term(s) with a reference line at 0 (#125 Area 4).
 
     For a single-outcome model ``var_names=["tau"]`` shows the one effect; for the
-    joint model the vector ``tau`` forests every outcome's effect in one panel —
-    the single most communicative artifact for the suite. Guarded.
+    joint model the vector ``tau`` shows every outcome's effect in one panel.
     """
     with guard_optional(ctx, f"Forest plot ({name})", filename=name, kind="figure", verb="failed"):
         import arviz_plots as azp

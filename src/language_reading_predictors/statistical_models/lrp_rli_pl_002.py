@@ -3,7 +3,9 @@
 
 """LRPPL002 - wave-pooled level association: letter-sound knowledge (L) -> nonword decoding (N).
 
-The decoding counterpart of LRPPL01, so the levels view can be read for both reading outcomes on one scale.
+The decoding counterpart of LRPPL01. The exposure is split into a child
+study-average (``beta_between``) and a deviation from that average
+(``beta_within``), with per-wave intercepts.
 
 One Beta-Binomial likelihood over every child-wave row, with letter-sound knowledge at the same
 wave as the standardised exposure and a child random intercept carrying the repeated

@@ -111,7 +111,7 @@ def build_level_factors_model(
             + gamma_A * A_std_t            # age at t (precision)
             + g_ability[t] * z(ability)    # ability x time (observed GA handle)
             + gamma_grp_ability * group * z(ability)   # group x ability
-            + u_child[i]                   # partial GA repair
+            + u_child[i]                   # repeated-child dependence
 
     **Intercepts (#389 finding 2).** ``alpha`` is a Deterministic — a pooled,
     arm-blind empirical-Bayes anchor at the observed **pre-randomisation t1**

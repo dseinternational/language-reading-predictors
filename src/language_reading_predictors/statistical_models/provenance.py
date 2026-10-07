@@ -51,7 +51,7 @@ def _cached_package_versions(
 ) -> tuple[tuple[str, str | None], ...]:
     """Resolve one distribution set once for the lifetime of the process.
 
-    The lookup itself is ``metadata.provenance.package_versions`` (#662), which
+    The lookup uses ``metadata.provenance.package_versions``, which
     reads installed distribution metadata without importing the package and
     keeps this manifest's ``None`` for a missing, unreadable or malformed
     record. The shared helper deliberately does not cache; the cache stays here
@@ -87,19 +87,10 @@ def _git_output(arguments: list[str], *, cwd: Path) -> str | None:
 def source_provenance(cwd: str | Path | None = None) -> dict[str, Any]:
     """Describe the package checkout without making Git a runtime requirement.
 
-    The four recorded field names, their order and their ``None``-when-unknown
-    convention are this project's manifest schema and are unchanged. The facts
-    behind ``commit`` / ``branch`` / ``dirty`` now come from one bounded
-    ``git status --porcelain=v2`` through the shared snapshot (#662) instead of
-    three separate Git invocations. ``repository_root`` has no shared
-    equivalent — the snapshot deliberately returns no filesystem paths — so it
-    keeps its own ``rev-parse --show-toplevel`` call, which is also what still
-    decides "not a usable checkout" and returns all-``None``.
-
-    ``dirty`` retains its meaning: any staged, unstaged, unmerged or untracked
-    change, excluding ignored files, and ``None`` when Git could not answer —
-    never ``False`` by default. A detached HEAD reports ``branch=None``, as the
-    previous ``branch --show-current`` did.
+    The shared snapshot supplies commit, branch and dirty state. A separate
+    ``rev-parse`` supplies the root and detects an unusable checkout.
+    ``dirty`` includes staged, unstaged, unmerged and untracked changes, excluding
+    ignored files. Unknown values are ``None``; a detached HEAD has no branch.
     """
     working_directory = Path(__file__).resolve().parent if cwd is None else Path(cwd)
     root_text = _git_output(["rev-parse", "--show-toplevel"], cwd=working_directory)
@@ -200,10 +191,8 @@ def environment_lock() -> dict[str, Any]:
 
     This complements ``uv.lock``: the lockfile declares one exact resolution for
     every supported platform, while this record identifies the concrete
-    environment that produced a fit. Schema 2 replaced the schema-1
-    ``conda_packages`` list when the project moved from the hybrid conda + pip
-    environment to uv (#573); ``python_distributions`` now covers the whole
-    environment rather than only its pip layer.
+    environment that produced a fit. Schema 2 records all installed Python
+    distributions; archived schema 1 used a separate ``conda_packages`` list.
     """
     prefix = Path(sys.prefix).resolve()
     repository_root = Path(__file__).resolve().parents[3]

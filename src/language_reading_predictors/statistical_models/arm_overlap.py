@@ -1,37 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Intervention vs no-intervention posterior-overlap figures for ITT models.
+"""Posterior-overlap figures for ITT models.
 
-The predicted-scores panel (:mod:`predicted_scores`) answers "what does the
-model say about actual test scores"; this module adds the complementary
-*overlap* view a reader asked for: two smoothed density curves — intervention
-and no-intervention — drawn over one another so the eye can judge how far apart
-the arms are. It emits **two independent, single-axis figures** (never a shared
-two-panel figure) so each can be reused on its own:
+``arm_overlap_mean`` shows each arm's average expected outcome over the
+reference population. ``arm_overlap_predictive`` shows simulated new-child
+scores, with parameter, child and sampling variation. Binary floor-rule
+outcomes emit only the mean figure because they have no smooth score density.
 
-1. ``arm_overlap_mean`` — the posterior of each arm's *population-average*
-   expected outcome level (proportion correct for graded outcomes; off-floor
-   probability for the floor rule). Narrow curves; their separation is the
-   average treatment effect and their overlap is posterior uncertainty about
-   *which arm is higher*. This is the "how distinguishable are the arms" read.
-2. ``arm_overlap_predictive`` — the posterior-predictive outcome *for a new
-   child* under each arm (parameter uncertainty **plus** child-to-child and
-   sampling spread). Much wider curves; the overlap is the individual-level
-   overlap, and heavy overlap is expected even when the average effect is well
-   supported. Graded outcomes only — a single binary off-floor outcome has no
-   smooth predictive density, so the floor rule emits only figure 1.
-
-Both reuse :func:`predicted_scores.counterfactual_predictive_contrast`, so the
-annotated average marginal effect is the same guard-tested quantity that drives
-``rope_summary.csv`` / ``predicted_scores.csv``, and the predictive curves are
-drawn from the identical simulated scores when the same random seed is used.
-
-Caveat worth stating in captions: the two arm means share the untreated linear
-predictor per posterior draw, so they are positively correlated. Overlapping
-*marginal* curves can therefore overstate uncertainty about the *difference* —
-the effect/ROPE density remains the authoritative read; these figures are the
-intuitive companion.
+Both use :func:`predicted_scores.counterfactual_predictive_contrast`. Arm means
+share coefficients and reference profiles within each posterior draw. Their
+marginal overlap therefore does not measure uncertainty about their difference;
+use the paired average marginal effect and its practical-difference summary.
 """
 
 from __future__ import annotations
@@ -65,10 +45,7 @@ __all__ = [
     "write_arm_overlap_artifacts",
 ]
 
-#: Arm colours from the shared chart colours (``dse_research_utils.plot.styles``),
-#: matching ``predicted_scores.py``: wait-list control orange (``chart-3``),
-#: immediate intervention blue (``chart-1``). The overlap region is not given its
-#: own hue — it reads as the natural blend where the two translucent fills cross.
+# Match the arm colours in predicted_scores.py.
 _CONTROL_COLOR = CHART_COLOURS[2]
 _INTERVENTION_COLOR = CHART_COLOURS[0]
 
@@ -96,12 +73,11 @@ def overlap_curves(
     n_grid: int = 512,
     pad_frac: float = 0.08,
 ) -> OverlapCurves:
-    """KDE both arms on one grid; return curves and the overlapping coefficient.
+    """Estimate both densities on one grid and integrate their minimum.
 
-    The overlapping coefficient is the area under the pointwise minimum of the
-    two densities — 1 when the arms are indistinguishable, 0 when disjoint. A
-    degenerate (zero-variance) arm falls back to a narrow spike so the figure
-    still renders.
+    The overlap is 1 for identical normalised densities and 0 for disjoint
+    densities. Clipping and the finite grid can reduce the computed area. If
+    kernel density estimation fails, use an interpolated histogram.
     """
     a = np.asarray(control, dtype=float)
     b = np.asarray(intervention, dtype=float)
@@ -157,19 +133,11 @@ def arm_overlap_summary(
     effect_quantity: str = "average_marginal_effect",
     superiority_quantity: str = "p_intervention_higher",
 ) -> pd.DataFrame:
-    """Tabulate the citable overlap quantities as ``<figure>.csv`` (issue #208).
+    """Tabulate arm levels, the contrast and density overlap.
 
-    ``effect_quantity`` and ``superiority_quantity`` name the two contrast rows.
-    They are parameters rather than constants because the two figures this backs
-    plot genuinely different quantities (2026-08-22 ITT audit, finding 4): the
-    *mean* figure's effect is the analytic average marginal effect and its
-    superiority is P(AME > 0), while the *predictive* figure's are a difference
-    between two **independently simulated children** and the probability one such
-    child out-scores another. Both used to be written as
-    ``average_marginal_effect`` / ``p_intervention_higher``, so one fit directory
-    published two contradictory values under each name — for lrp-rli-itt-001,
-    1.368 items [0.19, 2.53] beside 1.0 items [-5, 8], and 0.968 beside 0.582 —
-    with only the filename to tell a reader which was which.
+    ``effect_quantity`` and ``superiority_quantity`` distinguish the mean
+    figure's average marginal effect from the predictive figure's simulated
+    score difference. Their tail probabilities concern those separate quantities.
     """
 
     def _row(quantity: str, draws: np.ndarray, scale: str) -> dict:
@@ -336,12 +304,9 @@ def save_arm_overlap_predictive(
     n = float(contrast.n_trials)
     pc = np.asarray(contrast.score_control, dtype=float) / n * 100.0
     pt = np.asarray(contrast.score_intervention, dtype=float) / n * 100.0
-    # Two *independently* simulated children, not one child under both arms: the
-    # simulation shares the posterior draw, reference row, kappa and child
-    # intercept but resamples the Beta propensity and the Binomial count per arm
-    # (2026-08-22 ITT audit, finding 4). The difference is therefore a
-    # between-children comparison inflated by two draws of sampling noise, and is
-    # named and described as one.
+    # The arms share a posterior draw, reference row and child effect. Beta
+    # propensities and Binomial counts are sampled independently given those
+    # values, so this score difference includes sampling noise from both arms.
     diff_items = np.asarray(contrast.score_difference_independent, dtype=float)
 
     curves = overlap_curves(pc, pt)

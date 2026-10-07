@@ -6,7 +6,7 @@ moderated by PHONEME BLENDING (B).
 
 Companion to the vocabulary-moderator joint-readiness family (LRP71 x E, LRP93 x R,
 LRP94 x TR, LRP95 x TE), extending it to a CODE-route moderator. The mediation suite
-already shows the intervention's word-reading gain does not measurably run *through*
+reported a near-zero model-based indirect estimate through
 blending (med-066 NIE_B ~ -0.03 words, P=42%; med-075 L->B->W ~ 0, P=42%); this model
 asks the different question of whether the letter-sound -> word-reading conversion is
 *gated by* blending - i.e. whether letter sounds only translate into word reading once
@@ -19,9 +19,12 @@ L x B question on *decoding* (nonword) and came out sub-additive (gamma_int = -0
 89% CrI -0.57 to -0.09); LRP61 moves the outcome to word reading, the cell the suite
 otherwise leaves open.
 
-**Reading ``gamma_int``.** The change in the letter-sound -> word-reading slope per +1 SD
-of blending. ``gamma_int > 0`` = **synergy** (word reading highest when both are high);
-``gamma_int ~ 0`` = additive (either helps on its own); ``gamma_int < 0`` = substitutive.
+**Reading ``gamma_int``.** It changes the letter-sound log-odds association
+per +1 SD of the moderator. A positive value makes that association larger as
+the moderator rises; a negative value makes it smaller. A value near zero
+gives little evidence for the added product term. Its sign alone does not
+establish that either skill helps, that both must be high, or that a threshold
+exists.
 
 **Estimand caveat (as on LRP72).** Blending B = PA is a DAG-DESCENDANT of the exposure L
 (``LS -> PA``), so conditioning on it gives ``beta_mech`` the SHAPE of a

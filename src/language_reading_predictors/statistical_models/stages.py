@@ -4,11 +4,8 @@
 """Shared execution stages for every statistical-model family.
 
 Family pipelines decide how to prepare data, build a PyMC model, and summarise
-their estimand.  This module owns the invariant execution order around those
-decisions: attach the built model, sample, diagnose, draw posterior predictions,
-record metadata, and finish the report.  The small hook boundary keeps plotting
-and legacy artifact helpers replaceable while family modules are split out of the
-historical monolithic pipeline.
+their estimand. This module runs the shared fit lifecycle. Hooks supply family
+audits and replaceable output helpers at declared points in that sequence.
 """
 
 from __future__ import annotations
@@ -39,7 +36,7 @@ GateHook = Callable[[StatisticalFitContext, dict[str, Any]], Any]
 
 @dataclass(frozen=True, slots=True)
 class StageHooks:
-    """Artifact hooks used by the shared stages during pipeline migration."""
+    """Output hooks used by the shared stages."""
 
     emit_priors: ContextHook
     save_ppc: Callable[..., Any]
@@ -52,19 +49,11 @@ class StageHooks:
 
 @dataclass(frozen=True, slots=True)
 class PrimaryFitPlan:
-    """The genuinely variable execution choices of a primary fit (#394 design 2).
+    """Family-specific choices within the shared primary-fit sequence.
 
-    Everything else about the primary-fit sequence — its order, its section
-    headers, which diagnostics run — is invariant and owned by
-    :meth:`SharedFitStages.run_primary_fit`. A family declares only what varies:
-    the curated diagnostic variables, any restricted prior-predictive variables,
-    the posterior-predictive nodes (the last is the primary outcome node), its
-    family-specific section labels, figures or audits at named phase boundaries,
-    which variables get power-scaling sensitivity, where that sensitivity
-    belongs, the term the extended diagnostics focus on, and the LOO / LOO-PIT /
-    trace-persistence policy. Deliberately a flat value object rather than a base
-    class with overridable methods: a reader should be able to see a family's
-    whole execution profile in one declaration.
+    :meth:`SharedFitStages.run_primary_fit` owns the order. This declaration
+    supplies diagnostic variables, predictive nodes, audits, sensitivity timing,
+    section labels and persistence policy.
     """
 
     diagnostic_vars: tuple[str, ...]
@@ -117,9 +106,7 @@ class PrimaryFitPlan:
     after_trace_audit: ContextHook | None = None
     """Family figures that must follow trace persistence, before power scaling.
 
-    The established late families' overlay and forest. Owned by the runner so the
-    order of the tail is part of the lifecycle rather than a comment in six
-    pipelines asking the next editor not to move anything.
+    The runner records this ordering in the lifecycle.
     """
 
     prepare_psense: ContextHook | None = None
@@ -227,8 +214,7 @@ class SharedFitStages:
         _diag.summary_diagnostics(ctx, var_names=diag_vars)
 
         def _run_psense() -> None:
-            # Exactly once, whichever slot: the runner records the stage and the
-            # branches below are mutually exclusive by construction (#637 stage 4).
+            # Guard against repeated sensitivity runs at different lifecycle slots.
             if "power_scaling" in ctx.lifecycle_stages:
                 raise RuntimeError(
                     f"power-scaling sensitivity ran twice in one primary fit; stages so far: {ctx.lifecycle_stages}"
@@ -300,12 +286,8 @@ class SharedFitStages:
     def finalize_report(self, ctx: StatisticalFitContext) -> StatisticalFitContext:
         """Decide the release, generate key findings, copy the report, finish.
 
-        The release decision comes first and explicitly (#394 design point 3):
-        whether this fit may publish findings — and if not, at which stage and why
-        — is settled and written to ``release_decision.json`` *before* the
-        findings that follow from it are built. It was previously assembled
-        inline inside ``generate_key_findings``, so finalisation never held it and
-        nothing recorded it for the families the robustness gate does not cover.
+        Save ``release_decision.json`` before generating findings, so every
+        findings file uses the recorded publication checks and failure reasons.
         """
 
         section_header("Report")

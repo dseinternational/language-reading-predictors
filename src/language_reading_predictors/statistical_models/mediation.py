@@ -1,12 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Counterfactual (g-formula) mediation decomposition for LRP59.
+"""Model-based g-formula mediation decompositions and sensitivity scenarios.
 
 Given the joint mediator + outcome posterior from
-:func:`factories.build_mediation_model`, decompose the intervention's effect on
-word reading into the natural indirect effect (NIE, the part flowing *through*
-letter-sound knowledge) and the natural direct effect (NDE, everything else).
+:func:`factories.build_mediation_model`, compute direct and indirect response-scale
+contrasts. Registered variants use different mediators and outcomes.
 
 NDE/NIE are **not** products of coefficients — that is only valid on a linear
 identity scale, and these are logit Beta-Binomial models. For each posterior draw,
@@ -42,12 +41,10 @@ because ``IS`` is itself a descendant of the exposure (VanderWeele, Vansteelandt
 The outputs are therefore model-based g-formula decompositions under the stated
 (cross-world) assumptions, not identified natural effects.
 
-An *interventional* (rather than natural) mediation estimand -- available here via
-``decompose(..., interventional=True)`` and fitted in MED-078/186/187 -- addresses
-the *second* obstacle only: it invokes no cross-world quantity, so the
-exposure-induced confounder does not defeat it. It does **not** address the first.
-Identification of
-stochastic interventional (in)direct effects still requires no unmeasured
+An interventional target, selected by ``decompose(..., interventional=True)``,
+avoids the natural effects' cross-world interpretation. The fitted functional
+still omits ``IS`` and does not thereby resolve dose confounding. Identification
+of stochastic interventional direct and indirect effects requires no unmeasured
 mediator-outcome confounding (Hejazi, Rudolph, van der Laan & Diaz 2022,
 Biostatistics 24(3):686-707, assumption A5, doi:10.1093/biostatistics/kxac002),
 which latent general ability violates here; their positivity requirement (A3) and
@@ -154,10 +151,8 @@ def _proportion_row(
 ) -> dict:
     """The proportion-mediated row (NIE / Total; unstable when Total crosses 0).
 
-    ``prob_pos`` is **not applicable** to a ratio row and is written ``NaN``
-    (#585): it used to carry ``P(Total > 0)``, so a reader scanning the column
-    saw a probability about a different quantity under the proportion's label.
-    The context probability is kept, explicitly named, in ``total_prob_pos``.
+    ``prob_pos`` is left ``NaN`` for this ratio. The separately named
+    ``total_prob_pos`` reports the probability that the total contrast is positive.
     """
     with np.errstate(divide="ignore", invalid="ignore"):
         prop = nie / total
@@ -260,15 +255,11 @@ def decompose(
     off_floor = getattr(med, "off_floor", False)
     b0, b_G, b_M, b_GM, b_A = d("b0"), d("b_G"), d("b_M"), d("b_GM"), d("b_A")
     b_W = None if off_floor else d("b_W")
-    # Sensitivity lever (#230): subtract a bias delta from the mediator->outcome
-    # coefficient — the portion of the fitted b_M one attributes to an unmeasured
-    # mediator-outcome confounder. b_m_shift=0 is the primary (identified) analysis.
+    # Subtract the scenario's signed mediator-slope bias. Zero gives the primary
+    # model-based decomposition, whose causal interpretation remains unidentified.
     b_M = b_M - b_m_shift
     b_conf = {s: d(outcome_confounder_coefficient(s)) for s in confounder_symbols}
-    # Cross-leg baselines restored by #585: the outcome law conditions on the
-    # mediator baseline and the mediator law on the outcome baseline, so the
-    # counterfactual simulation must integrate over the same common vector the
-    # fitted legs saw. Read from MediationData, so the terms cannot drift.
+    # Carry the same cross-leg baseline terms used in the fitted laws.
     out_cross = dict(getattr(med, "outcome_cross_values", {}) or {})
     med_cross = dict(getattr(med, "mediator_cross_values", {}) or {})
     b_cross = {name: d(name) for name in out_cross}
@@ -430,13 +421,9 @@ def sensitivity_sweep(
     ref = float(np.mean(d("b_M") + d(interaction_name)))
     ref_mag = abs(ref)
     ref_eps = 1e-6
-    # ``delta`` is a NON-NEGATIVE magnitude of confounding, applied in the direction that
-    # shrinks the fitted effective slope toward 0 (``b_m_shift = sign(ref) * delta``), so
-    # the sweep attenuates the NIE toward the null whether the fitted slope is positive or
-    # negative (#289 review — a fixed positive subtraction pushed a negative slope *away*
-    # from 0 and silently reported "robust"). Fractions use ``abs(ref)`` so they stay a
-    # positive "share of the fitted slope", with an epsilon guarding a near-zero slope
-    # where they would otherwise explode.
+    # Choose the shift direction from the mean effective slope. Individual draws
+    # with the opposite sign can move away from zero. Avoid slope fractions when
+    # the reference magnitude is near zero.
     shrink_sign = 1.0 if ref >= 0 else -1.0
     if delta_max is None:
         delta_max = max(ref_mag * 1.5, 0.5)
@@ -459,11 +446,8 @@ def sensitivity_sweep(
         )
     sweep = pd.DataFrame(rows)
 
-    # Tipping point: first delta at which the NIE interval includes 0, from the sign the
-    # NIE takes at delta=0. The sweep shrinks the effective slope toward 0, so the NIE
-    # moves toward 0 as delta grows regardless of the fitted slope's sign; if the interval
-    # already includes 0 at delta=0 the indirect effect is not credibly nonzero, so the
-    # sensitivity question ("how much confounding would null it?") does not apply.
+    # Locate the first tested interval that reaches zero from its starting sign.
+    # No positive tipping magnitude is needed if the initial interval includes zero.
     nie0 = sweep.iloc[0]
     already_null = bool(nie0["nie_lo"] <= 0 <= nie0["nie_hi"])
     positive = nie0["nie_median"] >= 0
@@ -638,8 +622,10 @@ def decompose_two_mediator(
     independent given the covariates. In a chain the second mediator conditions
     on the first. Mixed-arm cells integrate independent first-mediator draws
     across arms, as in the original model-based definition. ``b_m_shifts`` is
-    the #335 sensitivity lever: a mapping from mediator symbol to the signed bias
+    a mapping from mediator symbol to the signed bias
     subtracted from that mediator's outcome-leg main slope before decomposition.
+
+    ``hdi_prob`` is a legacy name for equal-tailed interval coverage, not an HDI.
     """
     post = trace.posterior
 
@@ -711,11 +697,7 @@ def decompose_two_mediator(
     N_E = med.n_trials_E
     S = b0.shape[0]
 
-    # The mediator-free part of the outcome predictor, and each mediator's total
-    # slope, depend on the arm alone. The enumeration below evaluates the outcome
-    # once per (L, E) support cell -- thousands of times -- so build them once per
-    # arm instead of rebuilding every covariate term in each cell (2026-09-05
-    # review). ``g * b_GL`` folded into the slope is the same linear predictor.
+    # Cache each arm's covariate predictor and slopes across mediator-support cells.
     _outcome_arms: dict[float, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
 
     def _outcome_arm(g: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -792,12 +774,8 @@ def decompose_two_mediator(
         p = mediator2_p(_TREAT if treated else _CTRL, zL) if med.chain else (pE_t if treated else pE_c)
         return np.where(k == 1, p, 1 - p) if off2 else count_mass(k, N_E, p, kappa_E)
 
-    # The first mediator's Beta-Binomial mass depends only on its support value, so
-    # evaluate the whole support once, outside the second mediator's batch loop.
-    # Recomputing it per batch dominated the decomposition (2026-09-05 review):
-    # 2 * (N_L + 1) arrays were rebuilt for every one of the (N_E + 1) support
-    # values, making this ~45x slower than the simulation it replaced. The cache is
-    # 2 * (N_L + 1) draw-by-row arrays, released when the decomposition returns.
+    # Cache the first mediator's mass over its finite support. It does not depend
+    # on the second mediator's support value.
     L_support = np.arange(N_L + 1)
     zL_support = (logit_safe(L_support, N_L) - med.zL_mean) / med.zL_sd
     mass_L = (
@@ -891,9 +869,7 @@ def decompose_two_mediator(
         row(f"NIE_{mE}", nie_E),
     ]
 
-    # Shared with the single-mediator path (#585): the two-mediator proportion used
-    # to have its own unguarded copy, so an all-non-finite ratio (Total == 0 on
-    # every draw) raised inside the report instead of degrading to NaN intervals.
+    # The shared ratio summary handles an all-non-finite proportion.
     rows.append(_proportion_row(nie_joint, total, lo_q, hi_q, n_chains=_nc, n_draws=_nd))
     return pd.DataFrame(rows)
 
@@ -933,10 +909,8 @@ def sensitivity_sweep_two_mediator(
     Each one-dimensional sweep attenuates one mediator->outcome leg toward zero
     while leaving the other leg unchanged. It records both the path-specific NIE
     and ``NIE_joint`` so the robustness of the preferred block-level indirect
-    effect is visible under confounding of either leg. A two-dimensional surface is
-    deliberately not generated: it is substantially more expensive and, at this
-    sample size, would add a large grid without improving the leg-specific tipping
-    decisions (#335).
+    effect is visible under a slope-bias scenario for either leg. These separate
+    sweeps do not assess simultaneous bias in both legs.
     """
     post = trace.posterior
 
@@ -1059,8 +1033,8 @@ def calibrate_session_confounding(
     the outcome model's working logit scale. For each mediator, it compares the
     mediator->reading coefficient before and after adding standardised session
     attendance to the same adjusted linear projection. The attenuation-aligned
-    part of that coefficient change is ``delta_IS``. A child bootstrap supplies a
-    deliberately wide uncertainty band at ``n ~= 25``.
+    part of that coefficient change is ``delta_IS``. A child bootstrap supplies
+    its uncertainty band.
 
     This is descriptive calibration, not adjustment that identifies a natural
     effect. Restricting to the treated arm avoids using the wait-list arm's

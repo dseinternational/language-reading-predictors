@@ -13,8 +13,8 @@ children alike on age and the other skills, +n words read is associated with +m
 letter sounds".
 
 The family's core skill set is {W, L, B, TR, TE, R, E}: each model conditions its
-focal outcome on the remaining six, so together the models describe the conditional
-joint distribution of the same measure set (the focal is swapped out of the ca-001
+focal outcome on the remaining six, so together the models describe conditional
+associations within the same measure set (the focal is swapped out of the ca-001
 predictor list and word reading swapped in). Floored measures (P, N) stay excluded.
 
 **Estimand and its limits.** Every coefficient is an *adjusted association*, never a

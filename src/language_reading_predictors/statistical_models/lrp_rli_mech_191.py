@@ -48,8 +48,10 @@ search with the latent GA held (the criterion that reproduces LRP58 and dose-077
 exactly): IS's parents are {A, GA, IG} and nothing else, so the minimal observed set
 blocking every backdoor to WR is {A, IG}. Group G(=IG) is the always-in term, A the
 linear age precision covariate, and W_pre the autoregressive baseline. No measure or
-hearing/speech adjusters are needed (they are not parents of IS). Identical adjustment
-to dose-077 - only the functional form (HSGP curve vs period-varying slope) changes.
+hearing/speech adjusters are needed (they are not parents of IS). The basic age, arm and own-baseline terms overlap with dose-077. The
+models also differ in exposure decomposition, treatment-presence terms and
+period structure, so their difference cannot be attributed to curve shape
+alone.
 
 **Strictly observational.** Session dose was not randomised (how much a child attended
 reflects ability, attendance and availability) and IS is a partial collider, so the
@@ -62,9 +64,9 @@ not "this many sessions is the threshold". Any located steepest interval is a fe
 of the fitted curve over the observed range, and the report only calls it a knee when
 the curve genuinely bends and the location is interior to the observed support.
 
-**Awaiting refit.** The stored ``reporting`` artefacts predate this population change
-and were fitted on the zero-anchored frame; they must not be read against the text
-above until the model is refitted.
+**Fit compatibility.** Artefacts from the earlier zero-anchored population
+cannot support this treated-period specification. Check the saved resolved
+plan and fitted-data identity before using a fit; refit incompatible artefacts.
 """
 
 from language_reading_predictors.statistical_models.context import (

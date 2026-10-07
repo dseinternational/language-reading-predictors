@@ -1,18 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Runtime invariant checks that survive ``python -O`` (#637 stage 4).
+"""Runtime invariant checks that survive ``python -O``.
 
-``assert`` is removed by the optimiser. Every use of it to narrow a resolved run
-plan's optional field — ``assert plan.post_time is not None`` and its sixteen
-siblings — therefore did nothing under ``-O`` except let a ``None`` travel one
-statement further, into an index or an arithmetic expression that fails with a
-message about the *symptom* rather than the missing setting.
-
-``runtime.require_spec`` already made this point for ``ModelSpec``; the helpers
-here make it available to the run plans, panels and payloads, and live in a module
-with no package dependencies so a factory or a release check can use them without
-importing the sampling stack.
+Unlike ``assert``, these checks remain active under optimisation. This module
+has no package dependencies, so callers need not import the sampling stack.
 """
 
 from __future__ import annotations

@@ -422,18 +422,15 @@ def _jm_marginal_ppc(
 ) -> pd.DataFrame | None:
     """New-child predictive coverage, written to ``ppc_summary_marginal.csv``.
 
-    Why this exists. The levels design carries one bivariate latent residual **per
-    child**, and each child contributes exactly two likelihood cells — so the residual
-    block is saturated and the ordinary posterior predictive, which conditions on the
-    fitted residuals, reproduces every observation. The dev fit's conditional coverage
-    is 1.00 at both the 50% and 90% levels with intervals only ~8 items wide on a
-    79-item test: not a good fit, an arithmetic consequence of the design. Publishing
-    that number alone would read as a passed calibration check.
+    The levels design has a bivariate latent residual per child and two outcome
+    cells per child. Conditioning on residuals estimated from those same cells
+    can inflate predictive coverage. Complete conditional coverage does not
+    establish calibration for a new child.
 
     This redraws each child's residual from its **estimated** distribution
     (Sigma = diag(sigma) Corr diag(sigma), Cholesky-factorised in closed form for the
     2x2 case) instead of reusing the fitted value, giving the predictive for a *new*
-    child with the same covariates — the check that can actually fail. Both files are
+    child with the same covariates. Both files are
     written: ``ppc_summary.csv`` keeps the house cross-family schema, and this is the
     informative companion the results partial reads alongside it.
 
@@ -524,10 +521,8 @@ def _jm_marginal_ppc(
                     }
                 )
         frame = pd.DataFrame(rows)
-        # Required, not optional: the ordinary conditional check is saturated by
-        # construction and PSIS-LOO is deliberately not computed, so this is the
-        # levels design's only informative predictive check. ``release`` fails a
-        # wave whose file is absent (2026-08-23 follow-up review, robustness gap 2).
+        # Require the new-child check alongside the conditional one. The levels
+        # design omits PSIS-LOO, so release requires this file for every wave.
         save_table(ctx, name, frame, required=True)
         written.append(frame)
     return written[0] if written else None
@@ -936,7 +931,7 @@ def _fit_joint_mechanism_levels(
         )
 
     # Usable rows at a wave: the exposure observed (it is never imputed — imputing
-    # the focal exposure would bias both slopes toward zero) and at least one outcome
+    # the focal exposure could bias the slopes) and at least one outcome
     # observed. A wave below any prespecified floor is skipped *and named*: a silently
     # dropped timepoint would read as "that wave was not estimable" when it was never
     # tried. The per-outcome and overlap floors matter because the residual
@@ -1012,7 +1007,7 @@ def _fit_joint_mechanism_levels(
                     run_plan=plan,
                     exposure_scale=wave_built[primary_wave].payload.exposure_scale,
                     # One latent residual per child over two cells: conditional
-                    # coverage is structurally 1.00, so publish the new-child view.
+                    # coverage can be inflated, so publish the new-child view.
                     marginal_ppc=True,
                     compute_loo=plan.compute_loo,
                 ),

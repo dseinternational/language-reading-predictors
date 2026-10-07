@@ -12,9 +12,9 @@ and leaves the knee untestable for this exposure.
 
 Adjustment set (revised DAG, 2026-07-10). Re-derived by a backdoor d-separation search
 with the latent GA held: TR's observed confounders that also reach WR are
-{A, HS, IG, IS, RW}. NB this ADDS intervention sessions (IS = attend) relative to LRP88,
-which omitted it: IS -> TR and IS -> WR make sessions a genuine confounder of TR -> W
-(the same adjuster LRP58 already carries for L -> W). Group G(=IG) is the always-in
+{A, HS, IG, IS, RW}, matching LRP88, which also adjusts intervention
+sessions (IS = attend). IS -> TR and IS -> WR motivate that adjustment under
+the declared DAG. Group G(=IG) is the always-in
 precision term and W_pre the autoregressive baseline.
 
 Residual confounding by latent general ability (GA) remains, so f^TR is an ADJUSTED

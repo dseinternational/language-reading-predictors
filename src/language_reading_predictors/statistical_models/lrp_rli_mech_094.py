@@ -12,8 +12,10 @@ vocabulary are *both* high (synergy), or does either help on its own?
 
 Letter sounds enter as the HSGP ``f_mech``; taught-receptive vocabulary enters as
 ``gamma_mod * z(TR)`` plus the interaction ``gamma_int * z(logit L) * z(TR)``.
-``gamma_int > 0`` = synergy (both need to be high); ``~0`` = additive; ``< 0`` =
-substitutive. L and TR are positively correlated (r ~ 0.63), so the discordant corners
+A positive ``gamma_int`` makes the letter-sound log-odds association larger as
+TR rises; a negative value makes it smaller. A value near zero gives little
+evidence for the added product term. Its sign alone does not establish a
+prerequisite or threshold. L and TR are positively correlated (r ~ 0.63), so the discordant corners
 are sparse and the interaction is weakly powered - exploratory only.
 
 Adjustment set = the LRP58 L -> W set {G, A, W_pre, HS, IS, SP} + the TR main effect and

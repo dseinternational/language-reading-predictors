@@ -289,9 +289,7 @@ class HorseshoeRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
-        # The RLM loader appends age to the ranked set when use_age_predictor is
-        # true, so the recipe must name it too — it was the headline survivor in
-        # rlm-hs-001 yet absent from this line (2026-08-21 review, finding 10).
+        # Include age in the recipe when the RLM loader adds it to the ranked set.
         predictors = ", ".join(
             self.predictors
             if self.port == "rli"
@@ -389,9 +387,7 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
         phase_mode = settings.phase_mode or ("span" if gain else "levels")
         if phase_mode not in {"span", "levels"}:
             raise ValueError(f"{spec.model_id}: RLI phase_mode must be 'span' or 'levels', got {phase_mode!r}")
-        # Settings-only coherence, rejected before any output-directory reset or
-        # data I/O (#455): the factory would otherwise fail only after a full CSV
-        # load (2026-08-21 review, finding 9).
+        # Reject incompatible frame settings before output or data operations.
         if (gain and phase_mode != "span") or (not gain and phase_mode != "levels"):
             raise ValueError(
                 f"{spec.model_id}: gain={gain} is incoherent with "
@@ -437,11 +433,8 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             "regression for level models, with a regularised horseshoe over the "
             "declared construct predictor set."
         )
-        # The two framings have different missing-data behaviour (2026-08-21
-        # review, finding 4): the span loader complete-cases every declared
-        # pre-score and covariate, while the levels frame requires only the
-        # outcome, group and age, and the factory mean-imputes missing
-        # standardised predictor levels.
+        # Span rows require all declared pre-scores and covariates. Level rows
+        # allow missing predictors, which the factory mean-imputes.
         if gain:
             population = (
                 f"Available RLI children with observed {outcome} and a complete "

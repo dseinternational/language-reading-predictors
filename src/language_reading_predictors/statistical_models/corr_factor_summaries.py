@@ -3,22 +3,9 @@
 
 """Pure summary computations for the correlated-domain-factor measurement models.
 
-The measurement-headline tables of
-:func:`pipelines.corr_factor.fit_correlated_factor` (and, as a follow-up, the
-Byrne :func:`pipelines.corr_factor.fit_rlm_corr_factor`) — the loadings /
-correlations / communalities table and the domain-factor correlation matrix
-(posterior-mean matrix + per-pair summary) — computed as pure functions of the
-posterior. Extracted from the fit orchestration (#394 pillar 6, "separate
-computation from presentation", mirroring the longitudinal correlated-factor
-summary extraction in #402) so the numeric
-summaries are testable without an output directory, Quarto template or Matplotlib
-session; the fit function keeps the CSV persistence, console table and plots.
-
-The two correlated-factor fits differ only in the posterior name of the loading
-(``lambda_load`` for the RLI model, ``loading`` for the Byrne model), exposed here as
-``loading_var``; the factor-correlation summaries are identical. Each function returns
-a ``pandas.DataFrame`` with exactly the columns the fit previously wrote, so the
-published CSVs are byte-for-byte unchanged.
+These functions return loading, communality and factor-correlation tables from
+posterior draws. Pipelines write and display them. ``loading_var`` selects the
+RLI ``lambda_load`` or Byrne ``loading`` variable.
 """
 
 from __future__ import annotations

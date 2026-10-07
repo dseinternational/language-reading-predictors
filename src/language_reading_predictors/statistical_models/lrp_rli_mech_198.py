@@ -19,12 +19,12 @@ child, complete, and constant within child across all four waves, so it is a cle
 pre-treatment between-child proxy that can be adjusted for without conditioning on
 anything post-treatment.
 
-**Read.** If the non-specific component is largely measured ability, the negative
-controls (E among them for the control rows) should shrink towards zero here
-while the written-code slopes hold up. If every slope shrinks in proportion, the
-adjustment is removing shared variance indiscriminately and the panel says less than
-it appeared to. If nothing moves, the child random intercept was already absorbing
-the between-child ability signal and the proxy adds nothing.
+**Read.** Compare each slope with its matched unadjusted companion. The
+oral-language negative controls are R, E, T and F; N and W are written-code
+comparators. Changes describe sensitivity to the observed block-design proxy.
+They do not identify how much latent ability confounded a slope. Little change
+does not show that the child random intercept already controlled ability, or
+that latent confounding is absent.
 
 **Ceilings.** ``blocks`` is a single noisy subtest, not ``GA``; residual confounding
 by the latent node survives any adjustment for it, so ``beta_mech`` remains an

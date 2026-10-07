@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Named-confounder calibration for the mediation NIE sensitivity sweep (#324).
+"""Named-confounder scenarios for the mediation indirect-effect sensitivity sweep.
 
 The generic sensitivity sweep in :mod:`mediation` asks how large a shift ``delta``
 in the fitted mediator-to-outcome logit coefficient would make the NIE interval
@@ -17,18 +17,15 @@ uses the single-omitted-variable approximation
 after converting the dose-response slopes to the mediation fit's one-standard-
 deviation session scale and standardised mediator scale.
 
-**Why the bare product is the right form here** (#585 finding 6).  In general the
-omitted-variable bias in the coefficient on ``M`` is ``beta(U -> Y) * Cov(U, M) /
-Var(M)``, which is *not* a bare product and is *not* scale-invariant.  Both slopes
-are supplied on one-standard-deviation scales — ``IS`` per SD of phase-1 sessions,
-``M`` per SD of the fitted mediator logit — so ``Var(M) = 1`` and ``Cov(U, M) =
-beta(IS -> M_std)``, and the product form is exactly the linear bias.  The
-approximation that remains is transporting a linear-model bias onto a logit
-coefficient, where non-collapsibility means the recovered shift is close to, not
-equal to, the induced bias; :mod:`tests` carries a linear-Gaussian recovery check
-of the formula itself.  Because the shift is approximate, the reported sentences
-are framed as scenario comparisons ("reaches the tipping point under this
-scenario"), never as a demonstration that ``IS`` accounts for the effect.
+In a linear model, omitted-variable bias in the coefficient on ``M`` is
+``beta(U -> Y) * Cov(U, M) / Var(M)`` after removing the adjustment terms from
+``U`` and ``M``. A bare product requires additional covariance and scale
+assumptions. Marginal standardisation alone does not establish that identity
+for adjusted slopes. Here the scale-matched product defines a scenario; it does
+not identify the omitted-variable bias. A logit outcome adds a further
+approximation because adding a predictor can change coefficients even without
+confounding. Reported comparisons therefore describe what happens under the
+scenario rather than showing that ``IS`` accounts for the indirect effect.
 
 Treating the whole fitted ``IS -> Y`` association as confounding is conservative in
 one specific sense: that association may itself include a genuine ``IS -> M -> Y``
@@ -89,8 +86,7 @@ class SlopeEstimate:
     dose_sd_sessions: float | None = None
 
 
-# The direct code-route models requested by #324 plus MED-059, where the same
-# L <- IS -> W structure and both fitted dose-response sources already exist.
+# Supported single-L-mediator scenarios and their dose-response sources.
 IS_CALIBRATION_SOURCES: dict[str, _CalibrationSources] = {
     "lrp-rli-med-059": _CalibrationSources(
         mediator_dose_model="lrp-rli-dose-083",
@@ -251,7 +247,7 @@ def _observed_slopes(
 
 
 def _dose_sd_from_data(symbol: str, data_path: Path | None) -> float:
-    """Reconstruct the dose model's standardiser for pre-#324 fit artefacts."""
+    """Reconstruct the dose scale when an archived fit did not save it."""
     prepared = load_and_prepare(
         path=data_path,
         phase_mode="all",

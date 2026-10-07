@@ -122,13 +122,7 @@ class InfluenceBundleError(RuntimeError):
 
 
 def sha256_file(path: Path) -> str:
-    """Return a streaming SHA-256 digest for one artefact.
-
-    Delegated to ``metadata.provenance.sha256_file`` (#662), which reads the
-    same 1 MiB chunks and returns the same bare lowercase hex digest. The
-    ``sha256:`` prefixes and the digest-prefix filenames this module builds on
-    top of it are unchanged.
-    """
+    """Return the shared streaming SHA-256 digest for one artefact."""
     return _shared_sha256_file(path)
 
 
@@ -180,10 +174,7 @@ def hash_primary_artifacts(model_dir: Path) -> dict[str, str]:
 def _atomic_write_csv(frame: pd.DataFrame, destination: Path) -> None:
     """Write a CSV by atomic rename so readers never observe a partial bundle index.
 
-    The temporary file, the single rename and the failure cleanup come from the
-    shared helper (#662); the serialisation and the published file mode stay
-    here. ``process_default`` keeps the umask-derived mode this bundle index has
-    always had — the report render and ``scripts/upload.py`` read it back.
+    ``process_default`` uses the process's umask-derived file mode.
     """
     write_atomic(
         destination,
@@ -196,7 +187,7 @@ def _atomic_copy(source: Path, destination: Path) -> None:
     """Copy one file to a sibling temporary path and atomically install it.
 
     ``copy2`` copies the source file's mode onto the temporary file, so the
-    installed copy keeps the source's permissions exactly as before (#662).
+    installed copy keeps the source's permissions.
     """
     write_atomic(destination, lambda temporary: shutil.copy2(source, temporary))
 
@@ -570,16 +561,12 @@ def _joint_contrast_influence(
 ) -> dict[str, Any]:
     """The declared joint contrast on all three influence populations.
 
-    2026-08-23 joint audit, finding 9. The exact influence path recomputed each
-    outcome's marginal effect for the full, retained and refitted samples but never
-    reconstructed the contrast those marginals are reported *as*. A difference of
-    two average marginal effects does not move with its components alone: the
-    posterior covariance between them moves too, and that is precisely the quantity
-    a factorised fit does not model. So any claim that an influence analysis
-    preserved the scientific finding has to be about this quantity.
+    Recompute the contrast from joint posterior draws, since component medians
+    and intervals do not determine its posterior distribution. Covariance between
+    the component effects also matters.
 
     The decomposition matches the marginals': ``composition`` is the primary
-    posterior restandardised over the retained children, ``refit`` is the exact
+    posterior restandardised over the retained children, ``refit`` is the fresh
     leave-out refit against that same population, and ``total`` is the full-sample
     to leave-out-sample movement. The columns are constant across the per-outcome
     rows, which is what they describe -- one declared contrast per fit.
@@ -643,8 +630,7 @@ def summarise_influence_refit(
 
     For a joint fit with a declared contrast the same three-population
     decomposition is also computed for that contrast (:func:`_joint_contrast_influence`),
-    because per-outcome movement does not determine contrast movement (2026-08-23
-    joint audit, finding 9).
+    because per-outcome summaries do not determine the contrast distribution.
     """
     built = influence_build.built
     ci_prob = float(reference.metadata.get("ci_prob", 0.95))
@@ -692,11 +678,8 @@ def summarise_influence_refit(
                 G=primary_G,
                 row_mask=retained_mask,
             )
-            # The declared contrast, recomputed on each of the three populations
-            # (2026-08-23 joint audit, finding 9). Per-outcome movement cannot
-            # settle contrast movement — magnitude and posterior covariance both
-            # matter — so an influence audit that reports only the marginals can
-            # look reassuring while the headline quantity is more sensitive.
+            # Preserve the declared contrast and its posterior covariance across
+            # the full, retained and refitted populations.
             if contrast_pair is not None:
                 contrast_columns = _joint_contrast_influence(
                     primary_trace=primary_trace,

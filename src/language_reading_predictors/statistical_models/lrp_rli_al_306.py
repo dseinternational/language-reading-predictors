@@ -15,8 +15,8 @@ inverse-logit mean does not know that: it permits expected scores anywhere in
 (0, 1), and the fitted al-006 posterior uses that room — 2 of its 54 rows have
 posterior-mean expected proportions below one third and 4.9 % of the row-by-draw
 posterior mass sits below chance, with a worst row at 98.0 %. This companion
-constrains the mean to ``1/3 + 2/3 * expit(eta)``, so the model cannot predict
-below-chance performance.
+constrains the mean to ``1/3 + 2/3 * expit(eta)``, so the expected score proportion is at least one third. Individual observed or
+predicted counts can still fall below that mean floor.
 
 Because the two links can disagree about the size of the estimate — in the two
 pairs fitted under both, the items number fell by about 40 % and the interval

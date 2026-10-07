@@ -22,8 +22,8 @@ target here: its two legs are deliberately priced differently in this fit.)
 
 How to read the comparison: if LRPDID02's ``tau_t2`` is genuinely
 data-dominated, the posterior here should match it to within Monte-Carlo error;
-a materially larger median under the wider prior confirms the reference
-estimate is prior-attenuated and should be read as conservative. Per
+a materially larger median under the wider prior shows sensitivity to that
+prior choice. It does not establish a conservative lower bound. Per
 recommendation 3's scope note, the dose model LRPDID07 has **no** ``tau_t2``
 (its estimand is the observational ``mu_dose ~ Normal(0, 1)``, already on the
 wide scale, assigned no causal status), so no dose companion exists.

@@ -42,8 +42,8 @@ EV, EG and EI are *descendants* of TE (``TE -> EV``, ``TE -> EG``, ``TE -> EI``)
 conditioning on them would block legitimate indirect paths (e.g.
 ``TE -> EV -> W``) and bias the slope toward the direct-only component, so they are
 deliberately NOT in the adjustment set. GA (general ability) is latent and
-unadjustable - the child random intercept proxies its time-invariant part, so the
-slope stays an adjusted association, never a causal effect. As with LRP88,
+unadjustable - the child random intercept models repeated observations without controlling
+GA, so the slope stays an adjusted association, never a causal effect. As with LRP88,
 taught-vocabulary variation is largely intervention-generated, so the slope
 describes covariation within a treated system.
 

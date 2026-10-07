@@ -9,7 +9,7 @@ legacy alias ``lrp81`` is already the live ``lcsm-081``, so 081 was never free; 
 lowest free bare alias in the mediation range. The chained companion to ``med-075`` (L -> blending B -> W), but through
 the **alphabetic route's own fingerprint**, nonword decoding N. It was specced then
 **withdrawn at build time** because ``build_two_mediator_model`` required each mediator's
-autoregressive baseline, and N is post-only with a ~72%-floored t1 score. This model uses
+autoregressive baseline, and N has a heavily floored t1 score. This model uses
 the new **off-floor second-mediator leg**: N enters as a Bernoulli off-floor indicator
 (P(N > 0)) with no autoregressive baseline, so the chained ``L -> N -> W`` g-formula
 decomposition finally builds.
@@ -53,7 +53,7 @@ SPEC = ModelSpec(
         "-> nonword decoding (N, off-floor) -> reading?"
     ),
     outcome_symbol="W",
-    mechanism_symbol=None,  # two mediators; named in extra["mediators"]
+    mechanism_symbol=None,  # The two mediator symbols are declared in model_settings.mediators.
     adjustment=[
         "G",
         "A",
@@ -72,7 +72,7 @@ SPEC = ModelSpec(
         mediators=("L", "N"),
         order=("L", "N"),
         chain=True,  # add the L -> N edge; draw N conditional on simulated L
-        second_mediator_offfloor=True,  # N is post-only / ~72% floored -> Bernoulli leg
+        second_mediator_offfloor=True,  # N is heavily floored -> Bernoulli mediator leg
         # Load N (floored, outside the default ITT set) AND the declared bounded
         # confounders E/R, which used to be filtered out after preparation and
         # never reached either leg (#585 finding 3).

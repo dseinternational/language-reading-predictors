@@ -3,7 +3,7 @@
 
 """LRPAL05 - aligned-40-week per-protocol single gain for phonetic spelling (P).
 
-Per-protocol onset-aligned Beta-Binomial ANCOVA of the aligned post-score on its
+Per-protocol onset-aligned Bernoulli ANCOVA of the aligned post-score on its
 own onset baseline, age-at-onset, cognitive ability and the cohort indicator. Both
 arms are aligned by intervention onset (immediate t1->t3, wait-list t2->t4); one
 row per child, no child random intercept. The cohort term is NOT randomised

@@ -326,7 +326,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             save_table(ctx, "rope_sensitivity", sens_df)
 
     # Data-space figures (#317): population per-arm score trajectory (the crossover
-    # picture — only the t2 gap is randomised) and per-child fitted-vs-observed panels.
+    # picture) and per-child fitted-vs-observed panels. Later arm gaps compare
+    # randomised treatment schedules; they do not isolate current treatment.
     write_group_trajectory(
         ctx,
         outcome_symbol=spec.outcome_symbol,

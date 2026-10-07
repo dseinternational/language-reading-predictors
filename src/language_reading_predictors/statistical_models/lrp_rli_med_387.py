@@ -26,9 +26,9 @@ is threaded into ``decompose``'s ``outcome_p``, which is the one place the laten
 scale becomes a score.
 
 **The link governs the outcome only.** The mediator here is letter sounds, a
-different measure with its own leg and its own denominator; no registered mediation
-model has phoneme blending as its mediator, and the resolver rejects the floor link
-for any non-B outcome.
+different measure with its own leg and denominator. Other registered models
+use blending as a mediator, but this setting governs the outcome law only; the
+resolver rejects it for any non-B outcome.
 
 Nothing about the identification changes, and none of it was ever strong. The
 binding unverifiable assumption is still **no unmeasured L -> B confounding**, which

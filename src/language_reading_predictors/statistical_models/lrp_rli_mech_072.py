@@ -8,8 +8,8 @@ triangle-model hypothesis that the two phonological prerequisites — phoneme
 **blending** (B) and **letter-sound** knowledge (L) — combine **super-additively**
 to bring word **decoding** online: you need both, and each is worth more when the
 other is present. Decoding is measured by `nonword` (the six monster nonwords),
-symbol `N`. This is the phonological-route sub-mechanism feeding the established
-letter-sound -> word-reading effect (LRP58).
+symbol `N`. This is the phonological-route sub-mechanism feeding the modelled
+letter-sound -> word-reading association (LRP58).
 
 Form (mirrors LRP71, mechanism = L, moderator = B):
 
@@ -47,9 +47,10 @@ Design choices:
 
 Data caveat: `nonword` is 57% floored (median 0) but informative and moving
 (28% -> 60% of children decode >=1 nonword across t1..t4); predictors (L, B) are
-each only ~2% floored. The floor reduces power, so a credible positive
-`gamma_int` would be the cleanest confirmation of the phonological route, but the
-floor + n~54 may keep it suggestive.
+each only ~2% floored. The floor and n~54 limit precision. A positive
+`gamma_int` would describe moderation of the adjusted log-odds association; it
+would not identify a phonological route or establish that both skills are
+prerequisites.
 
 `lrp-rli-mech-172.py` is the no-interaction companion (L + B main effects, no L×B) for
 the PSIS-LOO comparison that isolates the interaction's predictive value.

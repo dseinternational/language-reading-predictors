@@ -18,17 +18,13 @@ items (89% +0.6 to +4.6) against +2.8 (+0.8 to +4.6) for the unadjusted LRP58.
 That is a load-bearing robustness claim for the project's most-cited
 association, and it currently rests on one noisy subtest — the mechanism
 findings note makes the same point, that adjusting for a mismeasured confounder
-removes only part of its influence. The two subtests correlate at 0.664, so
-Block Design alone is roughly a 0.66-reliable measure of what they share while
-the sum is roughly 0.80-reliable.
+removes only part of its influence. The two subtests correlate at 0.664. That correlation alone does not
+establish the reliability of either subtest or their composite.
 
-**Read.** Against LRP258, not against the unadjusted LRP58. The comparison to
-make is whether the curve's declared interquartile contrast holds at the higher
-reliability; a screening regression over the fitted rows expects it to, so
-agreement is the result that closes the criticism. Because the curve is an HSGP
-term, check the convergence gate before reading anything: LRP258's own history
-shows this geometry is the demanding part of the family, and the ability term is
-not what makes it hard.
+**Read.** Compare the declared interquartile contrast with LRP258 to assess
+sensitivity to the ability proxy. Agreement does not establish that latent
+confounding is absent. Check the convergence gate before interpreting the
+HSGP curve; nonlinear shape findings require zero divergences.
 
 **Ceilings.** A better-measured proxy is still a proxy. Both subtests are
 perceptual-organisation tasks, so what they share is a **narrow visuospatial

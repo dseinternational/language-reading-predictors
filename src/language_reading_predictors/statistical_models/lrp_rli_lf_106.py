@@ -14,7 +14,8 @@ inverse-logit mean does not know that: it permits expected scores anywhere in
 (0, 1), and the fitted lf-006 posterior uses that room — 24 of 215 rows have
 posterior-mean expected proportions below one third, and at timepoint 2 it is 8 of
 54 rows and 16% of the posterior mass. This companion constrains the mean to
-``1/3 + 2/3 * expit(eta)``, so the model cannot predict below-chance performance.
+``1/3 + 2/3 * expit(eta)``, so the expected score proportion is at least one third. Individual observed or
+predicted counts can still fall below that mean floor.
 
 Because the two links can disagree about the size of the effect, **neither fit is
 sufficient release evidence on its own**: the plan marks both as

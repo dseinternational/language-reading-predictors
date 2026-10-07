@@ -1,28 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""One cross-field design validator for the ``mechanism`` family (#637 stage 1).
+"""Shared design validation for mechanism settings and factory calls.
 
-``MechanismModelSettings`` and :func:`factories.build_mechanism_model` each
-carried their own list of forbidden design combinations, and the lists had drifted
-apart in both directions:
-
-* the settings rejected ``linear_mechanism=True`` with
-  ``phase_specific_mechanism=True``; the direct factory did not, and its ``if
-  linear_mechanism:`` branch runs first — so a caller asking for per-period curves
-  got one pooled ``beta_mech`` slope and no warning;
-* the factory rejected ``mechanism_at_pre`` beside ``mechanism_is_covariate``; the
-  settings did not, so that combination survived resolution and failed only after
-  the output directory had been reset and the data loaded — the ordering #455
-  exists to prevent.
-
-Both entry points now call :func:`validate_mechanism_design`, so a design is
-rejected identically whichever way it is declared, and a new rule cannot be added
-to one path alone.
-
-The module deliberately depends on nothing that depends on ``factories``: the
-settings layer imports the factory, so a shared validator living in either would
-close a cycle.
+This module avoids factory dependencies so both entry points can use the same
+cross-field rules without an import cycle.
 """
 
 from __future__ import annotations
@@ -98,9 +80,7 @@ def validate_mechanism_design(
             "declaration"
         )
 
-    # #603 / #604: both sensitivities restructure the single linear slope. On an
-    # HSGP design there is no scalar to split or vary, so the declaration could
-    # only be honoured by building a different model than the one declared.
+    # These sensitivities split or vary a scalar linear slope, not an HSGP curve.
     if decompose_between_within and not linear_mechanism:
         raise ValueError(
             "decompose_between_within requires linear_mechanism=True: a "
@@ -120,13 +100,8 @@ def validate_mechanism_design(
             "builds a separate curve per period"
         )
 
-    # Neither sensitivity carries the moderation terms. ``gamma_int`` multiplies
-    # the *undecomposed* standardised exposure, so a moderated split fit would
-    # report a between/within decomposition beside an interaction built on the
-    # blend it exists to reject; a moderated period-varying fit would likewise vary
-    # the main slope by period while its interaction stayed pooled. Both are
-    # coherent designs, but neither is this one, and the report would describe the
-    # wrong model.
+    # Moderation still uses the pooled exposure, so these sensitivities cannot
+    # also promise decomposed or period-specific interactions.
     if moderator_symbol is not None and (decompose_between_within or phase_varying_slope):
         which = "decompose_between_within" if decompose_between_within else "phase_varying_slope"
         raise ValueError(

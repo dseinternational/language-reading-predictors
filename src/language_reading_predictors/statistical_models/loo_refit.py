@@ -1,33 +1,23 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Exact leave-one-out refits (``reloo``) for the mechanism family (#438).
+"""Leave-one-out refits (``reloo``) for the mechanism family.
 
 PSIS-LOO approximates leave-one-out cross-validation by importance sampling from the
 full-data posterior. That approximation fails when an observation is influential
 enough that the leave-one-out posterior is far from it, which ArviZ reports as a
-Pareto shape estimate above ``good_k``. Every HSGP-curve mechanism pair in this suite
-has **one or two** such observations out of ~150: the HSGP basis coefficients plus a
-child random intercept at n ≈ 54 make a single child-phase row pivotal for the curve
-near its own exposure value. The linear-mechanism pairs have none.
+Pareto shape estimate above ``good_k``.
 
-``reloo`` repairs exactly those points by refitting the model without each one and
-computing its held-out log predictive density directly, leaving PSIS to handle the
-rest. At one or two refits per model this costs a few minutes, not the ~150 refits
-exact LOO would need.
+``reloo`` refits the model without each flagged point and estimates its held-out
+log predictive density, leaving PSIS to handle the rest. Refit estimates still
+have posterior Monte Carlo error.
 
-**Why this module exists rather than a local helper in the comparison script.** A
-spliced exact elpd value is only meaningful if the refit is the *same model* as the
-original. This module therefore builds through
-:func:`mechanism.build_mechanism_for_plan`, the same call
-``pipelines.mechanism.fit_mechanism``
-uses, and refuses to proceed when it cannot prove the refit is aligned with the fit:
-see the guards in :meth:`MechanismSamplingWrapper.sample`.
+Refits use :func:`mechanism.build_mechanism_for_plan`, as primary fits do.
+Alignment checks reject changed data, priors or model designs before replacing
+pointwise scores.
 
-Caveat worth carrying into any report: a repaired elpd is exact for the repaired
-points but the *comparison* it feeds is still subject to the suite's ``|elpd_diff| <
-4`` interpretability rule. Repairing Pareto-k makes a contrast trustworthy; it does
-not make it conclusive.
+The resulting comparison remains subject to the suite's ``|elpd_diff| < 4``
+interpretability rule. Refitting flagged points does not settle the comparison.
 """
 
 from __future__ import annotations
@@ -60,10 +50,7 @@ from language_reading_predictors.statistical_models.sampling_quality import (
 
 __all__ = ["MechanismSamplingWrapper", "RefitPlan", "build_mechanism_wrapper"]
 
-# The suite's sampling-quality gate, applied to every refit as well as to the original
-# fit. The thresholds and the per-chain BFMI helper come from the shared package that
-# the fit-time gate uses, so a refit is held to exactly the same standard by
-# construction rather than by a duplicated set of numbers that could drift.
+# Refits share the fit-time R-hat, ESS and available-BFMI thresholds.
 GATE_MAX_DIVERGENCES = 0
 
 
@@ -82,13 +69,8 @@ def _as_dataset(group: Any) -> Any:
 def _observed_variable_name(model: pm.Model, idata_orig: Any, model_id: str) -> str:
     """Name of the model's single observed node, verified against the stored trace.
 
-    Hard-coding ``"y_post"`` is correct only for the Beta-Binomial mechanism models
-    that exist today. The floor-rule likelihood registers its observed node as
-    ``y_offfloor`` (see ``factories``), so a hard-coded name would turn the alignment
-    guards below into a ``KeyError`` raised at *comparison* time — after the fits have
-    already run — the moment an off-floor mechanism model is registered (#433). Deriving
-    the name from the built model instead keeps the failure mode "this model is not
-    supported", stated up front, rather than "this crashed after an hour of sampling".
+    Derive the name because Beta-Binomial models use ``y_post`` and floor models
+    use ``y_offfloor``.
 
     Refuses anything the wrapper's single-variable pointwise indexing cannot represent:
     a multi-outcome model has one ``obs_id`` axis per outcome, and there is no
@@ -123,10 +105,8 @@ def _observed_variable_name(model: pm.Model, idata_orig: Any, model_id: str) -> 
 class RefitPlan:
     """Sampler settings for a refit, taken from the original fit's ``config.json``.
 
-    Reusing the recorded settings rather than a preset is deliberate: a refit at a
-    different tier would produce a held-out density from a differently-converged
-    posterior, and the spliced value would not belong beside the PSIS values it sits
-    among.
+    Preserve the recorded sampling effort. Each refit must still pass its own
+    convergence checks; matching settings do not guarantee convergence.
     """
 
     draws: int
@@ -248,12 +228,8 @@ class MechanismSamplingWrapper(SamplingWrapper):
     def _assert_refit_converged(self, idata: Any) -> None:
         """Fail the refit unless it clears the suite's sampling-quality thresholds.
 
-        Signals come from :func:`sampling_quality` so the refit gate reads them exactly
-        as the fit-time gate does. This previously called ``az.summary(round_to=None)``,
-        which rounds to two significant figures: every R-hat from 1.011 to 1.049 became
-        ``1.0`` and cleared the ``<= 1.01`` threshold, so the R-hat arm of this gate was
-        effectively ``< 1.05``. It also took ESS from ``ess_bulk`` alone, where the gate
-        takes the bulk/tail minimum.
+        Read unrounded signals from :func:`sampling_quality`, including both bulk
+        and tail ESS. This wrapper permits missing BFMI, unlike the subfit gate.
         """
         signals = sampling_quality(idata)
         max_rhat = signals.max_rhat

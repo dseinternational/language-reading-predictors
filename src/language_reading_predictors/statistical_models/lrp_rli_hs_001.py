@@ -20,8 +20,8 @@ corresponding randomised-arm result is an available-case modified ITT estimate i
 Construct predictor set: the non-floored measure baselines (letter sounds ``L``,
 receptive/expressive vocabulary ``R``/``E``, blending ``B``, basic concepts ``F``,
 receptive grammar ``T``) plus age and the RLI-blocks / behaviour covariates.
-Floored / post-only measures (``P`` spelling, ``N`` nonword) and the block-1
-taught/not-taught vocabulary (unconfirmed denominators, #144) are left out of the
+Floored measures (``P`` spelling, ``N`` nonword) and the block-1
+taught/not-taught vocabulary (excluded from this pilot predictor set) are left out of the
 pilot. Params are weakly-informative priors, not tuned. n ~ 54; intervals are wide.
 """
 

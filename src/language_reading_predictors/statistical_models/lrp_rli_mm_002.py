@@ -3,13 +3,13 @@
 
 """LRPMM02 - errors-in-variables code->word-reading mechanism (latent code factor).
 
-The measurement-error-corrected counterpart of the L->W mechanism (mech-058), for
-#228 item 14. ``METHODS.md`` flags that the mechanism models do not separately model
-measurement error, so mech-058's HSGP association between the *observed* letter-sound
-logit and word reading is attenuated by the noise in the letter-sound test. LRPMM02
-corrects for that attenuation by regressing word reading on a **latent code factor**
-(built from letter-sounds L + blending B), where the observed-indicator noise loads
-onto the residuals, not the structural slope.
+A measurement-model companion to the observed-letter-sound mechanism
+(mech-058), for #228 item 14. It regresses word reading on a latent code factor
+measured by letter sounds L and blending B. The indicator residuals represent
+measurement variation under the factor model's assumptions. Error can distort
+mech-058's adjusted nonlinear association, but attenuation is not guaranteed
+and this companion does not isolate error correction from other design
+differences.
 
 **Identification.** A standalone one-factor / two-indicator code model (L + B alone)
 is under-identified. So LRPMM02 keeps LRPMM01's full, identified three-factor
@@ -25,14 +25,15 @@ set - the randomised arm G (``use_group``), age, own word-reading baseline, hear
 (HS), speech production (SP) and phonological memory (RW = ``erbto``). RW is required
 here (beyond the L-only mech-058 mirror) because the exposure is a code factor on **L
 and B**, and blending (PA) has parents letter sounds does not - ``RW -> PA``, plus
-``TE -> PA`` and ``EV -> PA`` - so anything with an arrow into *either* indicator's
-true score confounds the factor->W slope. The two models are a **bracketing pair**:
+``TE -> PA`` and ``EV -> PA`` - so the adjustment question concerns both indicators and their shared causes
+with word reading. The two models are a **bracketing pair**:
 mm-001 = latent-adjusted code slope, mm-002 = observed-set (mech-058-style) code
-slope, and reading them together brackets the estimand. mm-002's named
+slope, and reading them together assesses sensitivity to the conditioning set; neither
+fit is a bound on the other. mm-002's named
 **residual-confounding direction is vocabulary via the blending indicator** (``TE ->
-PA`` / ``EV -> PA`` are left in the residuals, since conditioning on *observed* noisy
-vocabulary inside an errors-in-variables model is incoherent - the fully-latent
-version of that adjustment is exactly mm-001's structural leg). The report also shows
+PA`` / ``EV -> PA`` are left in the residuals, since adjusting the observed vocabulary scores would use a different measurement
+assumption. MM001 instead conditions on the latent vocabulary and grammar
+factors). The report also shows
 L's and B's **communality** (how well each measures latent code).
 
 **Caveats.** Still ID-2: ``beta_code`` is a latent-ability-confounded **adjusted
@@ -40,10 +41,10 @@ association**, never "code drives reading" (the corresponding randomised-arm res
 the available-case modified ITT estimate in the ITT suite). Frame difference from
 mech-058: this is between-child (``phase_mode="span"``,
 t1 baselines -> t4 word reading), not mech-058's phase-stacked within-transition frame,
-so it is a close companion, not an identical re-fit. The head-to-head attenuation
-comparison is therefore against **mech-058's observed-L slope** (same adjustment set,
-error-uncorrected), *not* mm-001 (which differs by adjustment set - latent vocabulary,
-grammar and non-verbal ability - not by error handling). Intervention dose (``attend``)
+so it is a close companion, not an identical re-fit. Comparison with mech-058 also changes the exposure (observed L versus a
+latent L/B factor), adjustment set and transition frame. It therefore cannot
+attribute a difference to attenuation alone. MM001 answers a further question
+with latent vocabulary, grammar and non-verbal ability adjustment. Intervention dose (``attend``)
 is **omitted** for a temporal reason: the exposure is the **t1** code factor and
 sessions begin after t1, so there is no arrow into this pre-treatment exposure - IS is
 simply not a confounder here (it is *not* "a collider"). Had the exposure been

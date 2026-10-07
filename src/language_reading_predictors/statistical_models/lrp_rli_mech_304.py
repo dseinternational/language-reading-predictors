@@ -16,15 +16,13 @@ of the family's shared ``kappa ~ HalfNormal(50)``.
 so being within 10% of Binomial variance needs ``kappa >= 10 (n - 1) - 1``. At the
 prior's own median (``kappa`` about 33.7) that is a **3.25x** inflation for word
 reading (n = 79) and would need ``kappa > 779`` to avoid - a region
-``HalfNormal(50)`` gives vanishing mass. The prior therefore *enforces* a floor on
-overdispersion, and the near-Binomial limit - for a bounded count the perfectly
-ordinary hypothesis "this measure shows no extra-Binomial variation beyond the child
-random intercept" - is excluded a priori. That is a substantive modelling assumption
-presented as a nuisance prior.
+``HalfNormal(50)`` gives vanishing mass. The prior therefore strongly downweights near-Binomial dispersion without
+excluding it from its support. This is a substantive prior choice even when
+concentration is treated as a nuisance parameter.
 
 The dispersion-scale parameterisation fixes the prior's *shape*, not its scale: on
-``u = 1 / sqrt(kappa)`` the no-extra-dispersion limit is simply ``u = 0``, so the
-tail reaches it. It is the same constructor the ITT family offers as a sensitivity
+``u = 1 / sqrt(kappa)`` the no-extra-dispersion limit is ``u = 0``, with
+appreciable prior mass near that limit rather than a point mass at it. It is the same constructor the ITT family offers as a sensitivity
 (``lrp-rli-itt-006``, ``lrp-rli-itt-022``) and ``level_factors`` adopted as its
 default under #584 decision 4.
 

@@ -100,8 +100,9 @@ def gate_applies(config: Mapping[str, Any]) -> bool:
 def causal_term_for(config: Mapping[str, Any]) -> str:
     """The psense row this fit's release decision turns on.
 
-    ``level_factors`` fits one arm coefficient per timepoint and only the t2
-    element is randomised (#389 finding 1), so the gate names that element rather
+    ``level_factors`` fits one arm coefficient per timepoint; t2 is the randomised
+    treated-versus-untreated contrast, while later waves compare assigned schedules.
+    The gate names the t2 element rather
     than the vector. Reading the bare name instead returns "unavailable" for all
     eleven fits — a gate that withholds every level-factor headline for a diagnosis
     that is present and sitting one row away. Which element it is depends on the
@@ -248,12 +249,10 @@ def classify_tau_sensitivity(
     otherwise                         ``clear`` — ArviZ's ``✓``
     ================================  ==============================================
 
-    The third row is the one worth reading twice, because an intuitive "flag whenever
-    either statistic is large" rule gets it backwards. A posterior that is sensitive
-    to the *likelihood* and insensitive to the prior is the **ideal** case: the data
-    are driving the result and the prior is doing nothing. Kallioinen et al. (2024)
-    classify on prior sensitivity, and only ask about the likelihood to separate a
-    conflict from a prior-dominated posterior.
+    A large likelihood statistic alone is unflagged under this rule. A small prior
+    statistic describes local sensitivity to the tested power scaling; it does not
+    establish that the prior has no influence. Kallioinen et al. (2024) use prior
+    sensitivity and the likelihood statistic to distinguish the flagged classes.
 
     Note also that ArviZ writes a tick (``✓``) for an unflagged parameter, so a reader
     — or a filter — that treats only blank values as clear mis-reads every clean row.

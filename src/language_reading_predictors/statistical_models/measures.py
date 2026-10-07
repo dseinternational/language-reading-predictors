@@ -1,10 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""
-Canonical definitions of the bounded-count measures used in the statistical
-models (the eight standardised ITT outcomes plus the taught-vocabulary block
-family modelled by the LRPITT taught/not-taught models, LRPITT01-04/15/15b).
+"""Definitions of RLI bounded-count measures used in statistical models.
 
 Each measure has a short symbol (W, R, E, ...) used throughout the modelling
 code, a column name in ``rli_data_long.csv``, and a test maximum ``n_trials``
@@ -68,10 +65,6 @@ MEASURES: dict[str, Measure] = {
     # see notes/202607161200-byrne-phase-a-window-and-ceilings.md). Observed
     # max 27. Provenance confirmed 2026-08-20 (ITT code review, finding 3).
     "T": Measure("T", V.TROG, 32, "Receptive grammar (RG)", n_trials_confirmed=True),
-    # Nonword reading: 6 items. It has t1 data, but ~72% of children are at the
-    # floor at baseline (a near-degenerate pre), so it is not co-loaded as an
-    # autoregressive baseline — doing so would drop rows to complete cases for
-    # little signal.
     # Action Picture Test (Renfrew 1997) expressive language. The DAG makes both
     # direct outcomes of randomised assignment (IG -> EI, EG) but neither had a
     # confirmed ceiling until 2026-08-18; both are now confirmed from the manual.
@@ -92,6 +85,8 @@ MEASURES: dict[str, Measure] = {
         "APT expressive information, whole marks (EI40)",
         n_trials_confirmed=True,
     ),
+    # Nonword reading has a six-item ceiling and a mostly floored t1 score.
+    # Its ITT model omits that baseline; requiring it would exclude more children.
     "N": Measure("N", V.NONWORD, 6, "Nonword reading (NW)", n_trials_confirmed=True),
     # --- Taught-vocabulary block tests (intervention-fidelity outcomes) -------
     # Bespoke tests of the words explicitly taught in the intervention (Block 1,
@@ -211,8 +206,8 @@ ITT_OUTCOMES: tuple[str, ...] = ("W", "R", "E", "L", "P", "B", "F", "T")
 Used as the cross-baseline default in :func:`factories.build_itt_model` and the
 default outcome set of :func:`factories.build_joint_model`. Deliberately excludes
 the taught-vocabulary block measures (``TE``/``TR``/``UE``/``UR``) and nonword
-(``N``); the LRPITT suite passes its own outcome set explicitly via
-``ModelSpec.extra["outcomes"]`` (see :data:`LRPITT_OUTCOMES`).
+(``N``); the ITT suite declares its own outcome sets in model settings
+(see :data:`LRPITT_OUTCOMES`).
 """
 
 
@@ -295,12 +290,11 @@ in LRPITT01-LRPITT11 order: taught/not-taught receptive & expressive vocabulary,
 standardised receptive & expressive vocabulary, letter sounds, blending,
 phonetic spelling, word reading, and nonword reading.
 
-This is a *reference ordering* for the suite (the forest plot, the joint model's
-outcome set, docs); each single-outcome model still loads only its own symbol
-(plus any cross/moderator symbol) via ``ModelSpec.extra["outcomes"]`` so the
-shared complete-case mask never drops rows for measures the model ignores. In
-particular ``N`` (nonword) is post-only and floored, so it must not be co-loaded
-with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
+This reference ordering supports plots, joint models and documentation.
+Single-outcome models declare only their own outcome and any cross-baseline or
+moderator measures, so complete-case filters do not exclude rows for unused
+scores. The nonword ITT model uses the post-score without its mostly floored
+baseline (see ``floor`` and ``preprocessing.load_and_prepare``).
 """
 
 

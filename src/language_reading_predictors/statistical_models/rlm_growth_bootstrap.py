@@ -119,8 +119,7 @@ def participant_bayesian_bootstrap_growth(
     Independent participant-weight vectors are drawn within each reading group.
     A group's vector is shared by all its interval calculations in a draw, which
     preserves the longitudinal dependence between reported quantities. Missing
-    extension-wave endpoints are handled by renormalising over the paired subset,
-    matching the registered historical-growth reporting population.
+    endpoints are handled by renormalising over children observed at both ends.
     """
 
     draws = _positive_integer(draws, name="draws")

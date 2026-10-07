@@ -8,21 +8,16 @@ adjustment set and priors, differing in exactly one thing: the measured-ability
 adjuster is the two-subtest composite ``objass_c`` (WPPSI-III Block Design +
 Object Assembly) rather than Block Design alone.
 
-**Why.** The ability-adjusted panel LRP196-201 is the evidence for "the
-letter-sound association is not merely measured ability", and its obvious
-rebuttal is that it adjusts for one noisy subtest. The two subtests correlate at
-0.664 over the 54 analysed children, so Block Design alone is roughly a
-0.66-reliable measure of what they share while the sum is roughly 0.80-reliable.
-This panel re-reads the same comparison with the more reliable measure, so the
-rebuttal has a fitted answer rather than an argument.
+**Why.** The Block Design adjustment uses one noisy subtest. The two
+subtests correlate at 0.664 over the 54 analysed children, but that correlation
+does not by itself establish either subtest's reliability or the composite's
+reliability. The composite offers another measured-ability proxy for a
+sensitivity comparison.
 
-**Read.** Against LRP198, not against the unadjusted LRP098. A slope that
-holds up here having held up there is adjusted for the shared visuospatial
-variance about as well as this battery permits. A slope that shrinks here but not
-there was carrying subtest-specific noise. A screening regression over the fitted
-rows put the difference at well under a tenth of a standard error for the
-letter-sound slope, so **agreement is the expected result** and is the point: it
-closes a line of criticism rather than reporting a new effect.
+**Read.** Compare with LRP198, which uses Block Design on the same
+rows. Agreement or a shift describes sensitivity to the ability proxy. Neither
+establishes that latent ability has been controlled, that subtest noise caused
+a shift, or that a criticism of residual confounding is resolved.
 
 **Ceilings.** A better-measured proxy is still a proxy. Both subtests are
 perceptual-organisation tasks, so what they share is a **narrow visuospatial

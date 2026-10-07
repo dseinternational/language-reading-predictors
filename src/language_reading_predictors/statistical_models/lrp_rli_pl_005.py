@@ -24,7 +24,8 @@ wave. No ``attend`` (transition covariate; omitted as in ``pl-001``).
 What the split settles: whether phonological memory's level association with
 word reading (``ca-001`` -0.04 at t3; ``hs-002`` 0.67) is trait-level covariation
 or tracks within-child change. ``erbto`` is measured with error; non-negligible
-error attenuates both slopes toward zero.
+error can distort both slopes; its direction is not guaranteed in this
+multivariable nonlinear model.
 
 Association only: exposure and outcome are measured at the same wave.
 """

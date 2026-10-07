@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP67 - latent change-score model: what within-child changes predict reading change?
+"""LRP67 - latent change-score model: which preceding-wave skills predict reading change?
 
-The within-child, longitudinal complement to **LRP65** (between-child predictors
+The longitudinal complement to **LRP65** (between-child predictors
 of word-reading gain). Where LRP65 asks "which baseline skills predict a child's
 overall reading gain", LRP67 unrolls that question over all four waves: for each
 wave-to-wave transition, does a child's prior-wave **letter-sound** and

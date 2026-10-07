@@ -307,9 +307,7 @@ def build_sensitivity_model(
         measure=measure,
         eta_prior_sigma=1.5,
         sigma_subject_prior_sigma=1.0,
-        # Matches the registered specs' reviewed dispersion-scale prior
-        # (2026-08-21 review, finding 8) so this sensitivity varies the
-        # denominator alone.
+        # Match the registered dispersion prior so only the denominator changes.
         dispersion_prior_sigma=0.25,
     )
 

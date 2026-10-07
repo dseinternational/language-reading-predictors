@@ -13,10 +13,11 @@ The observed parents of RV are {A, HS, RW, TR}, so:
   W_pre is the autoregressive baseline.
 
 E is a *descendant* of R (R -> E) that also affects W. Conditioning on E
-would block the legitimate indirect path R -> E -> W and bias f^R toward
-zero. E is therefore deliberately NOT in the adjustment set. GA (general ability)
-is latent and unadjustable - the child random intercept proxies its time-invariant
-part, so f^R stays an adjusted association, not a causal effect.
+could block the proposed indirect path R -> E -> W and change the
+conditional association. E is therefore deliberately NOT in the adjustment set. GA (general ability)
+is latent and unadjustable - the child random intercept models repeated observations
+without controlling
+GA, so f^R stays an adjusted association, not a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import (
@@ -37,7 +38,7 @@ SPEC = ModelSpec(
     adjustment=["G", "A", "TR", "W_pre"],
     # Age enters as a linear gamma_A term (A is a declared confounder). The subject
     # random intercept (on by default) handles the 157 non-independent rows (up to 3
-    # phases × 53 children) and proxies the time-invariant part of latent ability.
+    # phases × 53 children). It does not control unmeasured general ability.
     model_settings=MechanismModelSettings(
         # Load the exposure (R), outcome (W) and the TR measure confounder — TR is a
         # concurrent parent of R_post and W_post, so it enters at its *post* score

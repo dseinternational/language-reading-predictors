@@ -6,8 +6,9 @@
 Phoneme blending is a ten-item, **three-alternative forced-choice** test, so a child
 answering at random scores about 3.3 of 10. LRPDID03 fits the ordinary Beta-Binomial
 inverse-logit score mean, which places no floor on the fitted mean at all: it can put
-posterior mass on expected scores below chance, which no mechanism of the test can
-produce. This companion is identical in every respect except the score-mean link,
+posterior mass on expected scores below the mean implied by uniform guessing.
+That mean floor is an assumption about the response process; individual counts
+can still fall below one third. This companion is identical in every respect except the score-mean link,
 which maps the mean onto ``[1/3, 1]``::
 
     mu = 1/3 + (2/3) * inverse_logit(eta)

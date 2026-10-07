@@ -92,7 +92,7 @@ def build_lcsm_model(
     coupling (verified d-separation, ``notes/202607141030-time-lagged-model-designs.md``).
     The window-1 cell contrast is exposed as the deterministic
     ``itt_w1_contrast`` (immediate - waitlist, per outcome): a randomised
-    latent randomised contrast on the change scale, reported as a consistency check
+    contrast on the latent change scale, reported as a consistency check
     against the available-case modified ITT suite. The intervention-dose covariate stays **omitted**:
     it is the locked DAG's ``IS`` collider, so conditioning on it would reopen
     the latent-``GA`` backdoor onto the couplings (ID-3); the arm x window

@@ -27,13 +27,14 @@ than read as sitting at average phonological memory. Confounder set is the
 word-reading set {G, A, HS, IS(attend), SP} + ``W_pre``; RW is not in it (it is the
 moderator, entered via ``gamma_mod``/``gamma_int``, never ``adjust_for``).
 
-**Read like mech-071/072/073.** Every coefficient is an **adjusted association**, latent
-general ability unblocked; ``gamma_int`` is descriptive, never causal. The prior
-interaction models repeatedly found an apparent moderation that was really a
-between-child ability confound and collapsed under adjustment + subject random effects,
-so the honest expectation is the same here. ``lrp-rli-mech-204`` is the no-interaction
-companion for the nested PSIS-LOO test; the within-child check
-(``scripts/within_child_interaction_check.py``) is the key diagnostic.
+**Read like mech-071/072/073.** Every coefficient is an adjusted association;
+latent general ability remains unmeasured. Earlier interactions changed under
+adjustment and subject random effects, which motivates a sensitivity check but
+does not establish the cause of those changes. ``lrp-rli-mech-204`` is the
+no-interaction companion for the nested PSIS-LOO comparison of predictive
+performance. The within-child check
+(``scripts/within_child_interaction_check.py``) gives a complementary
+description.
 """
 
 from language_reading_predictors.statistical_models.context import (

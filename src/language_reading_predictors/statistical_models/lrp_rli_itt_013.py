@@ -1,22 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT13 - SES-adjusted available-case modified ITT estimate for word reading (W).
+"""LRPITT13 - SES-adjusted available-case modified ITT estimate for word reading.
 
-SES-robustness companion to LRPITT10: the uniform LRPITT spec (own baseline +
-linear age, no cross-baselines) plus linear adjustment for parental education and
-age first exposed to books. Requesting these covariates triggers complete-case
-dropping, so the fit runs on the SES-complete subset; LRPITT14 is the matched
-unadjusted comparator on the same rows (so LRPITT13 vs LRPITT14 isolates the SES
-adjustment, sample held fixed). Sign convention: positive tau => intervention
-helps.
+The LRPITT10 specification (own baseline, linear age and no cross-baselines)
+adds parental education and age first exposed to books as precision covariates.
+Their availability restricts the fit to the SES-complete subset. LRPITT14 uses
+the same rows without SES adjustment, so their comparison holds the sample
+fixed. Positive ``tau`` favours the immediate-intervention arm.
 
-The SES adjusters (parental education, age first exposed to books) are
-**precision covariates**: they are measured pre-randomisation and are balanced
-across arms in expectation, so they cannot confound the available-case modified
-ITT estimate and only sharpen tau — the identical causal status to the ``blocks``/``area``
-adjusters. Their prior-table role is therefore ``precision``, not a cross-baseline
-association (#384 review).
+These covariates precede randomisation and are balanced across arms in
+expectation before selection. Complete-case selection and outcome availability
+still require the available-case assumptions in ``METHODS.md``. Adjustment
+need not improve precision. The prior-table role remains ``precision``.
 """
 
 from language_reading_predictors.data_variables import Variables as V

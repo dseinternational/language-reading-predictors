@@ -1,37 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Post-fit reporting helpers shared across the statistical models.
+"""Compatibility imports for post-fit reporting helpers.
 
-**A re-export facade since #637 stage 3.** The 9,417-line module this replaces was
-one of the three dependency hubs the maintainability review named; it is now four
-modules, split by what each answers:
-
-* :mod:`estimands` - the quantities a fit reports: the average-marginal-effect
-  cores, treatment and factor summaries, ROPE cards, DiD and joint contrasts, the
-  association and concurrent marginals, the readiness knee, the horseshoe ranking.
-* :mod:`predictive_checks` - the estimand-scale prior pushforwards (#381) and the
-  posterior-predictive coverage statistics (#318).
-* :mod:`run_metadata` - the fit's record of itself: run-plan resolution for the
-  metadata writer, the fitted-row / model-design / environment identities, and the
-  versioned trace-reuse contract.
-* :mod:`key_findings` - the plain-language findings box (#320), one builder per
-  family, plus the convergence-gate readers its verdict depends on.
-
-The dependency edges between them run one way: ``predictive_checks`` uses three
-average-marginal-effect cores from ``estimands``, and nothing else crosses.
-
-Every name is re-exported here so the existing call sites and tests keep working.
-That is **temporary**, exactly as #637 asks of the factory split: new code should
-import from the owning module, and this facade should shrink as call sites move.
-It is a compatibility seam, not an architecture.
+Calculations live in ``estimands`` and ``predictive_checks``; fit identities and
+reuse checks live in ``run_metadata``; findings assembly lives in ``key_findings``.
+New callers should import from the owning module.
 """
 
 from __future__ import annotations
 
-# Third-party helpers the pre-split module also re-exported. Several call sites
-# import them from here rather than from ``dse_research_utils`` directly, so the
-# facade keeps them until those call sites move too.
+# Preserve third-party imports used by existing callers.
 from dse_research_utils.statistics.evidence import (  # noqa: F401
     evidence_label,
     favoured_direction,

@@ -7,8 +7,8 @@ The DAG-sanctioned successor to the closed LRP66 (#97). Instead of a single late
 general ability ``g``, it fits **correlated domain factors** - vocabulary {R, E},
 code {L, B}, grammar {F, T} - over the standardised T1 skill indicators, with an
 LKJ prior on the factor correlation matrix and factor variances fixed to 1. The
-indicator residual variance is free, so a loading is a coefficient on the
-unit-variance factor; the report carries the indicator-factor **correlation**
+default communality parameterisation sets ``lambda = sqrt(c)`` and
+``sigma = sqrt(1 - c)``. A loading is a coefficient on the unit-variance factor; the report carries the indicator-factor **correlation**
 (``lambda / sqrt(lambda**2 + sigma**2)`` = ``sqrt(communality)``) and the
 **communality** ``lambda**2 / (lambda**2 + sigma**2)`` alongside it. A structural
 Beta-Binomial leg regresses word-reading gain (W post | W T1) on the latent

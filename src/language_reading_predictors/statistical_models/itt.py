@@ -538,8 +538,7 @@ def declared_settings_dict(spec: ModelSpec) -> dict[str, Any]:
 #: Dispersion prior families a graded ITT model may declare. The default is the
 #: registered suite prior ``kappa ~ HalfNormal(50)``;
 #: ``"halfnormal_inverse_sqrt"`` samples ``1 / sqrt(kappa) ~ HalfNormal(0.25)``
-#: instead, which unlike the default can reach the near-Binomial limit
-#: ``kappa >> n_trials`` (2026-08-22 ITT audit, finding 5).
+#: instead, giving appreciable mass near the Binomial limit ``kappa >> n_trials``.
 KAPPA_PRIOR_FAMILIES = ("halfnormal_concentration", "halfnormal_inverse_sqrt")
 
 
@@ -585,12 +584,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         ("restrict_complete", settings.restrict_complete),
     ):
         _reject_duplicates(spec.model_id, name, values)
-    # Outcome symbols are checked here, not left to ``MEASURES[s]`` inside the
-    # loader (2026-08-22 ITT audit, finding 7). ``pipelines.itt`` resolves the
-    # plan, *then* calls ``make_context`` — which resets the output directory —
-    # and only then loads data, so an unrecognised symbol used to destroy the
-    # previous fit's artefacts before failing with a bare ``KeyError``. Resolution
-    # is meant to reject an incoherent declaration before either happens.
+    # Reject unknown measures before output or data operations.
     _reject_unknown_measures(spec.model_id, "outcomes", outcomes)
     _reject_unknown_measures(spec.model_id, "cross_symbols", cross_symbols)
     _reject_unknown_measures(spec.model_id, "pre_required", settings.pre_required or ())
@@ -606,12 +600,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
     missing_cross = sorted(set(cross_symbols) - set(outcomes))
     if missing_cross:
         raise ValueError(f"{spec.model_id}: cross-baselines are not loaded as outcomes: {', '.join(missing_cross)}")
-    # ``ModelSpec.adjustment`` and the typed ``adjust_for`` hold the same
-    # scientific fact — which covariates this model adjusts for — in two places,
-    # with nothing keeping them equal (2026-08-22 ITT audit, finding 9). All 31
-    # registered declarations currently agree, and ``adjustment`` is what the
-    # published ``config.json`` and the report prose read, so a future edit to one
-    # alone would silently describe a model the posterior does not match.
+    # The reporting declaration and factory settings must name the same adjusters.
     declared_adjustment = tuple(spec.adjustment or ())
     if declared_adjustment != tuple(settings.adjust_for):
         raise ValueError(
@@ -629,14 +618,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         missing_pre = sorted(set(settings.pre_required) - set(outcomes))
         if missing_pre:
             raise ValueError(f"{spec.model_id}: pre_required contains unloaded outcome(s): {', '.join(missing_pre)}")
-        # ``pre_required`` was checked only as a *subset* of the loaded outcomes,
-        # never against the terms that actually consume a baseline (2026-08-22 ITT
-        # audit, finding 7). A model keeping ``use_own_baseline`` / cross-baselines
-        # while dropping the matching complete-pre restriction resolved cleanly,
-        # carried NaN baselines through preprocessing, and failed only when PyMC
-        # received them. No floor-rule carve-out is needed: the floor rule already
-        # cannot set ``use_own_baseline`` (rejected a few lines below), and a floor
-        # model that did carry cross-baselines would need them restricted too.
+        # Every fitted baseline term needs complete observed pre-scores.
         needs_pre: list[str] = []
         if settings.use_own_baseline and own not in settings.pre_required:
             needs_pre.append(own)

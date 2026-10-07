@@ -1,69 +1,28 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Discrete-time survival family: time-to-off-floor for phonics/nonword (#230 §5).
+"""Discrete-time models for first leaving the spelling or nonword-reading floor.
 
-The floored outcomes phonetic spelling (``P``) and nonword reading (``N``) are
-modelled elsewhere by a single-transition off-floor estimand (the ``lrp-rli-itt-009``
-/ ``lrp-rli-itt-011`` floor rule: a logistic ``tau`` on ``Pr(post > 0 | pre == 0)``
-over the t1->t2 window). This family **generalises that single crossing to the full
-four-wave sequence**: a discrete-time survival model for the *time* to first come off
-the floor, recovering the information the fixed-timepoint rule discards.
+Children at zero at t1 contribute one row per observed interval while at risk.
+Follow-up stops at the first positive score or missing next-wave score. This
+models the first crossing, not sustained attainment, over t1 through t4.
 
-Design (fixed in ``notes/…-persistent-floor-sitters-nonword-spelling.md``):
+Each interval has its own baseline hazard. Baseline letter sounds, word reading
+and age enter as standardised predictors. The primary link is complementary
+log-log; a logistic-hazard variant provides a sensitivity check. No child frailty
+term is fitted, since at most three intervals and one event per child provide
+limited information about its variance.
 
-- **At-risk set.** A child enters at t1 iff they are at the floor at t1 (score == 0);
-  children already off the floor at baseline were never floor-sitters and contribute
-  no rows.
-- **Person-period expansion.** One row per still-at-floor interval. The intervals are
-  the three transitions (1: t1->t2, 2: t2->t3, 3: t3->t4). A child contributes rows
-  from t1 until the first interval whose post-wave score is above zero (the **event**),
-  or until an unobserved post-wave (**censored**). The ``"first"`` event rule (any
-  crossing above zero) is the PRIMARY, mirroring the existing off-floor estimand; a
-  sustained-off-floor sensitivity is deferred (it needs a look-ahead risk set — the
-  flicker caveat is documented in the descriptive note).
-- **Discrete-time hazard.** ``link(h_ik) = alpha_k + tau * treated_ik + beta_L * L0 +
-  beta_W * W0 + beta_A * A0``, with a per-interval baseline hazard ``alpha_k``. The
-  default link is complementary-log-log (grouped proportional hazards, the direct
-  survival generalisation of the off-floor logit); a logistic-hazard variant is the
-  documented sensitivity.
-- **Treatment as a hazard contrast.** ``treated_ik`` is the intervention-aligned
-  (treatment-on) indicator: the immediate arm (``G == 1``) is treated in every interval
-  (session records confirm delivery continues through t3->t4); the waitlist arm is
-  treated from interval 2 (its crossover), mirroring the DiD ``treated`` term.
-  ``G = 2 - group`` (positive = benefit), so a positive ``tau`` raises the hazard of
-  coming off the floor. Because every person-period row outside interval 1 is
-  treatment-on, the likelihood carries **no arm contrast after the first interval**:
-  under the legacy pooled parameterisation the split of the post-crossover hazard
-  between ``tau`` and ``alpha_2``/``alpha_3`` was decided by the zero-centred alpha
-  priors, which (centring the per-interval off-floor probability at 63% against
-  observed 8-29%) dragged ``tau`` negative (2026-08-21 survival review, finding 1).
-  The default ``treatment_window="randomised"`` therefore enters ``tau`` **only in the
-  randomised first interval**, making it the immediate-vs-waitlist off-floor hazard
-  contrast among children at the floor at t1, with the post-crossover intervals
-  fitting their own (both-arms-treated) baseline hazards. The legacy pooled shift is
-  retained as the explicit comparator ``treatment_window="pooled"``.
-- **Covariates** are the *baseline* (t1) letter-sound knowledge (``L0``), word reading
-  (``W0``) and age (``A0``) — prognostic, pre-intervention quantities, each entering as a
-  weakly-regularised ``beta_*`` slope (concurrent letter sounds would be a
-  treatment-affected mediator, so they are deliberately not used).
-- **No child frailty.** The repeated person-period rows per child could carry a shrunken
-  child random intercept (as the ``gain_factors`` family does), but it is deliberately
-  omitted: at n≈36 at-risk children with ≤3 rows and ~one event each, a frailty term is
-  weakly identified, and the discrete-time hazard likelihood already factorises over
-  person-periods. ``child_idx`` / ``n_children`` are carried on the panel for reporting,
-  not consumed by the model.
+The default ``treatment_window="randomised"`` fits ``tau`` only in the first
+interval, when immediate and wait-list arms differ in treatment. Later intervals
+have both arms treated and separate baseline hazards. The ``"pooled"`` comparator
+shifts all treated intervals; its post-crossover contribution cannot be separated
+from interval hazards by an arm comparison and depends on their priors.
 
-**What tau is (#631 finding 11).** Under the default randomised window, ``tau`` is a
-model-based, available-case modified-ITT assignment contrast: the covariate-adjusted
-immediate-versus-waitlist off-floor hazard contrast in the randomised first interval
-among children at the outcome floor at t1. It is *not* merely a prognostic
-association — randomisation anchors the first-interval arm comparison — but it is
-qualified throughout: the at-risk set is the baseline at-floor subgroup, children
-without an observed wave-2 outcome contribute no first-interval row (available-case
-selection the design does not repair), baseline covariates are mean-imputed, and the
-hazard-model form is untested. This family releases no causal headline (see the
-note's caveat, and ``METHODS.md``).
+Primary ``tau`` is an available-case modified-ITT assignment contrast among
+children at the t1 floor. Randomisation supports the first-interval comparison,
+but outcome availability, mean-imputed covariates and hazard-model assumptions
+qualify it. This family releases no causal headline. See ``METHODS.md``.
 """
 
 from __future__ import annotations
@@ -367,9 +326,9 @@ _INTERVALS: tuple[tuple[int, int], ...] = ((1, 2), (2, 3), (3, 4))
 
 #: Baseline (t1) covariate columns entering the hazard, in report order.
 _COVARIATES: tuple[tuple[str, str], ...] = (
-    ("L0", V.YARCLET),  # letter-sound knowledge (prerequisite)
-    ("W0", V.EWRSWR),  # word reading (sight-word reading without decoding)
-    ("A0", V.AGE),  # baseline age (older children may come off the floor sooner)
+    ("L0", V.YARCLET),  # letter-sound knowledge
+    ("W0", V.EWRSWR),  # word reading
+    ("A0", V.AGE),  # age
 )
 
 
@@ -444,10 +403,7 @@ def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPan
     if df is None:
         df = pd.read_csv(_paths.DATA_DIR / "rli_data_long.csv")
 
-    # Fail-loud source integrity, matching the shared loaders (2026-08-21 survival
-    # review, finding 5): a duplicated (subject, time) key would otherwise surface
-    # as a cryptic Series truth-value error inside the expansion loop, and an
-    # invalid or within-child-unstable group code would silently miscode ``G``.
+    # Unique child-wave rows and a stable valid arm code are required for expansion.
     dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
     if bool(dup.any()):
         pairs = sorted({(str(s), int(t)) for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)})
@@ -592,12 +548,9 @@ def build_survival_model(
     with pm.Model(coords=coords) as model:
         interval_d = pm.Data("interval_idx", panel.interval_idx, dims="obs_id")
         treated_d = pm.Data("treated", panel.treated.astype(float), dims="obs_id")
-        # Row-to-child map for leave-one-CHILD-out PSIS (#631 finding 14): a later
-        # person-period row exists only because the earlier event was zero, so
-        # holding out one row while keeping the child's later rows leaks the
-        # held-out event — the same argument that moved dose_response to the
-        # child unit (#587 finding 4). With no child frailty the child-summed
-        # LOO is an exact marginal leave-one-child-out.
+        # Aggregate by child: later rows reveal that earlier events were zero.
+        # Without child frailty no latent integration is needed, but PSIS remains
+        # an approximation and requires its reliability checks.
         pm.Data("loo_child_idx", panel.child_idx.astype(np.int64), dims="obs_id")
         cov_d = {name: pm.Data(f"{name}_std", panel.covariates[name], dims="obs_id") for name in panel.covariates}
 

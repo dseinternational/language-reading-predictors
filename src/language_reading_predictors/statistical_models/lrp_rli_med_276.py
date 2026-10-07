@@ -9,8 +9,9 @@ effect in [LRP176](lrp_rli_med_176) (mediator word reading at t2, outcome LS at 
 LRP276 is the ceiling-sensitivity companion: identical design, but the outcome is
 taken at **t3** (only ~6% of children at the LS ceiling), so the reverse
 `WR -> LS` indirect is read with more room in the outcome to move. Compare its NIE
-to LRP176's: close agreement means the small reverse signal is not a ceiling
-artefact; a larger t3 NIE would mean t4 was ceiling-attenuated. Design rationale
+to LRP176's: agreement describes stability across outcome horizons; a larger t3 NIE
+would show horizon sensitivity. The comparison also changes follow-up timing
+and cannot isolate ceiling effects. Design rationale
 and the full direction contrast: `notes/202607172100-reverse-mediation-wr-ls-
 direction-spec.md` and the mediation findings note.
 

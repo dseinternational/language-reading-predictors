@@ -182,19 +182,14 @@ def build_itt_model(
         the HalfNormal SD on ``1 / sqrt(kappa)`` (default 0.25).
     kappa_prior_family
         ``"halfnormal_concentration"`` (default, the registered suite prior) or
-        ``"halfnormal_inverse_sqrt"``. The latter exists because a HalfNormal on
-        the concentration cannot reach the near-Binomial limit ``kappa >> n``,
-        which for a bounded count is the ordinary hypothesis "no extra-Binomial
-        dispersion". At ``n_trials = 170`` that limit needs ``kappa > 1689`` for
-        variance within 10% of Binomial, and ``HalfNormal(50)`` gives it
-        effectively no mass — so the registered prior *enforces* a minimum
-        overdispersion (about 5.9x at its own median). Used by the dispersion
-        prior-family sweep (2026-08-22 ITT audit, finding 5); the registered fits
-        keep the default.
-        Override the Beta-Binomial concentration prior scale. ``None`` preserves
-        the shared ``HalfNormal(50)`` default; larger values expose more of the
-        near-Binomial region for the required likelihood-prior sensitivity. This
-        argument is unused by the Bernoulli off-floor likelihood.
+        ``"halfnormal_inverse_sqrt"``. At ``n_trials = 170``, variance within
+        10% of Binomial requires ``kappa >= 1689``. ``HalfNormal(50)`` assigns
+        negligible mass there and strongly favours extra-Binomial dispersion;
+        it does not impose a strict minimum. Its median implies about 5.9 times
+        Binomial variance. The inverse-square-root prior gives more mass near
+        the Binomial limit. The prior-family sweep checks this choice
+        (2026-08-22 ITT audit, finding 5). Both dispersion arguments are unused
+        by the Bernoulli off-floor likelihood.
     """
     if prepared.phase_mode != "itt":
         raise ValueError(f"build_itt_model expects phase_mode='itt', got {prepared.phase_mode!r}")
@@ -347,13 +342,8 @@ def build_itt_model(
 
         if likelihood == "beta_binomial":
             if kappa_prior_family == "halfnormal_inverse_sqrt":
-                # Dispersion-scale parameterisation, so the near-Binomial limit is
-                # reachable (2026-08-22 ITT audit, finding 5). ``HalfNormal`` on
-                # the concentration cannot get there: at n = 170 coming within
-                # 10% of Binomial variance needs kappa > 1689, and HalfNormal(50)
-                # gives that effectively zero mass, so the prior *enforces* a
-                # minimum overdispersion of roughly 5.9x at its own median. Same
-                # constructor the RLM historical families use.
+                # The dispersion-scale prior gives more mass near the Binomial
+                # limit than HalfNormal(50) on concentration (ITT audit, finding 5).
                 kappa = _rlm_dispersion_kappa(
                     float(_priors.inv_sqrt_kappa_prior().sigma) if kappa_sigma is None else kappa_sigma
                 )

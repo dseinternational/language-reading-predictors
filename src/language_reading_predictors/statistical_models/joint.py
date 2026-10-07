@@ -3,17 +3,10 @@
 
 """Typed settings and a resolved run plan for the joint ITT family.
 
-The registered ``kind="joint"`` models — the ten-outcome suite fit, the three
-two-outcome contrast parents and their #551 LKJ residual-correlation companions
-(``docs/models/README.md`` is the authoritative catalogue) — share one
-multivariate Beta-Binomial construction. This module makes that contract explicit
-and validates it before an output transaction is opened or intervention data are
-loaded (#394 pillar 4). One resolved plan then drives preparation, factory
-arguments, diagnostics, contrast metadata and the ``config.json`` /
-``model_recipe.md`` audit trail.
-
-This is a behaviour-preserving boundary. It does not change prepared rows,
-likelihoods, priors, fitted equations, sampling settings or published table schemas.
+Joint models share a multivariate Beta-Binomial construction. This module
+validates settings before output or data operations. The resolved plan supplies
+preparation, factory arguments, diagnostics, contrast metadata and fit records.
+See ``docs/models/README.md`` for the registered models.
 """
 
 from __future__ import annotations
@@ -43,15 +36,9 @@ __all__ = [
 ]
 
 
-#: Registered factorised contrast parent -> its LKJ residual-correlation companion
-#: (#551). The *authority* is each parent module's ``dependence_companion``
-#: declaration; this constant restates the pairing so the release decision can
-#: reach it without importing every model module, exactly as the phoneme-blending
-#: gate uses ``BLENDING_LINK_MODELS``. It exists because deriving the requirement
-#: from the stored plan alone let a fit written before the field bypass the check
-#: (2026-08-23 joint audit, finding 2): every stored parent artefact carries no
-#: ``dependence_companion`` key at all, so the qualifier was dormant on precisely
-#: the fits it was written for. ``test_joint_run_plan`` fails if the two drift.
+#: Registered factorised parents and their LKJ residual-correlation companions.
+#: Release checks use this map even for archived plans without a pairing field.
+#: ``test_joint_run_plan`` checks agreement with each parent's declaration.
 JOINT_DEPENDENCE_COMPANIONS: dict[str, str] = {
     "lrp-rli-itt-015": "lrp-rli-itt-215",
     "lrp-rli-itt-016": "lrp-rli-itt-216",
@@ -114,15 +101,9 @@ def _optional_text(value: Any, *, name: str) -> str | None:
 class JointContrastSettings:
     """Typed declaration for one reported between-outcome treatment contrast.
 
-    ``dependence_companion`` is the machine-readable half of the dependence
-    pairing (#551; 2026-08-21 joint review, finding 3): a **factorised** parent
-    names its registered LKJ residual-correlation companion here, so the release
-    decision can verify the companion is release-ready beside the parent instead
-    of relying on the prose ``dependence_note`` alone. It is deliberately *not*
-    part of the contrast metadata written to ``tau_difference.csv`` — it drives
-    the release decision through the resolved plan in ``config.json``. A
-    residual-correlated fit is itself the dependence model and must not name one
-    (enforced in :func:`resolve_joint_run_plan`).
+    A factorised parent names its ``dependence_companion`` so release checks can
+    verify that companion's evidence. The field is saved in the resolved plan,
+    not the contrast table. A residual-correlated fit must not name a companion.
     """
 
     left: str
@@ -208,12 +189,11 @@ class JointModelSettings:
     joint_structure: str | None = None
     loo_unit: str = "child"
     prediction_target: str = PREDICTION_TARGET_NEW_CHILD
-    """Out-of-sample target the fit's cross-validation answers (#626).
+    """Population represented by the held-out unit, separate from ``loo_unit``.
 
-    ``loo_unit`` says what is held out; this says what the held-out unit *is a draw
-    of*. The pair was implicit before #626, and the gap is what let a child-aggregated
-    PSIS-LOO computed on a posterior that still held the child's own residual be read
-    as leave-one-child-out generalisation."""
+    A new-child score must integrate the child's latent effects; aggregating
+    likelihood cells alone leaves those effects conditional on the fitted child.
+    """
     contrast: JointContrastSettings | None = None
 
     def __post_init__(self) -> None:
@@ -287,10 +267,7 @@ class JointRunPlan:
     causal_status: str
     analysis_population: str
     missing_data_assumption: str
-    #: How the mandatory phoneme-blending response-link policy applies to this fit
-    #: (2026-08-23 joint audit, finding 12). ``None`` when the fit does not carry
-    #: ``B``; otherwise the recorded scope, so the policy is machine-readable rather
-    #: than asserted only in the findings box's prose.
+    #: Recorded phoneme-blending response-link policy scope, or ``None`` without B.
     link_sensitivity_scope: str | None = None
 
     @property
@@ -330,12 +307,8 @@ class JointRunPlan:
         if self.use_age_linear:
             variables.append("gamma_A")
         if self.use_residual_correlation:
-            # The dependence block's reported quantities (#551): the per-outcome
-            # residual SDs and the free within-child residual correlations (one
-            # scalar per outcome pair — the full ``u_corr`` matrix carries a
-            # constant unit diagonal that breaks the density plots), so the
-            # summary, the prior-vs-posterior overlay and the psense selection show
-            # how far the block is informed by the data rather than its prior.
+            # Use free correlation pairs; the full matrix's constant unit diagonal
+            # cannot be plotted as a density.
             variables.extend(["sigma_outcome", "u_corr_pair"])
         return variables
 
@@ -444,12 +417,7 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
             f"{spec.model_id}: joint_structure={settings.joint_structure!r} "
             f"contradicts use_residual_correlation={settings.use_residual_correlation}"
         )
-    # A one-dimensional LKJ block has no free correlation to estimate and
-    # ``pm.LKJCholeskyCov`` fails to construct it, so the declaration is incoherent
-    # rather than merely useless. No registered model triggers it; rejecting it here
-    # keeps the failure at settings-resolution time, before an output directory is
-    # reset or data are loaded (#455), instead of inside the factory (2026-08-23
-    # joint audit, lower-priority API correction).
+    # A one-dimensional LKJ block has no free correlation and cannot be constructed.
     if settings.use_residual_correlation and len(outcomes) < 2:
         raise ValueError(
             f"{spec.model_id}: use_residual_correlation needs at least two outcomes "
@@ -517,13 +485,8 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
             else "A factorised fit does not estimate paired cross-outcome residual covariance."
         )
     )
-    # The loader's default ``pre_required`` covers every declared outcome, so a
-    # multi-outcome fit is a cross-outcome baseline complete-case intersection —
-    # a child missing any one declared baseline is excluded from every outcome,
-    # not only its own. State that mechanism rather than the previous
-    # "outcome-specific available cases" wording, which described only the
-    # post-score side and misread the ten-outcome fit's 53-child set as
-    # per-outcome availability (2026-08-21 joint review, finding 1).
+    # ``pre_required`` covers all declared outcomes. Missing any baseline excludes
+    # the child from every outcome, even when other post-scores are available.
     analysis_population = (
         "The archived RLI cohort in the randomised t1-to-t2 window, restricted to "
         "children with an observed baseline for **every** declared outcome (the "
@@ -545,12 +508,8 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         "Randomisation does not by itself repair selection into observed cases."
     )
 
-    # Scope of the mandatory phoneme-blending response-link pairing when a joint fit
-    # carries B (2026-08-23 joint audit, finding 12). The 008/108 bundle governs the
-    # B *model of record*; a joint B row is a secondary structural cross-check that
-    # is not independently release-qualified. Recording it here makes the policy
-    # machine-readable and gives ``release._joint_blending_scope_note`` something to
-    # verify rather than an unguarded prose caveat.
+    # The 008/108 pairing governs the B model of record. A joint B row remains a
+    # secondary structural check; release checks verify the recorded scope.
     link_sensitivity_scope = (
         "Phoneme blending (B) is fitted here on the ordinary logit mean. The "
         "mandatory response-link pairing lrp-rli-itt-008 + lrp-rli-itt-108 governs "

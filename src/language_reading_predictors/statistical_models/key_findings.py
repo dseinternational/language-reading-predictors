@@ -156,7 +156,7 @@ KEY_FINDINGS_MAX_SENTENCES = 5
 
 
 def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Unknown future family: an honest placeholder, never a wrong summary."""
+    """Return a placeholder when the family has no findings builder."""
     kind = config.get("kind") or "this"
     return [
         _kf_sentence(
@@ -183,23 +183,16 @@ _KF_BUILDERS = {
 }
 
 
-#: Roles that may be dropped to make room for a release note. The causal sentence is
-#: never droppable: #464 recorded that silently losing it is exactly what happens when
-#: a sixth sentence is appended past the cap, and it is the sentence carrying the
-#: study's central qualification.
+#: Roles that may make room for a release note. Preserve causal qualifications.
 _KF_DROPPABLE_ROLES = ("rope", "note")
 
 
 def _kf_with_release_note(sentences: list[dict[str, str]], note: str) -> list[dict[str, str]]:
     """Insert a robustness note before the causal sentence, within the cap.
 
-    The box truncates at :data:`KEY_FINDINGS_MAX_SENTENCES`, and #464 recorded the
-    failure mode: appending a sixth sentence silently drops the causal one, because
-    truncation takes the first five. So the note goes *before* the causal sentence,
-    and if that would overflow, a droppable sentence makes room. If nothing is
-    droppable the note is omitted rather than displacing anything — a missing note is
-    a smaller loss than a missing qualification, and the note is also recorded
-    verbatim under ``release`` in the payload either way.
+    Remove a droppable sentence if needed. If none can be removed, omit the note
+    from the box and retain it under ``release`` in the payload. This preserves
+    the causal qualification within :data:`KEY_FINDINGS_MAX_SENTENCES`.
     """
     result = list(sentences)
     causal_at = next((i for i, s in enumerate(result) if s.get("kind") == "causal"), len(result))
@@ -216,7 +209,7 @@ def _kf_with_release_note(sentences: list[dict[str, str]], note: str) -> list[di
 
 
 def generate_key_findings(output_dir, *, decision=None) -> dict:
-    """Build and write ``key_findings.json`` for a fit output directory (#320).
+    """Build and write ``key_findings.json`` from stored fit artefacts.
 
     Reads only artefacts already in ``output_dir`` (``config.json``,
     ``diagnostics_summary.json`` and the family CSVs), so it can be re-run over
@@ -226,13 +219,9 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
     non-finite number (:func:`_kf_float` raises, and the builder's whole payload
     then degrades). Returns the payload it wrote.
 
-    ``decision`` is the fit's :class:`release.ReleaseEvaluation` — whether it may
-    publish findings at all, and why. Report finalisation computes it and passes
-    it in (#394 design point 3); when it is omitted, as by the regeneration
-    scripts, this function evaluates it over the stored directory. Either way the
-    ordering it encodes holds: inputs, then the sampling-quality gate, then
-    required artefacts, then robustness. Nothing here re-decides any of that —
-    what remains below is building the sentences.
+    ``decision`` supplies the publication checks. If omitted, evaluate the stored
+    fit before building sentences. Checks run in order: inputs, sampling quality,
+    required artefacts, then robustness.
     """
     out = str(output_dir)
     from language_reading_predictors.statistical_models.release import (
@@ -281,16 +270,13 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
         payload["reason"] = str(exc)
         return _write_key_findings(out, payload)
     except (KeyError, ValueError, OSError) as exc:
-        # A malformed CSV must degrade to an explicit note, never break a fit
-        # or a render (#320 acceptance criteria).
+        # Preserve a reason when malformed inputs prevent findings generation.
         payload["status"] = "not_available"
         payload["reason"] = f"key-findings builder failed: {exc}"
         return _write_key_findings(out, payload)
 
     if config.get("kind") == "mechanism":
-        # #602: the published headline number carries its estimand id, reference
-        # population and exposure interval, so a reader never has to infer which of
-        # the family's two natural-scale contrasts a number came from.
+        # Record which estimand, population and exposure interval the headline uses.
         estimand = mechanism_headline_estimand(out)
         if estimand is not None:
             payload["headline_estimand"] = estimand
@@ -303,14 +289,8 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
     payload["status"] = "ok"
     payload["sentences"] = sentences[:KEY_FINDINGS_MAX_SENTENCES]
     if str(config.get("outcome_symbol")) == "B":
-        # The #466 provenance stamp belongs to the two *registered* paired-link fits
-        # that build the bundle, not to every ``B`` outcome. Nine further models
-        # (aligned, concurrent, did, dose_response, gain_factors, level_factors and
-        # mediation) share the outcome symbol but never write the CSV, and their
-        # family builders never reach the catchable ``_KeyFindingsUnavailable`` that
-        # ``_kf_build_itt`` raises — so hashing unconditionally killed those fits here
-        # in ``runtime.finalize_report``, *after* sampling, discarding the staging directory.
-        # Imports stay function-local: ``blending_sensitivity`` imports this module.
+        # Stamp only registered bundle-producing ITT fits; other B families use
+        # separate pairing checks. Import locally to avoid a cycle.
         from language_reading_predictors.statistical_models.blending_sensitivity import (
             BLENDING_LINK_MODELS,
             BLENDING_SENSITIVITY_FILENAME,

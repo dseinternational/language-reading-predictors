@@ -24,8 +24,8 @@ report.
 The own baseline enters as the **binary off-floor-at-pre indicator**
 (``gamma_own_offfloor``, #391 finding 2 decision, 2026-07-22): the graded pre logit of
 this heavily-floored measure is a near-degenerate spike, so the indicator is the honest
-functional form, and the period-1 control data (2/17 at-floor vs 7/8 off-floor moved off
-the floor at post) rule out omitting the main effect. The causal headline is
+functional form, and the period-1 control data (2/17 initially at-floor vs 7/8 initially off-floor were
+off the floor at post) rule out omitting the main effect. The causal headline is
 interaction-free (#391 finding 3): the moderation questions live in the associational
 variant LRPGF05m (where trt x own is trt x this indicator), and only the age x ability
 precision interaction remains here.

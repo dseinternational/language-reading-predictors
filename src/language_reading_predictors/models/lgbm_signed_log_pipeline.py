@@ -8,8 +8,8 @@ Wraps the underlying ``LGBMRegressor`` in a
 :class:`sklearn.compose.TransformedTargetRegressor` that applies
 ``sign(y) * log1p(|y|)`` before fitting and ``sign(x) * expm1(|x|)`` to
 predictions. Designed for signed targets (e.g. ``ewrswr_gain``, where
-children can regress as well as improve) — `log1p` would be NaN on
-negatives, whereas the signed variant preserves sign and compresses
+children can regress as well as improve). ``log1p`` is non-finite for
+values at or below -1; the signed variant preserves sign and compresses
 both tails symmetrically around zero.
 
 All downstream metrics (CV, evaluation, permutation importance) are

@@ -485,11 +485,11 @@ def did_within_child_ppc(
 ) -> pd.DataFrame:
     """Posterior-predictive checks of the model's **within-child** structure (#576 MQ3).
 
-    A single stable child random intercept plus conditionally independent
-    Beta-Binomial rows imposes a restrictive repeated-measures covariance: it says
-    every pair of a child's waves is equicorrelated, with the correlation set by one
-    variance ratio, and it fixes how much a child can move between consecutive waves.
-    The family's existing checks cannot see a failure of that assumption. The
+    A shared child random intercept plus conditionally independent Beta-Binomial
+    rows imposes a restrictive repeated-measures structure. The same latent offset
+    enters every wave; observed-score correlations also depend on wave-specific
+    means and dispersion, so they need not be equal. The marginal checks cannot
+    directly assess whether this structure reproduces within-child changes. The
     arm-by-time cell PPC compares *marginal* cell means and zero rates, which a model
     with badly wrong within-child dependence can still reproduce; the pooled score
     density likewise.
@@ -500,8 +500,7 @@ def did_within_child_ppc(
     correlation** of the paired scores with the same statistics recomputed on each
     posterior-predictive replicate. A replicate distribution that systematically
     understates the spread of within-child changes, or overstates the wave-to-wave
-    correlation, is the signature of an over-restrictive covariance — invisible in
-    the marginal checks.
+    correlation, can reveal misfit that the marginal checks miss.
 
     Tail probabilities are the usual ``P(replicated >= observed)`` upper tails and the
     flag uses the family's fixed 2.5 % / 97.5 % convention (matching
