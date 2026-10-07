@@ -1,5 +1,5 @@
 ---
-title: "LRPITT14b: Unadjusted available-case modified ITT estimate on the SES complete-case subset, letter sounds"
+title: "LRP-RLI-ITT-114: Unadjusted available-case modified ITT estimate on the SES complete-case subset, letter sounds"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -33,9 +37,7 @@ $$
        + \gamma_A\, A_{\text{std},i},
 $$
 
-with Beta-Binomial likelihood $L_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 32$. Priors follow the shared template in `priors.py`.
-No covariate adjustment; the fit is restricted to the SES complete-case rows. HSGPs are off by default.
+with Beta-Binomial likelihood $L_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 32$. Priors follow the shared template in `priors.py`. No covariate adjustment; the fit is restricted to the SES complete-case rows. HSGPs are off by default.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT09: Available-case modified ITT analysis of phonetic spelling (SPPHON) (PS)"
+title: "LRP-RLI-ITT-009: Available-case modified ITT analysis of phonetic spelling (SPPHON) (PS)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -43,8 +47,7 @@ $$
 [\,P_{\text{post},i} > 0\,] \sim \text{Bernoulli}\big(\sigma(\eta_i)\big).
 $$
 
-SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
-Beta-Binomial likelihood on the count, $P_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 92$.
+SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a Beta-Binomial likelihood on the count, $P_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 92$.
 
 ![Model diagram (exploratory off-floor analysis)](model_graph.png){#fig-model .lightbox fig-align="left"}
 

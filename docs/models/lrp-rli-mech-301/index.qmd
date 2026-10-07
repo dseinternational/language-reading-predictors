@@ -1,5 +1,5 @@
 ---
-title: "LRP301: Between/within split — letter sounds (LS) → word reading (WR)"
+title: "LRP-RLI-MECH-301: Between/within split, letter sounds (LS) → word reading (WR)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

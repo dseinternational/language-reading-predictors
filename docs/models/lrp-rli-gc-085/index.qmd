@@ -1,5 +1,5 @@
 ---
-title: "LRP85: Do older-and-more-able children progress more? (growth curves with an age × ability interaction)"
+title: "LRP-RLI-GC-085: Do older-and-more-able children progress more? (growth curves with an age × ability interaction)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

@@ -1,5 +1,5 @@
 ---
-title: "LRPGF13: Factors associated with gains in taught expressive vocabulary (TE), with broad vocabulary associates"
+title: "LRP-RLI-GF-013: Factors associated with gains in taught expressive vocabulary (TE), with broad vocabulary associates"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -32,12 +36,11 @@ The three skill terms carry **two distinct roles**, and must not be read as one 
 - **`TR` is a DAG-parent adjustment.** Taught receptive vocabulary is an *upstream measured parent* of TE under the revised DAG (2026-07-10, #247), and is inherited unchanged from [`lrp-rli-gf-010`](../lrp-rli-gf-010)'s adjustment set — it is here to close a back-door path, exactly as in the parent model.
 - **`R`/`E` are downstream descriptive associates**, emphatically **not** DAG-parent adjustments: they sit *downstream* of taught vocabulary (`TR → RV`), and are entered only to *describe* the review's finding.
 
-Neither role licenses a causal reading: both are adjusted, latent-GA-confounded associations, to be read as "associated with", never "drives". The child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does not control latent general ability. Intervention sessions/dose are never conditioned on (a DAG collider); SES is excluded (not a DAG node).
+Neither role licenses a causal reading: both are adjusted, latent-GA-confounded associations, to be read as "associated with", never "drives". The child random intercept is a partially pooled term for stable differences between children and does not control latent general ability. Intervention sessions/dose are never conditioned on (a DAG collider); SES is excluded (not a DAG node).
 
 ## Model
 
-Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 24$, with
-$\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s}\gamma_s\,\operatorname{logit}_*(s_{\text{pre}}) + \sum_{c}\gamma_c\,z(c) + \gamma_{\text{int}}\,(\text{age}\times\text{ability}) + u_{\text{child}}$, where the $\operatorname{logit}_*(s_{\text{pre}})$ are the period-start (pre-wave) logits of the three skill terms — the upstream DAG parent taught receptive vocabulary (TR = `TR`) and the downstream descriptive associates receptive (RV = `R`) and expressive (EV = `E`) vocabulary — and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator. Priors: shared template in `priors.py`.
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 24$, with $\operatorname{logit}\mu = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention} + \gamma_{\text{own}}\operatorname{logit}_*(\text{pre}) + \gamma_A A_{\text{std}} + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s}\gamma_s\,\operatorname{logit}_*(s_{\text{pre}}) + \sum_{c}\gamma_c\,z(c) + \gamma_{\text{int}}\,(\text{age}\times\text{ability}) + u_{\text{child}}$, where the $\operatorname{logit}_*(s_{\text{pre}})$ are the period-start (pre-wave) logits of the three skill terms — the upstream DAG parent taught receptive vocabulary (TR = `TR`) and the downstream descriptive associates receptive (RV = `R`) and expressive (EV = `E`) vocabulary — and the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech production (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator. Priors: shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

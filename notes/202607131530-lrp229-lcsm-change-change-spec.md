@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8). This is a specification and assumption set for discussion, per #229's request to write these out **before** committing to a fit. No model is fitted here.
 
 # LCSM change-on-change extension (#229): spec and assumption set
+
+**Historical record.** The change-on-change model is now registered. Its skill couplings and the mediation decompositions remain associations under the study's unmeasured confounding. See [the later record](202609011814-findings-14-lcsm.md) and [METHODS.md](../METHODS.md).
 
 ## Question
 

@@ -3,6 +3,8 @@
 
 # Research utilities 0.13.0 upgrade and pending HSGP refits
 
+**Historical record.** The 8 September rebuild completed the HSGP refits described as pending below. Retain this note for the basis-change and saved-design requirements. The current dependency tag is in pyproject.toml. See [the later record](202609080119-full-rebuild-both-layers.md) and [METHODS.md](../METHODS.md).
+
 The code migration for [issue #660](https://github.com/dseinternational/language-reading-predictors/issues/660) selects `dse-research-utils` tag `v0.13.0`, which resolves to commit `458cc41b1dc33f4c0204919253ac92251c61b2bb`. The lockfile retains the existing extras and inherits the shared dependency floors from the library. `uv sync --locked` installed that commit. The contract changes are documented in the [tagged migration guide](https://github.com/dseinternational/research/blob/v0.13.0/docs/migrating-to-0.13.md) and [upstream source review](https://github.com/dseinternational/research/blob/v0.13.0/docs/source-review-2026-09-06.md).
 
 ## Preserving the model during a refit

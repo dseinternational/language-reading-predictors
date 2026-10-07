@@ -163,14 +163,9 @@ if _has("prior_posterior.png"):
 
 ::: {.callout-note collapse="true" title="Power-scaling prior/likelihood sensitivity (psense)"}
 
-Sensitivity of each parameter to power-scaling its prior and likelihood
-(Kallioinen et al. 2024); a `✓` flags no concern. Recommended-but-secondary at
-this sample size.
+Sensitivity of each parameter to power-scaling its prior and likelihood (Kallioinen et al. 2024); a `✓` flags no concern. Recommended-but-secondary at this sample size.
 
-In the figure, the legend's power-scaling factor is conventionally written α. A
-model whose own intercept is also named `alpha` therefore has that parameter's
-panel labelled `alpha (parameter)`, to keep the two apart; the table below uses
-the model's own names throughout.
+In the figure, the legend's power-scaling factor is conventionally written α. A model whose own intercept is also named `alpha` therefore has that parameter's panel labelled `alpha (parameter)`, to keep the two apart; the table below uses the model's own names throughout.
 
 ```{python}
 # | echo: false

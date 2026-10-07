@@ -1,5 +1,5 @@
 ---
-title: "RLMJC02: Byrne within-child joint coupling — word reading, receptive vocabulary, digit recall"
+title: "LRP-RLM-JC-002: Byrne within-child joint coupling, word reading, receptive vocabulary, digit recall"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).

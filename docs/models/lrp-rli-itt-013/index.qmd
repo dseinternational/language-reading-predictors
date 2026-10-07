@@ -1,5 +1,5 @@
 ---
-title: "LRPITT13: SES-adjusted available-case modified ITT estimate for word reading (WR)"
+title: "LRP-RLI-ITT-013: SES-adjusted available-case modified ITT estimate for word reading (WR)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -33,9 +37,7 @@ $$
        + \gamma_A\, A_{\text{std},i} + \sum_{c \in \text{SES}} \gamma_c\, z(c_i),
 $$
 
-with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 79$. Priors follow the shared template in `priors.py`.
-The SES adjusters enter as linear $\gamma_c$ terms (the same weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by default.
+with Beta-Binomial likelihood $W_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 79$. Priors follow the shared template in `priors.py`. The SES adjusters enter as linear $\gamma_c$ terms (the same weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by default.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -1,4 +1,7 @@
 > [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
 Companion to `notes/202608262100-full-refit-batch.md` — the per-model numeric movement record behind that note's summary. OLD fits are preserved locally at `output/statistical_models/models.pre-batch-20260826/` (not committed); NEW fits are the current `output/statistical_models/models/` artefacts at the batch commits.
@@ -87,8 +90,7 @@ Net: six headline totals (059/078, 064, 080, 086/186) **lose** their zero-crossi
 
 Three exceed the #584 note's ~0.05-item expectation: lf-002 (+0.17), lf-010 (+0.09), lf-003 (+0.05, borderline) — all vocabulary-family outcomes where ability moderation is largest; and lf-010 (taught expressive vocab) changes its zero-crossing (headline now "+1.4 items, 89% +0.1 to +2.7"). lf-006's card is numerically unchanged; what changed is its release status (see §6).
 
-**NEW two-wave (t1/t2) comparators beside four-wave** (all 11 pass the gate):
-lf-201 2.46 [0.49, 4.55] vs 2.28 | lf-202 0.53 [-4.05, 5.26] vs 0.40 | lf-203 -0.07 [-3.41, 3.30] vs 0.19 | lf-204 2.89 [0.91, 4.87] vs 2.86 | lf-205 0.011 [-0.087, 0.11] vs 0.005 | lf-206 0.76 [-0.03, 1.55] vs 0.64 | lf-207 0.73 [-0.42, 1.84] vs 0.79 | lf-208 0.60 [-1.01, 2.22] vs 0.63 | lf-209 1.26 [-0.07, 2.56] vs 1.19 | lf-210 1.33 [-0.05, 2.73] vs 1.39 | lf-211 0.040 [-0.077, 0.16] vs 0.031. Two-wave estimates sit within a few tenths of an item of the four-wave ones everywhere (largest gap E, -0.07 vs +0.19 — both null); no comparator overturns a four-wave conclusion, though lf-210's two-wave interval crosses zero where the four-wave lf-010 no longer does.
+**NEW two-wave (t1/t2) comparators beside four-wave** (all 11 pass the gate): lf-201 2.46 [0.49, 4.55] vs 2.28 | lf-202 0.53 [-4.05, 5.26] vs 0.40 | lf-203 -0.07 [-3.41, 3.30] vs 0.19 | lf-204 2.89 [0.91, 4.87] vs 2.86 | lf-205 0.011 [-0.087, 0.11] vs 0.005 | lf-206 0.76 [-0.03, 1.55] vs 0.64 | lf-207 0.73 [-0.42, 1.84] vs 0.79 | lf-208 0.60 [-1.01, 2.22] vs 0.63 | lf-209 1.26 [-0.07, 2.56] vs 1.19 | lf-210 1.33 [-0.05, 2.73] vs 1.39 | lf-211 0.040 [-0.077, 0.16] vs 0.031. Two-wave estimates sit within a few tenths of an item of the four-wave ones everywhere (largest gap E, -0.07 vs +0.19 — both null); no comparator overturns a four-wave conclusion, though lf-210's two-wave interval crosses zero where the four-wave lf-010 no longer does.
 
 **lf-006 + lf-106 (both links)**: ordinary logit +0.6 items [-0.1, +1.4], pd 0.90; guessing-floor link +0.5 items [-0.1, +1.0], pd 0.92. Same direction, floor link slightly smaller/tighter; released as a pair.
 

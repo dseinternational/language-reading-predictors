@@ -1,5 +1,5 @@
 ---
-title: "LRPGBL22: Predictors of DEAP average articulation level"
+title: "LRP-RLI-GBL-022: Predictors of DEAP average articulation level"
 
 format:
   html:
@@ -255,10 +255,7 @@ The box plot shows the variation across shuffles. Positive importance means shuf
 
 ### SHAP analysis
 
-[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into per-feature contributions, giving the
-*direction* of each predictor to pair with the permutation-importance
-magnitude.
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values decompose each prediction into per-feature contributions, giving the *direction* of each predictor to pair with the permutation-importance magnitude.
 
 #### Global feature importance (bar)
 

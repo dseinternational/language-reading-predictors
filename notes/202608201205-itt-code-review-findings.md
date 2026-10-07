@@ -5,6 +5,8 @@
 
 # Code review of the ITT family: functional and statistical correctness
 
+**Historical record.** This review describes the code on 20 August. The later verification and repair record addresses its findings. See [the later record](202608221900-itt-audit-577-verification-and-fixes.md) and [METHODS.md](../METHODS.md).
+
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 

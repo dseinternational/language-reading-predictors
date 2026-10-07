@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # GB feature selection retired — #116 Phase D
@@ -9,12 +12,7 @@
 
 ## What changed
 
-The gradient-boosting discovery layer no longer performs hard feature
-**selection**. Every GB model (`LRPGBG##` / `LRPGBL##`) now fits the **full**
-`Predictors.DEFAULT_GAIN` (34) / `DEFAULT_LEVEL` (33) predictor set; the ordered,
-clustered **ranking** (`scripts/rank_predictors.py`, and the per-model
-"Predictor ranking and clustering" report section) is the deliverable — not a
-pruned subset.
+The gradient-boosting discovery layer no longer performs hard feature **selection**. Every GB model (`LRPGBG##` / `LRPGBL##`) now fits the **full** `Predictors.DEFAULT_GAIN` (34) / `DEFAULT_LEVEL` (33) predictor set; the ordered, clustered **ranking** (`scripts/rank_predictors.py`, and the per-model "Predictor ranking and clustering" report section) is the deliverable — not a pruned subset.
 
 Concretely:
 
@@ -36,17 +34,8 @@ Concretely:
 
 ## Why
 
-#116's thesis is that a defensible, reproducible **ranking** — not a hard prune —
-is the honest output of the discovery layer. The prior "uniform feature
-selection" pass (2026-06-21/23, distance-correlation redundancy filter + noise
-floor) reduced each model to 3–11 predictors, which biases the very importances
-the layer exists to report and hides candidates from the ranking.
+#116's thesis is that a defensible, reproducible **ranking** — not a hard prune — is the honest output of the discovery layer. The prior "uniform feature selection" pass (2026-06-21/23, distance-correlation redundancy filter + noise floor) reduced each model to 3–11 predictors, which biases the very importances the layer exists to report and hides candidates from the ranking.
 
 ## Consequence: results change; params are retune-pending
 
-Switching from pruned (3–11) to full (33–34) predictor sets **changes every
-formerly-pruned model's committed results**. Hyperparameters were Optuna-tuned on
-the pruned sets and are **retained as a full-set baseline, retune-pending** — a
-deliberate, documented choice (#116: cluster-level rankings are robust to
-reasonable hyperparameters; re-tuning ~40 models × 150-trial Optuna is deferred).
-`scripts/tune_model.py` remains for an optional later refresh.
+Switching from pruned (3–11) to full (33–34) predictor sets **changes every formerly-pruned model's committed results**. Hyperparameters were Optuna-tuned on the pruned sets and are **retained as a full-set baseline, retune-pending** — a deliberate, documented choice (#116: cluster-level rankings are robust to reasonable hyperparameters; re-tuning ~40 models × 150-trial Optuna is deferred). `scripts/tune_model.py` remains for an optional later refresh.

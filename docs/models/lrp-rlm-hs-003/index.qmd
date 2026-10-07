@@ -1,5 +1,5 @@
 ---
-title: "RLMHS03: Byrne horseshoe ranking of wave-1 predictors of receptive-grammar gain"
+title: "LRP-RLM-HS-003: Byrne horseshoe ranking of wave-1 predictors of receptive-grammar gain"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).

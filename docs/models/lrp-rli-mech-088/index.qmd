@@ -1,5 +1,5 @@
 ---
-title: "LRP88: Mechanism model — taught receptive vocabulary (TR) -> word reading (WR)"
+title: "LRP-RLI-MECH-088: Mechanism model, taught receptive vocabulary (TR) -> word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,23 +25,13 @@ format:
 
 ## Overview
 
-LRP88 estimates the adjusted association between taught receptive vocabulary and word
-reading using *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with
-phase-specific intercepts — the "an additional $p$ taught spoken words is associated
-with $o$ additional words read" dose-response asked for by #311 (descriptive-association
-workstream #314).
+LRP88 estimates the adjusted association between taught receptive vocabulary and word reading using *all three phase transitions* (t1$\to$t2, t2$\to$t3, t3$\to$t4) with phase-specific intercepts — the "an additional $p$ taught spoken words is associated with $o$ additional words read" dose-response asked for by #311 (descriptive-association workstream #314).
 
-_Linear mechanism (estimand note)._ The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on
-$\text{logit}_*(TR_{\text{post}}, N_{TR})$, not the 1-D HSGP curve used elsewhere in
-this family, following the vocabulary-exposure precedent (LRP56/57): the nonparametric
-curve does not converge on vocabulary predictors at reporting tier, and DAG-required
-adjusters are not dropped to buy convergence. The estimand is therefore the **linear**
-$TR \to W$ adjusted association — a single slope, not a shape.
+_Linear mechanism (estimand note)._ The mechanism enters as a **linear slope** $\beta_{\text{mech}}$ on $\text{logit}_*(TR_{\text{post}}, N_{TR})$, not the 1-D HSGP curve used elsewhere in this family, following the vocabulary-exposure precedent (LRP56/57): the nonparametric curve does not converge on vocabulary predictors at reporting tier, and DAG-required adjusters are not dropped to buy convergence. The estimand is therefore the **linear** $TR \to W$ adjusted association — a single slope, not a shape.
 
 ## Adjustment set
 
-The model conditions on this DAG-motivated adjustment set to reduce confounding of the
-$TR_{\text{post}}$--$W_{\text{post}}$ association:
+The model conditions on this DAG-motivated adjustment set to reduce confounding of the $TR_{\text{post}}$--$W_{\text{post}}$ association:
 
 Parents of $TR$ under the revised DAG (2026-07-10): $\{A, GA, HS, IG, IS, RW\}$.
 
@@ -50,28 +44,9 @@ Parents of $TR$ under the revised DAG (2026-07-10): $\{A, GA, HS, IG, IS, RW\}$.
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 - $TR$ has no measured skill parent, so no concurrent measure confounder enters.
 
-_Intervention sessions (IS) — adjusted (since 2026-07-17, reversing #309)._ $IS \to TR$ and
-$IS \to WR$ make session dose a genuine common cause of exposure and outcome, so the
-model conditions on it (`attend`, the sessions delivered during the period, entering
-as $\gamma_{\text{attend}}$). $IS$ is also treatment-affected ($IG \to IS$) and a collider
-($IG \to IS \leftarrow GA$), and an earlier handling (#309) left it unadjusted for fear of
-opening $IG \to IS \leftarrow GA \to W$; a formal d-separation check
-(`notes/202607171700-mech-intervention-sessions-adjustment-collider-review.md`) shows
-that concern does not bite here, because the model always conditions on the randomised
-arm ($\beta_G$), which closes that path at $IG$ — with $GA$ held hypothetically,
-$\{G, A, HS, IS, RW\}$ d-separates $TR$ from $WR$ in the backdoor graph, whereas without
-$IS$ an observable backdoor stays open. Adding $IS$ moved the endpoint contrast modestly
-down on the July 2026 fits (TR +10.1 → +9.0 items), so shared session dose had been
-mildly inflating the slope; what remains is the sessions-adjusted association, still
-covariation within a treated system.
+_Intervention sessions (IS) — adjusted (since 2026-07-17, reversing #309)._ $IS \to TR$ and $IS \to WR$ make session dose a genuine common cause of exposure and outcome, so the model conditions on it (`attend`, the sessions delivered during the period, entering as $\gamma_{\text{attend}}$). $IS$ is also treatment-affected ($IG \to IS$) and a collider ($IG \to IS \leftarrow GA$), and an earlier handling (#309) left it unadjusted for fear of opening $IG \to IS \leftarrow GA \to W$; a formal d-separation check (`notes/202607171700-mech-intervention-sessions-adjustment-collider-review.md`) shows that concern does not bite here, because the model always conditions on the randomised arm ($\beta_G$), which closes that path at $IG$ — with $GA$ held hypothetically, $\{G, A, HS, IS, RW\}$ d-separates $TR$ from $WR$ in the backdoor graph, whereas without $IS$ an observable backdoor stays open. Adding $IS$ moved the endpoint contrast modestly down on the July 2026 fits (TR +10.1 → +9.0 items), so shared session dose had been mildly inflating the slope; what remains is the sessions-adjusted association, still covariation within a treated system.
 
-$TE$ and $RV$ are *descendants* of $TR$ that also affect $W$; conditioning on them
-would block legitimate indirect paths (e.g. $TR \to TE \to W$) and pull the slope
-toward the direct-only component, so they are **not** in the adjustment set. $GA$
-(general ability) is latent and cannot be conditioned on; the child random intercept
-proxies its time-invariant part, so the slope stays an adjusted association. Note also
-that taught-vocabulary variation is largely intervention-generated: the slope
-describes covariation within a treated system.
+$TE$ and $RV$ are *descendants* of $TR$ that also affect $W$; conditioning on them would block legitimate indirect paths (e.g. $TR \to TE \to W$) and pull the slope toward the direct-only component, so they are **not** in the adjustment set. $GA$ (general ability) is latent and cannot be conditioned on; the child random intercept proxies its time-invariant part, so the slope stays an adjusted association. Note also that taught-vocabulary variation is largely intervention-generated: the slope describes covariation within a treated system.
 
 ### Interpretation caveats
 

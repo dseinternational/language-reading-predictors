@@ -1,5 +1,5 @@
 ---
-title: "LRP77a: Dose-response (ability-adjusted sensitivity) — tests no `g -> dose`"
+title: "LRP-RLI-DOSE-177: Dose-response (ability-adjusted sensitivity), tests no `g -> dose`"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,40 +25,15 @@ format:
 
 ## Overview
 
-LRP77a is the **baseline-ability sensitivity fit** for [LRP77](../lrp-rli-dose-077/). It is
-the identical dose-response model with the **baseline-skill cluster** added to the
-adjustment set: letter-sound knowledge ($L$), expressive vocabulary ($E$) and
-phoneme blending ($B$). These are the reflective indicators of latent general
-ability $g$ in the revised DAG, alongside the already-adjusted baseline reading
-$W_{\text{pre}}$.
+LRP77a is the **baseline-ability sensitivity fit** for [LRP77](../lrp-rli-dose-077/). It is the identical dose-response model with the **baseline-skill cluster** added to the adjustment set: letter-sound knowledge ($L$), expressive vocabulary ($E$) and phoneme blending ($B$). These are the reflective indicators of latent general ability $g$ in the revised DAG, alongside the already-adjusted baseline reading $W_{\text{pre}}$.
 
-**Each adjuster is that child's verified t1 value, broadcast across all three
-transitions.** This matters more than it sounds. Until #587 the fit used each
-transition's *own* starting wave — t1 skills in period 1, but t2 skills in period
-2 and t3 skills in period 3. Those later values are themselves downstream of
-earlier intervention and attendance, so the model was conditioning on a
-treatment-affected time-varying covariate rather than on a baseline: it could
-block part of the very path it was measuring, and it was not the
-pre-randomisation ability adjustment it was published as. The repair changes 98 of
-the 156 fitted rows' ability values. `ability_baseline_wave="transition_start"`
-retains the old behaviour as an explicitly labelled comparator; it must not be
-read as a baseline sensitivity.
+**Each adjuster is that child's verified t1 value, broadcast across all three transitions.** This matters more than it sounds. Until #587 the fit used each transition's *own* starting wave — t1 skills in period 1, but t2 skills in period 2 and t3 skills in period 3. Those later values are themselves downstream of earlier intervention and attendance, so the model was conditioning on a treatment-affected time-varying covariate rather than on a baseline: it could block part of the very path it was measuring, and it was not the pre-randomisation ability adjustment it was published as. The repair changes 98 of the 156 fitted rows' ability values. `ability_baseline_wave="transition_start"` retains the old behaviour as an explicitly labelled comparator; it must not be read as a baseline sensitivity.
 
-**Why.** The revised DAG carries $GA \to IS$ (latent), so if abler children
-attended more (Frank 2012) then $g$ is a common cause of attendance and outcome
-and the measured adjustment set does not identify an attendance effect — and
-because attendance is **not** randomised, randomisation does not rescue it.
-Conditioning on the baseline-skill cluster probes that path with observed proxies.
+**Why.** The revised DAG carries $GA \to IS$ (latent), so if abler children attended more (Frank 2012) then $g$ is a common cause of attendance and outcome and the measured adjustment set does not identify an attendance effect — and because attendance is **not** randomised, randomisation does not rescue it. Conditioning on the baseline-skill cluster probes that path with observed proxies.
 
-**How to read it — against LRP77.** If the attendance slope is materially
-unchanged here, the assumption that ability does not drive attendance is more
-defensible in this sample. If it collapses toward zero, the LRP77 signal is
-substantially ability-confounded and should be downgraded. **Neither outcome
-proves the latent path is closed:** these are noisy proxies for $g$, not $g$.
+**How to read it — against LRP77.** If the attendance slope is materially unchanged here, the assumption that ability does not drive attendance is more defensible in this sample. If it collapses toward zero, the LRP77 signal is substantially ability-confounded and should be downgraded. **Neither outcome proves the latent path is closed:** these are noisy proxies for $g$, not $g$.
 
-See the LRP77 report for the full estimand, the extensive/intensive split, the
-$G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations caveat
-(adjusted association; $R^2$ 0.1–0.3 in Phase 1).
+See the LRP77 report for the full estimand, the extensive/intensive split, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations caveat (adjusted association; $R^2$ 0.1–0.3 in Phase 1).
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

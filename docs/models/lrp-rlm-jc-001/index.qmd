@@ -1,5 +1,5 @@
 ---
-title: "RLMJC01: Byrne joint correlated growth — word reading, receptive vocabulary, digit recall"
+title: "LRP-RLM-JC-001: Byrne joint correlated growth, word reading, receptive vocabulary, digit recall"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,25 +25,11 @@ format:
 
 ## Overview
 
-RLMJC01 is the joint multivariate extension of the per-measure
-historical-growth suite (#338 Phase B): BAS word reading, BPVS receptive
-vocabulary and BAS recall of digits fitted **together** over the Byrne cohort,
-each with its own supported-cell group-by-wave grid and group-indexed
-random-effect scales, and the per-child stable offsets **correlated across
-measures**. The headline is the 3×3 between-child correlation matrix of stable
-levels — the reading-language-memory coupling question in its most
-parsimonious between-child form, and the trajectory-level companion of the
-wave-3 measurement model (`lrp-rlm-mm-001`).
+RLMJC01 is the joint multivariate extension of the per-measure historical-growth suite (#338 Phase B): BAS word reading, BPVS receptive vocabulary and BAS recall of digits fitted **together** over the Byrne cohort, each with its own supported-cell group-by-wave grid and group-indexed random-effect scales, and the per-child stable offsets **correlated across measures**. The headline is the 3×3 between-child correlation matrix of stable levels — the reading-language-memory coupling question in its most parsimonious between-child form, and the trajectory-level companion of the wave-3 measurement model (`lrp-rlm-mm-001`).
 
 These estimates describe scores and growth in historical cohorts. `readgrp` was not randomly assigned, so between-group differences are not intervention effects. The randomised intervention analyses belong to the separate RLI trial.
 
-_Window, frame and assumptions._ The complete-case core is the suite's waves 1-3, jointly across all three
-measures (n = 71 children); waves 4-5 enter as extension waves where a kept
-child has **all three** measures observed (wave 5 exists only for the Down
-syndrome group). The cross-measure correlation matrix is **shared across the
-three reading groups** — a stated parsimony assumption at this n — while the
-subject-intercept SDs and overdispersion are group-indexed per the 2026-07-16
-heterogeneity decision.
+_Window, frame and assumptions._ The complete-case core is the suite's waves 1-3, jointly across all three measures (n = 71 children); waves 4-5 enter as extension waves where a kept child has **all three** measures observed (wave 5 exists only for the Down syndrome group). The cross-measure correlation matrix is **shared across the three reading groups** — a stated parsimony assumption at this n — while the subject-intercept SDs and overdispersion are group-indexed per the 2026-07-16 heterogeneity decision.
 
 ## Model
 
@@ -57,10 +47,7 @@ $$
 \operatorname{diag}(\sigma_{m,g[i]})\right),
 $$
 
-with $R$ the 3×3 stable-level correlation matrix under an LKJ(2) prior
-(non-centred, group-centred per measure for identifiability against the cell
-grids). Ceilings: `basread` 90 and `basdig` 34 (confirmed), `bpvs` 32 (Short
-Form, confirmed).
+with $R$ the 3×3 stable-level correlation matrix under an LKJ(2) prior (non-centred, group-centred per measure for identifiability against the cell grids). Ceilings: `basread` 90 and `basdig` 34 (confirmed), `bpvs` 32 (Short Form, confirmed).
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

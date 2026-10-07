@@ -1,5 +1,5 @@
 ---
-title: "LRPHS04: Regularized-horseshoe ranking cross-check - letter-sound level"
+title: "LRP-RLI-HS-004: Regularized-horseshoe ranking cross-check - letter-sound level"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

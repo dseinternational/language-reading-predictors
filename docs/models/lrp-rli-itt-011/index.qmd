@@ -1,5 +1,5 @@
 ---
-title: "LRPITT11: Available-case modified ITT analysis of nonword reading (NW) — floor-rule branch"
+title: "LRP-RLI-ITT-011: Available-case modified ITT analysis of nonword reading (NW), floor-rule branch"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -44,8 +48,7 @@ $$
 [\,N_{\text{post},i} > 0\,] \sim \text{Bernoulli}\big(\sigma(\eta_i)\big).
 $$
 
-SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a
-Beta-Binomial likelihood on the count, $N_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 6$.
+SECONDARY (graded, detection-limited): the *same* age-only $\eta_i$ with a Beta-Binomial likelihood on the count, $N_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $N = 6$.
 
 ![Model diagram (exploratory off-floor analysis)](model_graph.png){#fig-model .lightbox fig-align="left"}
 

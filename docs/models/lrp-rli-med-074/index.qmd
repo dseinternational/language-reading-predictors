@@ -1,5 +1,5 @@
 ---
-title: "LRP74: Does word reading route through nonword decoding? (floor-limited mediation)"
+title: "LRP-RLI-MED-074: Does word reading route through nonword decoding? (floor-limited mediation)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,25 +25,15 @@ format:
 
 ## Overview
 
-The revised DAG labels nonword reading $N$ the **"code route (mediator)"** — the decoding
-step between the phonics skills and word reading $W$. Yet every existing mediation model
-routes reading through the phonics *knowledge* directly, skipping the decoding *behaviour*.
-LRP74 fills that gap: a single-mediator g-formula decomposition of the intervention's
-word-reading effect through $N$. Because nonwords cannot be sight-read, a route through $N$
-isolates genuine decoding in a way a route to $W$ does not.
+The revised DAG labels nonword reading $N$ the **"code route (mediator)"** — the decoding step between the phonics skills and word reading $W$. Yet every existing mediation model routes reading through the phonics *knowledge* directly, skipping the decoding *behaviour*. LRP74 fills that gap: a single-mediator g-formula decomposition of the intervention's word-reading effect through $N$. Because nonwords cannot be sight-read, a route through $N$ isolates genuine decoding in a way a route to $W$ does not.
 
 ## Design
 
-Phase 0 only, $n \approx 50$. Mediator $N_{t2}$ (Beta-Binomial on $N_{t1}$); outcome
-$W_{t2}$. Adjustment $\{G, A, E, R, W_\text{pre}, N_{t1}\}$ — vocabulary $E, R$ are the
-mediator–outcome confounders (the whole-word route that bypasses decoding). Letter sounds
-$L$ and blending $B$ are *upstream* of $N$, so they are on the $G \to \dots \to N$ path and
-are **not** adjusted.
+Phase 0 only, $n \approx 50$. Mediator $N_{t2}$ (Beta-Binomial on $N_{t1}$); outcome $W_{t2}$. Adjustment $\{G, A, E, R, W_\text{pre}, N_{t1}\}$ — vocabulary $E, R$ are the mediator–outcome confounders (the whole-word route that bypasses decoding). Letter sounds $L$ and blending $B$ are *upstream* of $N$, so they are on the $G \to \dots \to N$ path and are **not** adjusted.
 
 ## Assumptions — read this first {#sec-assumptions}
 
-Two caveats specific to this model, beyond the usual ID-2 ($GA$-confounding, treatment-induced
-dose confounder):
+Two caveats specific to this model, beyond the usual ID-2 ($GA$-confounding, treatment-induced dose confounder):
 
 - **$N$ is heavily floored** in this cohort (the documented $NW$ floor; a corrected DS
   decoding deficit $g \approx -0.89$). If the intervention barely moves $N$ off the floor the

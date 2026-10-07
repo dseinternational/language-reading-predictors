@@ -1,5 +1,5 @@
 ---
-title: "LRPLF06: Factors associated with the level of phoneme blending (blending) (PA)"
+title: "LRP-RLI-LF-006: Factors associated with the level of phoneme blending (blending) (PA)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -27,8 +31,7 @@ _Causal labelling + level-model crossover caveat._ Every non-randomised coeffici
 
 ## Model
 
-Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the level count, $N = 10$, with
-$\operatorname{logit}\mu_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group} + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks}) + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + \sum_{c}\gamma_c\,z(c) + u_{\text{child}}$, where the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator; measured skill parents are excluded as post-treatment mediators.
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the level count, $N = 10$, with $\operatorname{logit}\mu_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group} + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks}) + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + \sum_{c}\gamma_c\,z(c) + u_{\text{child}}$, where the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator; measured skill parents are excluded as post-treatment mediators.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

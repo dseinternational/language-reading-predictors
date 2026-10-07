@@ -47,7 +47,7 @@ For a worked introduction to the Bayesian code, follow [one statistical model fr
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), which also provides Python. From the repository root, create the environment:
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
 Run commands with `uv run`, for example `uv run pytest` or `uv run python scripts/fit_model.py lrp-rli-gbg-001`. Activating `.venv` also works.
@@ -60,12 +60,12 @@ Figures, model graphs and reports set text in [Noto Sans](https://fonts.google.c
 
 #### Creating reports
 
-Install [Quarto](https://quarto.org/docs/get-started/) to create reports and [Node.js](https://nodejs.org/en) to run the spelling and formatting tools.
+Install [Quarto](https://quarto.org/docs/get-started/) to create reports and the Node.js version declared in `package.json` to run spelling and formatting checks.
 
 Install the Node dependencies from the repository root:
 
 ```bash
-npm install
+npm ci
 ```
 
 ## License

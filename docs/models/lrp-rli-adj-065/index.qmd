@@ -1,5 +1,5 @@
 ---
-title: "LRP65: Adjusted model — independent baseline predictors of word-reading gain"
+title: "LRP-RLI-ADJ-065: Adjusted model, independent baseline predictors of word-reading gain"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,29 +25,19 @@ format:
 
 ## Overview
 
-LRP65 is the Bayesian "interpretable estimand" follow-up to the LightGBM discovery
-layer (LRP01). It answers the **static, between-child** question raised by the
-descriptive work and the meeting: *do children who start (at wave 1) with more
-letter-sound knowledge / language / blending go on to gain more in word reading?*
+LRP65 is the Bayesian "interpretable estimand" follow-up to the LightGBM discovery layer (LRP01). It answers the **static, between-child** question raised by the descriptive work and the meeting: *do children who start (at wave 1) with more letter-sound knowledge / language / blending go on to gain more in word reading?*
 
-The candidate predictors form a correlated general-ability cluster (vocabulary–block
-design $\rho \approx 0.63$; vocabulary–letter-sounds $\approx 0.4$–$0.5$), so a naive
-"throw them all in" regression is multicollinear and "independent predictor" is
-ambiguous. The DAG below fixes the estimand and the adjustment set **before** fitting.
+The candidate predictors form a correlated general-ability cluster (vocabulary–block design $\rho \approx 0.63$; vocabulary–letter-sounds $\approx 0.4$–$0.5$), so a naive "throw them all in" regression is multicollinear and "independent predictor" is ambiguous. The DAG below fixes the estimand and the adjustment set **before** fitting.
 
 ## Estimand and design
 
-_Between-child association — match the design to the estimand._ The estimand is the **mutually-adjusted between-child association** of each wave-1
-baseline skill with subsequent word-reading gain, holding the other measured baselines
-and $W_{\text{pre}}$ constant, *across children*.
+_Between-child association — match the design to the estimand._ The estimand is the **mutually-adjusted between-child association** of each wave-1 baseline skill with subsequent word-reading gain, holding the other measured baselines and $W_{\text{pre}}$ constant, *across children*.
 
 The model uses one row per child. Predictors are measured at t1, and the outcome is word reading at the last wave, adjusted for word reading at t1. It therefore estimates between-child associations and has no child random intercept.
 
 A repeated-period model with a random intercept would generally combine between-child and within-child associations unless it separated them explicitly. The intercept would not remove confounding by unmeasured general ability. Both designs remain associational; the choice here follows the one-row-per-child question.
 
-These are **associations, not causal effects** (n ≈ 51). The corresponding randomised-arm
-result is the available-case modified ITT estimate in `lrp-rli-itt-010` (which supersedes
-LRP52); the randomised gain-side coefficient lives in `lrp-rli-gf-001`.
+These are **associations, not causal effects** (n ≈ 51). The corresponding randomised-arm result is the available-case modified ITT estimate in `lrp-rli-itt-010` (which supersedes LRP52); the randomised gain-side coefficient lives in `lrp-rli-gf-001`.
 
 ![Causal DAG. Latent general ability `g` (dashed, not fitted) drives the correlated T1 baselines; hearing status, speech production and phonological memory sit upstream of the skill cluster (revised DAG, #247); the dashed edges from non-verbal MA, behaviour, SES and the three upstream traits to gain are the associations the model is built to test.](dag.svg){#fig-dag .lightbox fig-align="left"}
 
@@ -68,12 +62,7 @@ LRP52); the randomised gain-side coefficient lives in `lrp-rli-gf-001`.
   precision choice rather than a confounding one; the t1→t4 window contains both arms'
   intervention periods at different times.
 
-Each predictor's **adjusted** (mutual) coefficient is reported alongside its **bivariate**
-(baseline-only-adjusted) association, so the shared-variance shift is visible. The
-items-scale contrasts are evaluated at one operating point — a child at the sample-mean
-t1 word-reading logit with every other standardised predictor at zero — for two such
-children who differ by one SD on one predictor; the prior pushforward uses the same
-functional.
+Each predictor's **adjusted** (mutual) coefficient is reported alongside its **bivariate** (baseline-only-adjusted) association, so the shared-variance shift is visible. The items-scale contrasts are evaluated at one operating point — a child at the sample-mean t1 word-reading logit with every other standardised predictor at zero — for two such children who differ by one SD on one predictor; the prior pushforward uses the same functional.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

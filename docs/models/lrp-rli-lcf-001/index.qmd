@@ -25,77 +25,34 @@ Prior-sensitivity wording corrected by a LLM-based AI tool (Codex/GPT-6).
 
 ## Overview
 
-LRP-RLI-LCF-001 is the four-wave extension of the cross-sectional
-[`corr_factor`](../lrp-rli-mm-001/) CFA. It estimates **correlated domain factors** —
-vocabulary, code, and grammar — at each of the four timepoints and reports the
-**per-wave latent skill correlation matrices** together with the conditional latent slopes
-derived from them. It is a latent-measurement companion to the
-concurrent regression family ([`lrp-rli-ca-001`](../lrp-rli-ca-001/), issue #312): the
-regression family gives directed, covariate-conditional observed-score slopes; this
-summarises a latent-domain correlation web while modelling indicator-specific residual
-variation. Only the latent correlation matrix is symmetric; its conditional slopes are
-directional and generally asymmetric. The two analyses have different estimands, so
-neither must be larger. A reproducible 48-row report artefact (twelve directed
-target/predictor pairs across the four waves, #348) aligns selected LCF
-target-item translations with the matching #312 adjusted average marginal effects by
-target, predictor and wave.
+LRP-RLI-LCF-001 is the four-wave extension of the cross-sectional [`corr_factor`](../lrp-rli-mm-001/) CFA. It estimates **correlated domain factors** — vocabulary, code, and grammar — at each of the four timepoints and reports the **per-wave latent skill correlation matrices** together with the conditional latent slopes derived from them. It is a latent-measurement companion to the concurrent regression family ([`lrp-rli-ca-001`](../lrp-rli-ca-001/), issue #312): the regression family gives directed, covariate-conditional observed-score slopes; this summarises a latent-domain correlation web while modelling indicator-specific residual variation. Only the latent correlation matrix is symmetric; its conditional slopes are directional and generally asymmetric. The two analyses have different estimands, so neither must be larger. A reproducible 48-row report artefact (twelve directed target/predictor pairs across the four waves, #348) aligns selected LCF target-item translations with the matching #312 adjusted average marginal effects by target, predictor and wave.
 
-_Measurement / triangulation, NOT causal._ This is a **measurement** model. Every latent correlation and every slope derived from
-it is a **descriptive association** (locked DAG, ID-2); the instrument improves the
-measurement match, it does **not** identify effects. The randomised causal claims live
-in the ITT/DiD suites and the mediation models, not here.
+_Measurement / triangulation, NOT causal._ This is a **measurement** model. Every latent correlation and every slope derived from it is a **descriptive association** (locked DAG, ID-2); the instrument improves the measurement match, it does **not** identify effects. The randomised causal claims live in the ITT/DiD suites and the mediation models, not here.
 
 _Read the correlation structure as one matrix, not four._ The trait-vs-state decomposition puts almost all of the between-child correlation in the stable trait component (`trait_share` posterior ≈ 0.95), which collapses the four per-wave latent correlation matrices into essentially one — the wave-specific state correlations are near-prior and not separately identified, so do **not** read any across-wave change in correlation structure as a finding. The vocabulary–grammar latent correlation (≈ 0.88) is the single most prior-influenced number here: it is the most power-scaling-sensitive parameter so assess its movement under justified prior sensitivities and report its uncertainty. Prior sensitivity does not make a point estimate a lower bound on the latent correlation.
 
-_Fragility at n ~ 54._ A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the
-single-wave `mm-001`, since it carries a trait correlation matrix and one state
-correlation matrix per wave. The reporting-tier fit gives nominal, exploratory
-estimates, not final scientific magnitudes. Prior sensitivity is required before
-substantive interpretation. Wave-varying loadings or an AR across-wave structure should
-be fitted only if checks indicate that the wave-invariant measurement specification or
-compound symmetry misfits, then compared using per-child PSIS-LOO.
+_Fragility at n ~ 54._ A longitudinal latent model at n ~ 54 is fragile and prior-dependent — more so than the single-wave `mm-001`, since it carries a trait correlation matrix and one state correlation matrix per wave. The reporting-tier fit gives nominal, exploratory estimates, not final scientific magnitudes. Prior sensitivity is required before substantive interpretation. Wave-varying loadings or an AR across-wave structure should be fitted only if checks indicate that the wave-invariant measurement specification or compound symmetry misfits, then compared using per-child PSIS-LOO.
 
 ## Model
 
-**Factors.** Vocabulary {R, E, TR, TE}, code {L, B}, grammar {F, T} — taught vocabulary
-folds into the vocabulary domain because all four indicators are administered and modelled at every wave; occasional missing cells are masked rather than dropping a child. Heavily floored P/N are excluded.
+**Factors.** Vocabulary {R, E, TR, TE}, code {L, B}, grammar {F, T} — taught vocabulary folds into the vocabulary domain because all four indicators are administered and modelled at every wave; occasional missing cells are masked rather than dropping a child. Heavily floored P/N are excluded.
 
-**Measurement (wave-invariant parameters, factor scores marginalised out).** For indicator $j$
-of domain $d$ at wave $t$, on the pooled-standardised logit scale, with wave-invariant
-loadings $\lambda_j$ and residual SDs $\sigma_j$:
+**Measurement (wave-invariant parameters, factor scores marginalised out).** For indicator $j$ of domain $d$ at wave $t$, on the pooled-standardised logit scale, with wave-invariant loadings $\lambda_j$ and residual SDs $\sigma_j$:
 
 $$
 z_{ijt} = \lambda_j\, f_{i,d(j),t} + \varepsilon_{ijt}, \qquad
 \varepsilon_{ijt} \sim \mathcal{N}(0, \sigma_j^2),
 $$
 
-with per-wave factor means carried by an exact zero-sum-over-waves $\mu_{d,t}$. Each
-factor is unit-variance at every wave. The reported within-wave correlation is induced
-by the trait/state structure below, not drawn directly from a separate LKJ prior.
+with per-wave factor means carried by an exact zero-sum-over-waves $\mu_{d,t}$. Each factor is unit-variance at every wave. The reported within-wave correlation is induced by the trait/state structure below, not drawn directly from a separate LKJ prior.
 
-**Loading / residual geometry (pooled-budget communality parameterisation, #383
-follow-up).** The free measurement parameter per indicator is its within-wave
-communality $c_j \sim \operatorname{Beta}(2, 2)$; the loading and residual are derived
-as $\lambda_j = \sqrt{c_j / (1 + c_j V_j)}$ and $\sigma_j = \sqrt{(1 - c_j) / (1 + c_j
-V_j)}$, where $V_j$ is the observed-cell-weighted variance of the fitted wave means for
-$j$'s domain. This makes the model-implied **pooled** indicator variance exactly 1 — the
-budget this model's all-wave standardisation actually imposes — while keeping
-$\lambda_j^2 / (\lambda_j^2 + \sigma_j^2) = c_j$ exact and placing zero prior mass on
-Heywood configurations. It is the longitudinal analogue of the cross-sectional `mm`
-family's exact $\lambda^2 + \sigma^2 = 1$ budget (#383): enforcing that form verbatim
-here would overstate the within-wave variance by the 5–18% share that between-wave
-growth carries in these indicators. The previous free
-$\operatorname{HalfNormal}(1)$ loading/residual pair — which implies an arcsine
-$\operatorname{Beta}(\tfrac{1}{2}, \tfrac{1}{2})$ communality prior with mass piled on
-both singular corners — remains available as a sensitivity contrast
-(`loading_prior="free"`).
+**Loading / residual geometry (pooled-budget communality parameterisation, #383 follow-up).** The free measurement parameter per indicator is its within-wave communality $c_j \sim \operatorname{Beta}(2, 2)$; the loading and residual are derived as $\lambda_j = \sqrt{c_j / (1 + c_j V_j)}$ and $\sigma_j = \sqrt{(1 - c_j) / (1 + c_j V_j)}$, where $V_j$ is the observed-cell-weighted variance of the fitted wave means for $j$'s domain. This makes the model-implied **pooled** indicator variance exactly 1 — the budget this model's all-wave standardisation actually imposes — while keeping $\lambda_j^2 / (\lambda_j^2 + \sigma_j^2) = c_j$ exact and placing zero prior mass on Heywood configurations. It is the longitudinal analogue of the cross-sectional `mm` family's exact $\lambda^2 + \sigma^2 = 1$ budget (#383): enforcing that form verbatim here would overstate the within-wave variance by the 5–18% share that between-wave growth carries in these indicators. The previous free $\operatorname{HalfNormal}(1)$ loading/residual pair — which implies an arcsine $\operatorname{Beta}(\tfrac{1}{2}, \tfrac{1}{2})$ communality prior with mass piled on both singular corners — remains available as a sensitivity contrast (`loading_prior="free"`).
 
 **Across-wave (trait / state).** $f_{i,d,t} = \sqrt{\pi_d}\,\tau_{i,d} +
 \sqrt{1-\pi_d}\,s_{i,d,t}$: a stable per-child trait $\tau_i \sim \mathcal{N}(0,
 \Omega_\tau)$ (shared across waves) plus a wave-specific state $s_{i,t} \sim
 \mathcal{N}(0, \Omega_{s,t})$ (independent across waves). The trait matrix
-$\Omega_\tau$ and each state matrix $\Omega_{s,t}$ receive LKJ priors. For domains
-$d$ and $e$, the reported within-wave correlation is
+$\Omega_\tau$ and each state matrix $\Omega_{s,t}$ receive LKJ priors. For domains $d$ and $e$, the reported within-wave correlation is
 
 $$
 \operatorname{Corr}(f_{d,t}, f_{e,t}) =
@@ -103,17 +60,11 @@ $$
 \sqrt{(1-\pi_d)(1-\pi_e)}\,\Omega_{s,t,de}.
 $$
 
-This is PSD by construction and preserves unit factor variance. The stable trait term
-couples the reported matrices across waves; for the same domain, the correlation
-between any two waves equals its trait share $\pi_d$ under the compound-symmetry
-starting assumption.
+This is PSD by construction and preserves unit factor variance. The stable trait term couples the reported matrices across waves; for the same domain, the correlation between any two waves equals its trait share $\pi_d$ under the compound-symmetry starting assumption.
 
-The Gaussian factor scores are **marginalised out** (the `mm-001` funnel fix): each
-child's observed indicator cells are an $\mathcal{MVN}$ with covariance $\Sigma_z =
+The Gaussian factor scores are **marginalised out** (the `mm-001` funnel fix): each child's observed indicator cells are an $\mathcal{MVN}$ with covariance $\Sigma_z =
 \Lambda \Sigma_f \Lambda' + \operatorname{diag}(\sigma^2)$ sliced to that child's
-observed cells — no per-child latent RV, so no funnel. Missing cells are masked, not
-dropped (one $\mathcal{MVN}$ per observed-cell pattern), so a child missing one wave
-still contributes its other cells.
+observed cells — no per-child latent RV, so no funnel. Missing cells are masked, not dropped (one $\mathcal{MVN}$ per observed-cell pattern), so a child missing one wave still contributes its other cells.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

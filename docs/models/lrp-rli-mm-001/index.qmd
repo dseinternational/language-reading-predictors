@@ -1,5 +1,5 @@
 ---
-title: "LRPMM01: Correlated-domain-factor measurement model (vocabulary / code / grammar)"
+title: "LRP-RLI-MM-001: Correlated-domain-factor measurement model (vocabulary / code / grammar)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,32 +25,15 @@ format:
 
 ## Overview
 
-LRPMM01 is the DAG-sanctioned successor to the closed LRP66. Instead of a single
-latent general ability `g`, it estimates **correlated domain factors** -
-vocabulary, code, and grammar - from the standardised T1 skill indicators, then
-regresses word-reading gain on those latent factors. It recovers the one output no
-merged model produces: an explicit **factor-loadings / communality** table and a
-partial **measurement-error correction** of the skill slopes.
+LRPMM01 is the DAG-sanctioned successor to the closed LRP66. Instead of a single latent general ability `g`, it estimates **correlated domain factors** - vocabulary, code, and grammar - from the standardised T1 skill indicators, then regresses word-reading gain on those latent factors. It recovers the one output no merged model produces: an explicit **factor-loadings / communality** table and a partial **measurement-error correction** of the skill slopes.
 
-_Measurement / triangulation, NOT causal._ This is a **measurement** model. Per the locked DAG's **ID-2**, every factor ->
-gain slope is a **latent-ability-confounded adjusted association** - the factor
-model improves the measurement match, it does **not** identify effects. The
-corresponding randomised-arm result is the available-case modified ITT estimate in
-`lrp-rli-itt-010`; the `gain_factors` randomised term is also outside this model.
+_Measurement / triangulation, NOT causal._ This is a **measurement** model. Per the locked DAG's **ID-2**, every factor -> gain slope is a **latent-ability-confounded adjusted association** - the factor model improves the measurement match, it does **not** identify effects. The corresponding randomised-arm result is the available-case modified ITT estimate in `lrp-rli-itt-010`; the `gain_factors` randomised term is also outside this model.
 
 _Fragility at n ~ 51._ A correlated-factor latent model at n ~ 51 is expected to be fragile and prior-dependent. If a reporting-tier fit passes, read it as triangulation against the `gain_factors` family and lead with its intervals. No magnitude or interval from a failed fit is a result.
 
 ## Model
 
-**Measurement** (correlated unit-variance factors; loadings positive for
-orientation). The indicators are standardised, so each free indicator's variance
-budget is $\lambda_j^2 + \sigma_j^2 = 1$; since #383 that budget is structural —
-the **communality** $c_j \sim \text{Beta}(2, 2)$ is the free parameter, with the
-loading $\lambda_j = \sqrt{c_j}$ and residual $\sigma_j = \sqrt{1 - c_j}$
-derived. The indicator-factor **correlation** is then
-$\lambda_j / \sqrt{\lambda_j^2 + \sigma_j^2} = \lambda_j = \sqrt{\text{communality}}$
-(the legacy free-pair geometry lives on in
-[LRPMM101](../lrp-rli-mm-101/) as the sensitivity companion):
+**Measurement** (correlated unit-variance factors; loadings positive for orientation). The indicators are standardised, so each free indicator's variance budget is $\lambda_j^2 + \sigma_j^2 = 1$; since #383 that budget is structural — the **communality** $c_j \sim \text{Beta}(2, 2)$ is the free parameter, with the loading $\lambda_j = \sqrt{c_j}$ and residual $\sigma_j = \sqrt{1 - c_j}$ derived. The indicator-factor **correlation** is then $\lambda_j / \sqrt{\lambda_j^2 + \sigma_j^2} = \lambda_j = \sqrt{\text{communality}}$ (the legacy free-pair geometry lives on in [LRPMM101](../lrp-rli-mm-101/) as the sensitivity companion):
 
 $$
 \mathbf{f}_i \sim \mathcal{N}(\mathbf{0}, \Omega), \quad \Omega \sim \text{LKJ}(\eta),
@@ -62,9 +49,7 @@ $$
         + \beta_{\text{blocks}}\,\text{blocks}_i + \beta_A\,A_{\text{std},i}.
 $$
 
-Domains (core set): **vocabulary** {R, E}, **code** {L, B}, **grammar** {F, T}.
-Speech is unavailable as a standardised indicator here and is omitted; non-verbal
-MA (`blocks`) enters the structural leg as an observed covariate, not a factor.
+Domains (core set): **vocabulary** {R, E}, **code** {L, B}, **grammar** {F, T}. Speech is unavailable as a standardised indicator here and is omitted; non-verbal MA (`blocks`) enters the structural leg as an observed covariate, not a factor.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -1,5 +1,5 @@
 ---
-title: "LRP72: Phonics route — letter-sound (LS) × phoneme blending (PA) -> decoding (nonword)"
+title: "LRP-RLI-MECH-072: Phonics route, letter-sound (LS) × phoneme blending (PA) -> decoding (nonword)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,14 +25,7 @@ format:
 
 ## Overview
 
-LRP72 is the **phonics-route** model, the second in the interaction family. It
-tests the dual-route / triangle-model hypothesis that the two phonological
-prerequisites — **letter-sound** knowledge $L$ (`yarclet`) and **phoneme
-blending** $B$ (`blending`) — combine to bring word **decoding** online, measured
-by `nonword` ($N$, the six monster nonwords). The hypothesised form is
-**super-additive**: you need *both*, and each is worth more when the other is
-present. This is the phonological sub-mechanism feeding the established
-letter-sound → word-reading effect (LRP58).
+LRP72 is the **phonics-route** model, the second in the interaction family. It tests the dual-route / triangle-model hypothesis that the two phonological prerequisites — **letter-sound** knowledge $L$ (`yarclet`) and **phoneme blending** $B$ (`blending`) — combine to bring word **decoding** online, measured by `nonword` ($N$, the six monster nonwords). The hypothesised form is **super-additive**: you need *both*, and each is worth more when the other is present. This is the phonological sub-mechanism feeding the established letter-sound → word-reading effect (LRP58).
 
 The linear predictor (mechanism $= L$, moderator $= B$):
 
@@ -37,39 +34,17 @@ $$
        + \gamma_{\text{int}}\,z(\operatorname{logit} L)\,z(B)
 $$
 
-$\gamma_{\text{int}} > 0$ would mean letter-sound converts to decoding *more*
-strongly for higher-blending children (super-additive); $\gamma_{\text{int}} < 0$
-is sub-additive (diminishing returns / partial substitutability).
+$\gamma_{\text{int}} > 0$ would mean letter-sound converts to decoding *more* strongly for higher-blending children (super-additive); $\gamma_{\text{int}} < 0$ is sub-additive (diminishing returns / partial substitutability).
 
-_Linear mechanism (GP off)._ Decoding is a low, 57%-floored 0–6 count, so a nonparametric HSGP dose-response on
-$\operatorname{logit} L$ is not identifiable. The mechanism enters as a single
-linear slope $\beta_{\text{mech}}\,z(\operatorname{logit} L)$
-(`linear_mechanism=True`), so there is no nonparametric `f_mech` curve; the estimands
-are the three coefficients above. In its place the *Mechanism curve* section below
-plots the **linear** main-effect band $\beta_{\text{mech}}\,z(\operatorname{logit} L)$
-— the letter-sound dose-response at average blending.
+_Linear mechanism (GP off)._ Decoding is a low, 57%-floored 0–6 count, so a nonparametric HSGP dose-response on $\operatorname{logit} L$ is not identifiable. The mechanism enters as a single linear slope $\beta_{\text{mech}}\,z(\operatorname{logit} L)$ (`linear_mechanism=True`), so there is no nonparametric `f_mech` curve; the estimands are the three coefficients above. In its place the *Mechanism curve* section below plots the **linear** main-effect band $\beta_{\text{mech}}\,z(\operatorname{logit} L)$ — the letter-sound dose-response at average blending.
 
 ## Adjustment set — and why $W$ is excluded
 
-Minimal set (#245): $\{G, A, HS, IS(\text{attend}), SP, N_{\text{pre}}\}$ — the
-revised-DAG parents of $L$ (group via $\beta_G$, age, hearing, sessions, speech)
-plus baseline decoding (autoregressive).
+Minimal set (#245): $\{G, A, HS, IS(\text{attend}), SP, N_{\text{pre}}\}$ — the revised-DAG parents of $L$ (group via $\beta_G$, age, hearing, sessions, speech) plus baseline decoding (autoregressive).
 
-_DAG decision: word reading W is NOT conditioned on._ Word reading $W$ is a sibling/descendant of decoding in the literacy cascade.
-Conditioning on it would be **over-control / a collider risk** — the same error
-class as the celf/LRP70 issue — and would bias the phonics → decoding estimand.
-It is therefore excluded. Vocabulary and concepts are not plausible confounders of
-the phonics → decoding path and are likewise left out. $L$ and $B$ are treated as
-**parallel prerequisites**; the interaction estimand does not require resolving
-whether $L$ precedes $B$.
+_DAG decision: word reading W is NOT conditioned on._ Word reading $W$ is a sibling/descendant of decoding in the literacy cascade. Conditioning on it would be **over-control / a collider risk** — the same error class as the celf/LRP70 issue — and would bias the phonics → decoding estimand. It is therefore excluded. Vocabulary and concepts are not plausible confounders of the phonics → decoding path and are likewise left out. $L$ and $B$ are treated as **parallel prerequisites**; the interaction estimand does not require resolving whether $L$ precedes $B$.
 
-_Data caveat: floored outcome._ `nonword` is 57% floored (median 0) but informative and developmentally moving
-(28% → 60% of children decode ≥1 nonword across t1–t4). The predictors are
-well-distributed (`yarclet`, `blending` each ~2% floored). The floor reduces
-power and — importantly — means a **negative logit-scale interaction between two
-strong positive main effects can partly reflect link saturation** (approaching the
-count ceiling when both predictors are high), not necessarily substantive
-antagonism. Interpret $\gamma_{\text{int}}$'s sign with that in mind.
+_Data caveat: floored outcome._ `nonword` is 57% floored (median 0) but informative and developmentally moving (28% → 60% of children decode ≥1 nonword across t1–t4). The predictors are well-distributed (`yarclet`, `blending` each ~2% floored). The floor reduces power and — importantly — means a **negative logit-scale interaction between two strong positive main effects can partly reflect link saturation** (approaching the count ceiling when both predictors are high), not necessarily substantive antagonism. Interpret $\gamma_{\text{int}}$'s sign with that in mind.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

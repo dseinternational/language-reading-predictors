@@ -1,16 +1,13 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Results — does baseline ability predict trajectory shape?
 
-_In plain terms: we fit each child a starting point and a growth speed for every
-modelled skill, then ask whether children who scored higher on the declared
-baseline ability measure tend to start higher or grow faster._
+_In plain terms: we fit each child a starting point and a growth speed for every modelled skill, then ask whether children who scored higher on the declared baseline ability measure tend to start higher or grow faster._
 
-The growth model characterises each measure's within-child trajectory (a latent
-logit intercept + linear age slope) and asks whether **baseline non-verbal
-or verbal-reasoning ability** (the baseline covariate recorded in the model recipe)
-predicts that shape:
-`gamma` on the growth **rate** — the headline estimand — and `delta` on the
-baseline **level**. Every coefficient below is an **adjusted association**, not a
-causal effect (see the callout at the end).
+The growth model characterises each measure's within-child trajectory (a latent logit intercept + linear age slope) and asks whether **baseline non-verbal or verbal-reasoning ability** (the baseline covariate recorded in the model recipe) predicts that shape: `gamma` on the growth **rate** — the headline estimand — and `delta` on the baseline **level**. Every coefficient below is an **adjusted association**, not a causal effect (see the callout at the end).
 
 ```{python}
 # | echo: false
@@ -73,16 +70,9 @@ def _coef_table(coef: str):
 
 ### Baseline ability → growth **rate** (`gamma`, the headline)
 
-Coefficient on +1 SD of the declared baseline ability measure applied to each measure's logit growth
-slope. Direction is read from `P(>0)` per the evidence-language policy (#179); at
-this sample size the 89% intervals may be wide, so these are directional statements,
-not decisive effects.
+Coefficient on +1 SD of the declared baseline ability measure applied to each measure's logit growth slope. Direction is read from `P(>0)` per the evidence-language policy (#179); at this sample size the 89% intervals may be wide, so these are directional statements, not decisive effects.
 
-_How to read the table:_ one row per measure. `median (logit)` is the central
-estimate of the association on the logit (log-odds) scale; `lo50`/`hi50` and
-`lo89`/`hi89` are the inner-50% and 89% credible ranges around it. `P(>0)` is the
-posterior probability the association is positive (higher ability → faster growth),
-and `evidence` is the plain-language strength label for that direction.
+_How to read the table:_ one row per measure. `median (logit)` is the central estimate of the association on the logit (log-odds) scale; `lo50`/`hi50` and `lo89`/`hi89` are the inner-50% and 89% credible ranges around it. `P(>0)` is the posterior probability the association is positive (higher ability → faster growth), and `evidence` is the plain-language strength label for that direction.
 
 ```{python}
 # | echo: false
@@ -107,13 +97,7 @@ print(
 
 ### Baseline ability → **level at sample-mean age** (`delta`)
 
-_How to read the table:_ same columns as above, but the association is now with the
-_level_ rather than the growth rate. Age is standardised over all child-wave cells,
-so the intercept — and hence `delta` — is the level at the **pooled mean (mid-study)
-age**, not at study entry. A positive `median (logit)` and `P(>0)` mean
-higher-ability children are higher on that measure at mid-study; where the growth
-rate also differs (`gamma` ≠ 0) the entry-level association is
-`delta + gamma · E[age_std at t1]`, and `E[age_std at t1]` is negative.
+_How to read the table:_ same columns as above, but the association is now with the _level_ rather than the growth rate. Age is standardised over all child-wave cells, so the intercept — and hence `delta` — is the level at the **pooled mean (mid-study) age**, not at study entry. A positive `median (logit)` and `P(>0)` mean higher-ability children are higher on that measure at mid-study; where the growth rate also differs (`gamma` ≠ 0) the entry-level association is `delta + gamma · E[age_std at t1]`, and `E[age_std at t1]` is negative.
 
 ```{python}
 # | echo: false
@@ -227,14 +211,9 @@ if _growth_influence is not None and len(_growth_influence):
 
 ### Mean growth trajectory (population slope `beta`)
 
-The per-measure population slope characterises the average trajectory (logit
-change per +1 SD of age). Historical-cohort models report one nuisance slope per
-reading group; trial-cohort models report one pooled slope.
+The per-measure population slope characterises the average trajectory (logit change per +1 SD of age). Historical-cohort models report one nuisance slope per reading group; trial-cohort models report one pooled slope.
 
-_How to read the table:_ each row is a measure's average growth slope, not an
-ability association. A positive `median (logit)` with high `P(>0)` means the skill
-rises with age on average across children; the same interval columns give the
-uncertainty around that typical slope.
+_How to read the table:_ each row is a measure's average growth slope, not an ability association. A positive `median (logit)` with high `P(>0)` means the skill rises with age on average across children; the same interval columns give the uncertainty around that typical slope.
 
 ```{python}
 # | echo: false
@@ -258,10 +237,7 @@ if _has("group_trajectory.png"):
 
 ### Shared growth-tempo factor (`loading`; factor-enabled models only)
 
-_How to read this section:_ when present, the loading table has the same columns as
-above — each row is how strongly one measure's growth rate tracks a single shared
-"developmental tempo". The read-out sentence that follows then reports whether a
-child's baseline ability lines up with that shared tempo.
+_How to read this section:_ when present, the loading table has the same columns as above — each row is how strongly one measure's growth rate tracks a single shared "developmental tempo". The read-out sentence that follows then reports whether a child's baseline ability lines up with that shared tempo.
 
 ```{python}
 # | echo: false

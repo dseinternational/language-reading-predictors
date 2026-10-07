@@ -1,5 +1,5 @@
 ---
-title: "LRPLF208: Factors associated with the level of TROG receptive grammar (RG) — randomised-window (t1/t2) comparator"
+title: "LRP-RLI-LF-208: Factors associated with the level of TROG receptive grammar (RG), randomised-window (t1/t2) comparator"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -33,8 +37,7 @@ _Causal labelling + level-model crossover caveat._ Every non-randomised coeffici
 
 ## Model
 
-Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the level count, $N = 32$, with
-$\operatorname{logit}\mu_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group} + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks}) + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + u_{\text{child}}$.
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the level count, $N = 32$, with $\operatorname{logit}\mu_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group} + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks}) + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + u_{\text{child}}$.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -1,5 +1,5 @@
 ---
-title: "RLMGC01: Does baseline verbal reasoning predict the BAS word-reading trajectory?"
+title: "LRP-RLM-GC-001: Does baseline verbal reasoning predict the BAS word-reading trajectory?"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).

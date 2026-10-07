@@ -1,5 +1,5 @@
 ---
-title: "LRP71: Mechanism model — letter-sound (LS) -> word reading (WR), moderated by expressive vocabulary (EV)"
+title: "LRP-RLI-MECH-071: Mechanism model, letter-sound (LS) -> word reading (WR), moderated by expressive vocabulary (EV)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,14 +25,9 @@ format:
 
 ## Overview
 
-LRP71 is the first **interaction** model in the suite. It extends LRP58 — the
-mechanism estimate $f^L$ of letter-sound knowledge on word reading, fit over all
-three phase transitions — with a **linear moderation** by expressive vocabulary
-$E$ (`eowpvt`). The question is the lexical-quality / dual-route hypothesis:
-*does the letter-sound → reading effect depend on a child's vocabulary level?*
+LRP71 is the first **interaction** model in the suite. It extends LRP58 — the mechanism estimate $f^L$ of letter-sound knowledge on word reading, fit over all three phase transitions — with a **linear moderation** by expressive vocabulary $E$ (`eowpvt`). The question is the lexical-quality / dual-route hypothesis: *does the letter-sound → reading effect depend on a child's vocabulary level?*
 
-The linear predictor adds two standardised terms alongside the existing
-nonparametric $f^L$ and the adjustment terms:
+The linear predictor adds two standardised terms alongside the existing nonparametric $f^L$ and the adjustment terms:
 
 $$
 \eta = \dots + f^{L}(\operatorname{logit} L_{\text{post}})
@@ -36,17 +35,9 @@ $$
        + \gamma_{\text{int}}\, z(\operatorname{logit} L_{\text{post}})\, z(E)
 $$
 
-where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows.
-$\gamma_{\text{int}} > 0$ means letter-sound converts to reading *more* strongly
-for higher-vocabulary children. Both coefficients use the regularising
-$\mathrm{Normal}(0, 0.3)$ cross-coupling prior.
+where $z(\cdot)$ standardises to mean 0, sd 1 over the fitted rows. $\gamma_{\text{int}} > 0$ means letter-sound converts to reading *more* strongly for higher-vocabulary children. Both coefficients use the regularising $\mathrm{Normal}(0, 0.3)$ cross-coupling prior.
 
-_Convergence._ This model retains the nonparametric **HSGP** $f^L$ curve (matching
-[LRP58](../lrp-rli-mech-058)). Two fixes brought it to a clean posterior: correcting the
-adjustment-set measurement wave (#258) took it from ~90 divergences (R-hat 1.2, min ESS ≈ 9 —
-genuinely unusable) to ~13, and the #265 HSGP reparameterisation (standardised GP input, a
-moderate-lengthscale prior, a smaller basis) cleared the remainder — it now passes the strict
-zero-divergence gate at `target_accept` = 0.999 with the curve intact.
+_Convergence._ This model retains the nonparametric **HSGP** $f^L$ curve (matching [LRP58](../lrp-rli-mech-058)). Two fixes brought it to a clean posterior: correcting the adjustment-set measurement wave (#258) took it from ~90 divergences (R-hat 1.2, min ESS ≈ 9 — genuinely unusable) to ~13, and the #265 HSGP reparameterisation (standardised GP input, a moderate-lengthscale prior, a smaller basis) cleared the remainder — it now passes the strict zero-divergence gate at `target_accept` = 0.999 with the curve intact.
 
 _Reading the interaction._
 
@@ -64,9 +55,7 @@ _Reading the interaction._
 
 ## Adjustment set
 
-The revised LRP58 set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$.
-The revision drops $EV \to LS$, so $E$ and $R$ are no longer confounders of
-$L \to W$ — $E$ now enters this model **only** as the tested moderator.
+The revised LRP58 set (#245): $\{G, A, HS, IS(\text{attend}), SP, W_{\text{pre}}\}$. The revision drops $EV \to LS$, so $E$ and $R$ are no longer confounders of $L \to W$ — $E$ now enters this model **only** as the tested moderator.
 
 - $G$ — group; always conditioned on via $\beta_G$.
 - $A$ — age; conditioned on linearly by default.
@@ -74,17 +63,9 @@ $L \to W$ — $E$ now enters this model **only** as the tested moderator.
   and speech; the revised parents of $L$. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading.
 
-_E enters as the tested moderator only._ Under the revised DAG $E$ is **no longer a confounder** of $L \to W$ (the
-$EV \to LS$ edge is dropped). $E$ enters purely as the tested moderator —
-$\gamma_{\text{mod}}\, z(E)$ (main effect) and $\gamma_{\text{int}}\, z(L)\, z(E)$
-(interaction); the confounders of $L \to W$ are the revised set above.
+_E enters as the tested moderator only._ Under the revised DAG $E$ is **no longer a confounder** of $L \to W$ (the $EV \to LS$ edge is dropped). $E$ enters purely as the tested moderator — $\gamma_{\text{mod}}\, z(E)$ (main effect) and $\gamma_{\text{int}}\, z(L)\, z(E)$ (interaction); the confounders of $L \to W$ are the revised set above.
 
-_Why eowpvt and not celf._ The SHAP screen ranked `celf` (basic concepts, symbol $F$) as the strongest
-candidate moderator, but LRP58's DAG treats $F$ as a **descendant of $L$**, so
-conditioning on it would risk collider bias and attenuate $f^L$. `eowpvt` ($E$)
-is the theory-canonical dual-route moderator **and** is already a clean DAG
-adjuster, so it is the first interaction model built. The `celf` model (LRP70)
-is reserved pending a DAG review.
+_Why eowpvt and not celf._ The SHAP screen ranked `celf` (basic concepts, symbol $F$) as the strongest candidate moderator, but LRP58's DAG treats $F$ as a **descendant of $L$**, so conditioning on it would risk collider bias and attenuate $f^L$. `eowpvt` ($E$) is the theory-canonical dual-route moderator **and** is already a clean DAG adjuster, so it is the first interaction model built. The `celf` model (LRP70) is reserved pending a DAG review.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

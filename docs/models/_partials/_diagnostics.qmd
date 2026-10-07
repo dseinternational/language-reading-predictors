@@ -1,17 +1,11 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Sampling diagnostics
 
-R-hat and effective sample size (ESS) over the scalar parameters; the
-equal-tailed interval matches the report cards below. _How to read it:_ sampling
-has converged when every parameter's **R-hat is ≈ 1.00** (values above 1.01 are
-flagged). **ESS ≥ 400 is a reliability floor, not a target** — below it the ESS
-and R-hat estimates are themselves too noisy to trust; a well-sampled reporting
-fit sits far higher (typically several thousand). **Bulk-ESS** governs the
-median/mean and **Tail-ESS** the 89% interval limits, so the reported limits are
-stable once Tail-ESS reaches the low thousands (`ess_bulk`, `ess_tail` and the
-Monte-Carlo standard errors `mcse_mean`/`mcse_sd` are tabulated per parameter
-below). A high R-hat or a below-floor ESS means the chains have not mixed well and
-the summaries below are not yet reliable. See
-`notes/202607181200-ess-reporting-standard.md`.
+R-hat and effective sample size (ESS) over the scalar parameters; the equal-tailed interval matches the report cards below. _How to read it:_ sampling has converged when every parameter's **R-hat is ≈ 1.00** (values above 1.01 are flagged). **ESS ≥ 400 is a reliability floor, not a target** — below it the ESS and R-hat estimates are themselves too noisy to trust; a well-sampled reporting fit sits far higher (typically several thousand). **Bulk-ESS** governs the median/mean and **Tail-ESS** the 89% interval limits, so the reported limits are stable once Tail-ESS reaches the low thousands (`ess_bulk`, `ess_tail` and the Monte-Carlo standard errors `mcse_mean`/`mcse_sd` are tabulated per parameter below). A high R-hat or a below-floor ESS means the chains have not mixed well and the summaries below are not yet reliable. See `notes/202607181200-ess-reporting-standard.md`.
 
 MCSE measures simulation error in a posterior summary; it does not make the underlying posterior quantity reliable when the sampling-quality gate has failed.
 
@@ -314,10 +308,7 @@ _det if _det is not None else None
 
 ::: {.callout-note collapse="true" title="Trace, energy, and posterior plots (appendix)"}
 
-_How to read them:_ the **trace** should look like stationary "hairy caterpillars"
-with the chains overlapping (no drift or separate bands); the **energy** plot's two
-densities (marginal vs transition) should overlap closely; the **posterior** and
-**pair** plots show each parameter's marginal shape and joint dependencies.
+_How to read them:_ the **trace** should look like stationary "hairy caterpillars" with the chains overlapping (no drift or separate bands); the **energy** plot's two densities (marginal vs transition) should overlap closely; the **posterior** and **pair** plots show each parameter's marginal shape and joint dependencies.
 
 ```{python}
 # | echo: false

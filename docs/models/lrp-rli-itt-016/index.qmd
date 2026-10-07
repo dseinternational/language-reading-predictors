@@ -1,5 +1,5 @@
 ---
-title: "LRPITT16: Available-case modified ITT modality contrast — taught expressive vs receptive vocabulary"
+title: "LRP-RLI-ITT-016: Available-case modified ITT modality contrast, taught expressive vs receptive vocabulary"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

@@ -1,5 +1,5 @@
 ---
-title: "LRP59: Does the intervention raise word reading via letter-sound knowledge? (exploratory mediation)"
+title: "LRP-RLI-MED-059: Does the intervention raise word reading via letter-sound knowledge? (exploratory mediation)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,50 +25,20 @@ format:
 
 ## Overview
 
-Formal mediation was **deferred by design** in the original brief; LRP59 is a
-**first, exploratory attempt** at it — directionally consistent with the
-programme, not a definitive decomposition. The three legs are each estimated
-credibly elsewhere: the intervention raises **letter-sound** knowledge $L$
-(strongly; LRP55 $\tau_L$), letter-sound predicts **word reading** $W$ (LRP58),
-and the intervention raises word reading (LRP52, $\tau_W$). LRP59 asks, as a first
-pass: **how much of the intervention's effect on word reading is associated with
-its effect on letter-sound knowledge?**
+Formal mediation was **deferred by design** in the original brief; LRP59 is a **first, exploratory attempt** at it — directionally consistent with the programme, not a definitive decomposition. The three legs are each estimated credibly elsewhere: the intervention raises **letter-sound** knowledge $L$ (strongly; LRP55 $\tau_L$), letter-sound predicts **word reading** $W$ (LRP58), and the intervention raises word reading (LRP52, $\tau_W$). LRP59 asks, as a first pass: **how much of the intervention's effect on word reading is associated with its effect on letter-sound knowledge?**
 
-We decompose the total effect into the **natural indirect effect (NIE)** — the
-part transmitted by raising $L$ — and the **natural direct effect (NDE)** —
-everything else — and report the **proportion mediated** $= \text{NIE} /
+We decompose the total effect into the **natural indirect effect (NIE)** — the part transmitted by raising $L$ — and the **natural direct effect (NDE)** — everything else — and report the **proportion mediated** $= \text{NIE} /
 \text{Total}$.
 
-_Exploratory — superseded by LRP62 as the route estimate._ Mediation was deferred by design; this is a first, exploratory pass with a
-**single** mediator. **LRP62 supersedes it as the reading-route estimate**: a
-better-specified phonics-route composite (letter-sound + blending) puts the route
-share **lower (~38%)**, with the direct/residual path **larger** at the posterior
-mean. The defensible conclusion across both is **mixed routes**, not
-phonics-dominant. Read the letter-sound share below as *exploratory and
-directionally consistent*, not a settled active-ingredient claim.
+_Exploratory — superseded by LRP62 as the route estimate._ Mediation was deferred by design; this is a first, exploratory pass with a **single** mediator. **LRP62 supersedes it as the reading-route estimate**: a better-specified phonics-route composite (letter-sound + blending) puts the route share **lower (~38%)**, with the direct/residual path **larger** at the posterior mean. The defensible conclusion across both is **mixed routes**, not phonics-dominant. Read the letter-sound share below as *exploratory and directionally consistent*, not a settled active-ingredient claim.
 
-_Mediator and outcome are measured at the same wave (read before the headline)._ The randomised contrast lives in the t1 → t2 window, so the mediator ($L_{t2}$)
-and the outcome ($W_{t2}$) are measured **contemporaneously** — temporal
-precedence of $L$ over $W$ is **assumed, not observed**, and reverse/simultaneous
-influence within the wave cannot be ruled out. The proportion mediated is reported
-with this caveat stated alongside it (see the assumptions section). As a
-triangulation point, a **non-randomised sensitivity fit with the outcome at t3**
-(mediator still at $t2$, so $L$ precedes $W$ in time) is reported in the
-temporal-ordering sensitivity section below.
+_Mediator and outcome are measured at the same wave (read before the headline)._ The randomised contrast lives in the t1 → t2 window, so the mediator ($L_{t2}$) and the outcome ($W_{t2}$) are measured **contemporaneously** — temporal precedence of $L$ over $W$ is **assumed, not observed**, and reverse/simultaneous influence within the wave cannot be ruled out. The proportion mediated is reported with this caveat stated alongside it (see the assumptions section). As a triangulation point, a **non-randomised sensitivity fit with the outcome at t3** (mediator still at $t2$, so $L$ precedes $W$ in time) is reported in the temporal-ordering sensitivity section below.
 
 ## Phase 0 only — the key design decision
 
-The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**:
-group 1 receives the intervention while group 2 is the wait-list control. After
-t2 both arms are treated, so `group` is no longer a treatment indicator (this is
-exactly why the mechanism models' pooled $\beta_G$ is not a direct effect). LRP59
-therefore uses **the phase-0 transition only** (`phase_mode="itt"`), with `group`
-as the randomised treatment — one row per child, $n \approx 53$.
+The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group 1 receives the intervention while group 2 is the wait-list control. After t2 both arms are treated, so `group` is no longer a treatment indicator (this is exactly why the mechanism models' pooled $\beta_G$ is not a direct effect). LRP59 therefore uses **the phase-0 transition only** (`phase_mode="itt"`), with `group` as the randomised treatment — one row per child, $n \approx 53$.
 
-Repo sign convention: $G = 2 - \text{group}$, so $G=1$ is the intervention arm and
-$G=0$ the wait-list control. All effects below are reported in the
-**intervention-helps** direction (intervention − control), so **positive = the
-intervention raises reading**.
+Repo sign convention: $G = 2 - \text{group}$, so $G=1$ is the intervention arm and $G=0$ the wait-list control. All effects below are reported in the **intervention-helps** direction (intervention − control), so **positive = the intervention raises reading**.
 
 ## Causal structure (DAG)
 
@@ -75,17 +49,11 @@ intervention raises reading**.
 - Mediator–outcome confounders $C$ (revised DAG, #246): age $A$, hearing $HS$,
   speech production $SP$ — each a pre-treatment cause of $L_{t2}$ and $W_{t2}$.
 
-A joint model fits both legs simultaneously (two Beta-Binomial likelihoods on the
-logit scale), including a $G \times M$ interaction so the decomposition admits
-exposure–mediator interaction (the general case). **NDE/NIE are computed by
-counterfactual simulation from the posterior (the g-formula), not as a product of
-coefficients** — the latter is valid only on a linear identity scale, not for
-these logit models.
+A joint model fits both legs simultaneously (two Beta-Binomial likelihoods on the logit scale), including a $G \times M$ interaction so the decomposition admits exposure–mediator interaction (the general case). **NDE/NIE are computed by counterfactual simulation from the posterior (the g-formula), not as a product of coefficients** — the latter is valid only on a linear identity scale, not for these logit models.
 
 ## Assumptions — read this first {#sec-assumptions}
 
-The decomposition is causal **only under the following assumptions**; the
-proportion mediated is *not* assumption-free.
+The decomposition is causal **only under the following assumptions**; the proportion mediated is *not* assumption-free.
 
 - Randomisation in phase 0 delivers two of the four mediation assumptions for
   free: **no unmeasured confounding of $G \to Y$ and of $G \to M$.**
@@ -132,13 +100,7 @@ proportion mediated is *not* assumption-free.
   Conditioning on baselines mitigates but does not establish that $L$ precedes $W$.
 - Consistency and positivity are assumed.
 
-_Interpret under these assumptions._ The proportion mediated below is the estimate *given* no unmeasured $L \to W$
-confounding **and** the assumed temporal precedence of $L_{t2}$ over the
-contemporaneously-measured $W_{t2}$ (the same-wave caveat above; triangulated in
-the temporal-ordering sensitivity section). It is a structured, interpretable
-decomposition — a **model-based g-formula decomposition under the stated
-assumptions, not an identified natural effect** — not proof of mechanism. The
-headline is the estimate **with its full uncertainty**, not a point percentage.
+_Interpret under these assumptions._ The proportion mediated below is the estimate *given* no unmeasured $L \to W$ confounding **and** the assumed temporal precedence of $L_{t2}$ over the contemporaneously-measured $W_{t2}$ (the same-wave caveat above; triangulated in the temporal-ordering sensitivity section). It is a structured, interpretable decomposition — a **model-based g-formula decomposition under the stated assumptions, not an identified natural effect** — not proof of mechanism. The headline is the estimate **with its full uncertainty**, not a point percentage.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

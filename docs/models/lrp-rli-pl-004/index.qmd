@@ -1,5 +1,5 @@
 ---
-title: "LRPPL004: Wave-pooled level association, receptive vocabulary (R) → word reading (W)"
+title: "LRP-RLI-PL-004: Wave-pooled level association, receptive vocabulary (R) → word reading (W)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -37,9 +41,7 @@ $$
   + \gamma_A z(A) + \sum_c \gamma_c z(c) + \gamma_{\mathrm{TR}} z_{\mathrm{TR},it} + u_{\text{child}}
 $$
 
-where $z_{it}$ is the standardised exposure logit at wave $t$, $\bar z_i$ its
-child mean, and $z_{\mathrm{TR},it}$ the standardised same-wave logit of taught
-receptive vocabulary. There is deliberately no own-baseline term.
+where $z_{it}$ is the standardised exposure logit at wave $t$, $\bar z_i$ its child mean, and $z_{\mathrm{TR},it}$ the standardised same-wave logit of taught receptive vocabulary. There is deliberately no own-baseline term.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

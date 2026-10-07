@@ -302,14 +302,7 @@ for _symbol in _joint_outcomes[1:]:
     )
 ```
 
-_Holdout unit._ These per-outcome PIT plots hold out **one child-outcome cell**,
-not a whole child: the same child's other outcome stays in the posterior, so they
-assess conditional prediction of a held-out cell for an otherwise observed child.
-The fit's stored PSIS-LOO — the ELPD and Pareto-$k$ in the technical section —
-uses the declared **child** unit. The two answer different questions; do not read
-one as validating the other (2026-08-23 joint audit, finding 6). The calibration
-diagnostic that *does* match the child unit is in the new-child section below
-(#626); this callout's plots are retained as the conditional view.
+_Holdout unit._ These per-outcome PIT plots hold out **one child-outcome cell**, not a whole child: the same child's other outcome stays in the posterior, so they assess conditional prediction of a held-out cell for an otherwise observed child. The fit's stored PSIS-LOO — the ELPD and Pareto-$k$ in the technical section — uses the declared **child** unit. The two answer different questions; do not read one as validating the other (2026-08-23 joint audit, finding 6). The calibration diagnostic that *does* match the child unit is in the new-child section below (#626); this callout's plots are retained as the conditional view.
 
 :::
 
@@ -352,17 +345,7 @@ if _diff is not None:
         print(f"\n**Dependence caveat:** {_dependence}")
 ```
 
-_Available-case modified ITT versus joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same available-case modified ITT*
-effects; the joint τ per outcome should track the singles. Two known, deliberate
-differences bound how closely: the joint keeps a **common** Normal(0, 0.5) τ
-prior for every outcome while the singles tier the distal outcomes at
-Normal(0, 0.3), and the joint loader requires **every** declared baseline, so a
-multi-outcome fit's child set is the cross-outcome complete-case intersection —
-on the ten-outcome fit one control child smaller than most singles. A small gap
-on a distal outcome is therefore expected; only a gap beyond what those two
-sources explain flags a genuine inconsistency. The cross-model
-ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
-(`output/statistical_models/comparison/`). Phoneme blending (`B`) is deliberately excluded from this ordinary-logit comparison: its result must instead be read across the required `lrp-rli-itt-008` / `lrp-rli-itt-108` ordinary-logit versus guessing-floor response-link sensitivity.
+_Available-case modified ITT versus joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same available-case modified ITT* effects; the joint τ per outcome should track the singles. Two known, deliberate differences bound how closely: the joint keeps a **common** Normal(0, 0.5) τ prior for every outcome while the singles tier the distal outcomes at Normal(0, 0.3), and the joint loader requires **every** declared baseline, so a multi-outcome fit's child set is the cross-outcome complete-case intersection — on the ten-outcome fit one control child smaller than most singles. A small gap on a distal outcome is therefore expected; only a gap beyond what those two sources explain flags a genuine inconsistency. The cross-model ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py` (`output/statistical_models/comparison/`). Phoneme blending (`B`) is deliberately excluded from this ordinary-logit comparison: its result must instead be read across the required `lrp-rli-itt-008` / `lrp-rli-itt-108` ordinary-logit versus guessing-floor response-link sensitivity.
 
 ```{python}
 # | echo: false

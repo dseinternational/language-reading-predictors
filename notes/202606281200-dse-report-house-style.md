@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # DSE technical report — shared house style
@@ -12,13 +15,7 @@ Date: 2026-06-28
 
 ## Principle
 
-**Standardise the backbone; keep the results spine distinct.** Both reports are DSE
-Bayesian/PyMC reports (Beta-Binomial-on-logit), for a methods-literate reader, with a
-_separate_ lay summary. But a **randomised trial with a causal DAG** earns causal
-language and a causal-status structure, while **descriptive trajectory modelling across
-populations** earns a population/lineage structure. Do not force either into the other's
-mould — each report's architecture should make "what may be read causally" visible at a
-glance.
+**Standardise the backbone; keep the results spine distinct.** Both reports are DSE Bayesian/PyMC reports (Beta-Binomial-on-logit), for a methods-literate reader, with a _separate_ lay summary. But a **randomised trial with a causal DAG** earns causal language and a causal-status structure, while **descriptive trajectory modelling across populations** earns a population/lineage structure. Do not force either into the other's mould — each report's architecture should make "what may be read causally" visible at a glance.
 
 ## Shared backbone (make these the same in both)
 
@@ -67,6 +64,4 @@ glance.
 
 ## Status
 
-This note is the **candidate canonical copy**. It should move to `../research`
-(`dse_research_utils` docs) — or a shared `dse-standards` location — so both report repos
-reference a single source rather than drifting copies.
+This note is the **candidate canonical copy**. It should move to `../research` (`dse_research_utils` docs) — or a shared `dse-standards` location — so both report repos reference a single source rather than drifting copies.

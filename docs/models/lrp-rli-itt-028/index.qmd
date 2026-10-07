@@ -1,5 +1,5 @@
 ---
-title: "LRPITT28: Site-adjusted available-case modified ITT estimate for letter-sound knowledge (LS)"
+title: "LRP-RLI-ITT-028: Site-adjusted available-case modified ITT estimate for letter-sound knowledge (LS)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -33,10 +37,7 @@ $$
        + \gamma_A\, A_{\text{std},i} + \gamma_{\text{area}}\, z(\text{area}_i),
 $$
 
-with Beta-Binomial likelihood $L_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 32$. The site term enters as a linear $\gamma_{\text{area}}$
-(the same weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are
-off by default. Priors follow the shared template in `priors.py`.
+with Beta-Binomial likelihood $L_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 32$. The site term enters as a linear $\gamma_{\text{area}}$ (the same weak $\text{Normal}(0, 0.3)$ prior as cross-baseline couplings); HSGPs are off by default. Priors follow the shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

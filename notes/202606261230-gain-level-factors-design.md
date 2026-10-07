@@ -1,4 +1,9 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # DAG-focused gain- and level-factor families (LRPGF / LRPLF) — design decisions
+
+**Historical record.** The gain headline is period-1-standardised and needs its period-1-only sensitivity. Level models use the t1 arm-gap reference. A child random intercept does not repair latent-ability confounding. See [the later record](202608261200-gain-factors-575-decisions.md) and [METHODS.md](../METHODS.md).
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); Decision 4 extended by a LLM-based AI tool (Claude Code/Opus 5) on 2026-08-02 to record the group×ability caveat (#389 finding 1, closing out #271 item 5).
@@ -9,12 +14,7 @@ Date: 2026-06-26
 
 ## Scope
 
-Two statistical-model families that answer a different question from the
-available-case modified ITT suite. Where `LRPITT01–11` ask "among the fitted
-observed cases, did assignment raise outcome X?", these ask
-**"what is each outcome's progress associated with, and which part of that is
-causal?"** — one interpretable per-outcome factor decomposition, fit eight times
-(W/R/E/L/P/B/F/T):
+Two statistical-model families that answer a different question from the available-case modified ITT suite. Where `LRPITT01–11` ask "among the fitted observed cases, did assignment raise outcome X?", these ask **"what is each outcome's progress associated with, and which part of that is causal?"** — one interpretable per-outcome factor decomposition, fit eight times (W/R/E/L/P/B/F/T):
 
 - **`kind="gain_factors"`** (`lrpgf01–08`, plus a `…b` treated-only companion
   each) — an ANCOVA of a period's post-score on its **own** pre-score, stacked
@@ -24,15 +24,11 @@ causal?"** — one interpretable per-outcome factor decomposition, fit eight tim
   score **at each timepoint** (`phase_mode="levels"`, four rows per child, no own
   baseline), with group and ability entered as per-timepoint coefficient vectors.
 
-This note records the decisions a future reader might question; several are
-non-obvious, and a couple of tempting shortcuts are wrong.
+This note records the decisions a future reader might question; several are non-obvious, and a couple of tempting shortcuts are wrong.
 
 ## The factor sets (DAG-derived, per outcome)
 
-Every model carries the **same causal skeleton** — randomised on-intervention
-(the only causal term), own baseline, linear age, cognitive ability (block
-design, `blocks`) — plus the **upstream DAG skills** specific to that outcome,
-and three focal interactions (`trt×ability`, `trt×own`, `age×ability`):
+Every model carries the **same causal skeleton** — randomised on-intervention (the only causal term), own baseline, linear age, cognitive ability (block design, `blocks`) — plus the **upstream DAG skills** specific to that outcome, and three focal interactions (`trt×ability`, `trt×own`, `age×ability`):
 
 | Sym | Outcome (measure)              | n_trials | Skill cross-predictors | Likelihood              |
 | --- | ------------------------------ | -------: | ---------------------- | ----------------------- |
@@ -45,17 +41,11 @@ and three focal interactions (`trt×ability`, `trt×own`, `age×ability`):
 | F   | Basic concept knowledge (CELF) |       18 | R                      | Beta-Binomial           |
 | T   | Receptive grammar (TROG-2)     |       32 | R                      | Beta-Binomial           |
 
-Skills enter as the raw Haldane pre-score logit of the upstream measure (matching
-the equation above — they are not standardised; e.g. word reading is regressed on
-baseline letter sounds **L** and receptive vocabulary **R**). They are reported as
-**adjusted associations**, never as
-"X drives Y".
+Skills enter as the raw Haldane pre-score logit of the upstream measure (matching the equation above — they are not standardised; e.g. word reading is regressed on baseline letter sounds **L** and receptive vocabulary **R**). They are reported as **adjusted associations**, never as "X drives Y".
 
 ### Decision 1 — SES is excluded, and that is the DAG-faithful choice
 
-The issue's first-draft "core" set listed SES (parental post-16 education +
-age-appropriate books at home). It is **dropped from both families.** Three
-reasons, all pointing the same way:
+The issue's first-draft "core" set listed SES (parental post-16 education + age-appropriate books at home). It is **dropped from both families.** Three reasons, all pointing the same way:
 
 1. **SES is not a node in the consolidated DAG**
    (`notes/202606231600-dag-revision-consolidated.md`). The word-reading parent
@@ -70,18 +60,11 @@ reasons, all pointing the same way:
    the analysable sample from ~54 to ~34 children. Dropping SES is therefore both
    DAG-faithful _and_ restores n (block design is complete, 54/54).
 
-SES survives only as the dedicated `lrpitt13` SES-**robustness** companion, never
-in a core factor set. Cognitive ability (`blocks`) is kept as the observed
-general-ability proxy.
+SES survives only as the dedicated `lrpitt13` SES-**robustness** companion, never in a core factor set. Cognitive ability (`blocks`) is kept as the observed general-ability proxy.
 
 ### Decision 2 — a per-child random intercept (latent-GA repair)
 
-Like the mechanism and DiD families, both factor families add a non-centred
-per-child random intercept. It absorbs the **time-invariant** part of latent
-general ability (GA) shared across a child's measures, so the cross-lagged
-"baseline X → later Y" associations are not inflated by a stable trait. The
-time-_varying_ part of GA is not repaired — hence the strict "association"
-labelling on every non-randomised term.
+Like the mechanism and DiD families, both factor families add a non-centred per-child random intercept. It absorbs the **time-invariant** part of latent general ability (GA) shared across a child's measures, so the cross-lagged "baseline X → later Y" associations are not inflated by a stable trait. The time-_varying_ part of GA is not repaired — hence the strict "association" labelling on every non-randomised term.
 
 ### Decision 3 — gain is an own-baseline ANCOVA; treated-only is its honest sibling
 
@@ -93,85 +76,33 @@ eta = alpha + alpha_phase[phase] + beta_trt·OnIntervention
       + Σ gamma_skill·logit*(skill_pre) + Σ gamma_int·(interaction) + u_child
 ```
 
-`OnIntervention = (G==1) | (phase>=1)`. The **treated-only** companion (`…b`)
-restricts to on-intervention rows. There the treatment indicator is constant, so
-it is **not identified**: `beta_trt` and every interaction that involves `trt`
-are dropped automatically, leaving the within-treated adjusted associations. This
-is a feature — it answers "among children receiving the programme, what tracks
-progress?" without pretending the constant exposure is a contrast.
+`OnIntervention = (G==1) | (phase>=1)`. The **treated-only** companion (`…b`) restricts to on-intervention rows. There the treatment indicator is constant, so it is **not identified**: `beta_trt` and every interaction that involves `trt` are dropped automatically, leaving the within-treated adjusted associations. This is a feature — it answers "among children receiving the programme, what tracks progress?" without pretending the constant exposure is a contrast.
 
 ### Decision 4 — level uses per-timepoint vectors, and only t2 is randomised
 
-The level model enters group and ability as **per-timepoint coefficient
-vectors** (`b_grp_time[phase]`, `gamma_ability_time[phase]`), plus a `group×ability`
-cross term. This is deliberate: the trial is a **waitlist crossover**, so a single
-"group effect" would average a randomised contrast with a post-crossover one.
+The level model enters group and ability as **per-timepoint coefficient vectors** (`b_grp_time[phase]`, `gamma_ability_time[phase]`), plus a `group×ability` cross term. This is deliberate: the trial is a **waitlist crossover**, so a single "group effect" would average a randomised contrast with a post-crossover one.
 
-Only **`b_grp_time[1]` (t2)** is a clean randomised between-arm contrast — it is
-the one post-baseline timepoint at which the immediate arm has been treated and
-the waitlist has not. `b_grp_time[2]`/`[3]` (t3/t4) are **post-crossover** and are
-flagged as associations (cohort/timing), not effects. The report and the
-`factor_summary` `role` column carry this distinction explicitly.
+Only **`b_grp_time[1]` (t2)** is a clean randomised between-arm contrast — it is the one post-baseline timepoint at which the immediate arm has been treated and the waitlist has not. `b_grp_time[2]`/`[3]` (t3/t4) are **post-crossover** and are flagged as associations (cohort/timing), not effects. The report and the `factor_summary` `role` column carry this distinction explicitly.
 
 #### The group×ability term is excluded from the headline — the estimand is "at mean ability"
 
 _Added 2026-08-02, closing out #271 item 5; see #389 finding 1._
 
-The group contribution at t2 is not `b_grp_time[1]` alone but
-`(b_grp_time[1] + gamma_grp_ability·z(ability))·group`. The headline items-scale
-average marginal effect (`level_t2_marginal_effect`, and so `rope_summary.csv`,
-the ROPE card and the key-findings box) deliberately **omits the second part**: it
-nets out the _full_ group contribution to recover each child's untreated
-counterfactual, then adds back **only `b_grp_time[1]`**.
+The group contribution at t2 is not `b_grp_time[1]` alone but `(b_grp_time[1] + gamma_grp_ability·z(ability))·group`. The headline items-scale average marginal effect (`level_t2_marginal_effect`, and so `rope_summary.csv`, the ROPE card and the key-findings box) deliberately **omits the second part**: it nets out the _full_ group contribution to recover each child's untreated counterfactual, then adds back **only `b_grp_time[1]`**.
 
-The reason is identification, not convenience. `gamma_grp_ability` is a **single
-time-invariant coefficient**, so it is identified from all four timepoints — and
-three of those four (t1, t3, t4) are not randomised contrasts. Folding it into the
-t2 causal card would import a non-randomised component into a quantity labelled
-causal. Giving group×ability the same `dims="phase"` treatment as `b_grp_time`
-would fix that in principle, but it spends four parameters instead of one at
-n≈53; #271 item 5 offered both routes and this suite takes the second.
+The reason is identification, not convenience. `gamma_grp_ability` is a **single time-invariant coefficient**, so it is identified from all four timepoints — and three of those four (t1, t3, t4) are not randomised contrasts. Folding it into the t2 causal card would import a non-randomised component into a quantity labelled causal. Giving group×ability the same `dims="phase"` treatment as `b_grp_time` would fix that in principle, but it spends four parameters instead of one at n≈53; #271 item 5 offered both routes and this suite takes the second.
 
-The consequence is a **naming obligation**, and it is the whole point of this
-sub-decision. The headline is the population-averaged marginal effect of a
-treatment increment **fixed at mean ability** — each child keeps their own
-untreated baseline, but every child receives the _same_ group increment. It is
-therefore neither a plain population-average t2 effect nor a prediction for a
-single mean-ability child, and it must not be reported as either. The
-group×ability moderation is reported on its own row in `factor_summary.csv`, as
-an adjusted association; the shared `_results_factors.qmd` partial prints the
-caveat whenever a `gamma_grp_ability` row is present.
+The consequence is a **naming obligation**, and it is the whole point of this sub-decision. The headline is the population-averaged marginal effect of a treatment increment **fixed at mean ability** — each child keeps their own untreated baseline, but every child receives the _same_ group increment. It is therefore neither a plain population-average t2 effect nor a prediction for a single mean-ability child, and it must not be reported as either. The group×ability moderation is reported on its own row in `factor_summary.csv`, as an adjusted association; the shared `_results_factors.qmd` partial prints the caveat whenever a `gamma_grp_ability` row is present.
 
-Quantified at the 2026-08 reporting fits, the alternative (population-standardised
-over the observed ability distribution) shifts the headline by at most **0.38
-items** (R; W +1.45→+1.67, R −3.80→−4.18, others ≤0.16), changes **no sign and no
-ROPE verdict**, and leaves L the only outcome whose 89% interval excludes zero
-under both definitions. The choice is therefore about honest labelling, not about
-which conclusion the suite reaches. The moderation itself is not null — R
-(−0.134 [−0.254, −0.009]) and T (+0.176 [+0.011, +0.345]) both exclude zero — so
-dropping the term altogether would discard something real, even though it is not
-cleanly identified _as t2 moderation_.
+Quantified at the 2026-08 reporting fits, the alternative (population-standardised over the observed ability distribution) shifts the headline by at most **0.38 items** (R; W +1.45→+1.67, R −3.80→−4.18, others ≤0.16), changes **no sign and no ROPE verdict**, and leaves L the only outcome whose 89% interval excludes zero under both definitions. The choice is therefore about honest labelling, not about which conclusion the suite reaches. The moderation itself is not null — R (−0.134 [−0.254, −0.009]) and T (+0.176 [+0.011, +0.345]) both exclude zero — so dropping the term altogether would discard something real, even though it is not cleanly identified _as t2 moderation_.
 
 ### Decision 5 — phonetic spelling (P) takes the suite floor rule
 
-P is heavily floored (most period post-scores are zero), so a graded
-Beta-Binomial gain would be driven by a few dispersed tail values rather than the
-factor contrasts. P therefore uses `likelihood="bernoulli_offfloor"`, identical in
-spirit to the ITT suite's floor rule for P and N: a **Bernoulli on the off-floor
-indicator** (`post > 0`). The linear predictor is the log-odds of coming off the
-floor; there is **no `kappa`**; and the treatment marginal collapses to an
-**off-floor risk difference** (`n_trials = 1`, so the items scale equals the
-probability scale). The same branch is available to the level family.
+P is heavily floored (most period post-scores are zero), so a graded Beta-Binomial gain would be driven by a few dispersed tail values rather than the factor contrasts. P therefore uses `likelihood="bernoulli_offfloor"`, identical in spirit to the ITT suite's floor rule for P and N: a **Bernoulli on the off-floor indicator** (`post > 0`). The linear predictor is the log-odds of coming off the floor; there is **no `kappa`**; and the treatment marginal collapses to an **off-floor risk difference** (`n_trials = 1`, so the items scale equals the probability scale). The same branch is available to the level family.
 
 ### Decision 6 — reporting follows the ROPE convention (#130)
 
-The causal term is reported the same way the available-case modified ITT suite reports `tau` after
-[#130](https://github.com/dseinternational/language-reading-predictors/pull/130)
-(`notes/202606261304-evidence-strength-and-rope-reporting.md`): the **median** effect
-on the items scale (transformation-invariant) with intervals, and **direction**
-(`pd`) separated from **magnitude** (`P(items effect ≥ δ)` against the
-minimally-important difference `measures.ROPE_DELTA`). The two families share #130's
-machinery rather than re-deriving it:
+The causal term is reported the same way the available-case modified ITT suite reports `tau` after [#130](https://github.com/dseinternational/language-reading-predictors/pull/130) (`notes/202606261304-evidence-strength-and-rope-reporting.md`): the **median** effect on the items scale (transformation-invariant) with intervals, and **direction** (`pd`) separated from **magnitude** (`P(items effect ≥ δ)` against the minimally-important difference `measures.ROPE_DELTA`). The two families share #130's machinery rather than re-deriving it:
 
 - **Gain** — `beta_trt` is the same counterfactual average marginal effect as the
   ITT `tau`, so `reporting.treatment_marginal_effect` folds onto the shared
@@ -182,12 +113,7 @@ machinery rather than re-deriving it:
   AME nets out both group terms at the t2 rows only
   (`reporting.level_t2_marginal_effect`) before reusing the same ROPE card.
 
-The ROPE block is emitted only for graded outcomes with an agreed items-scale δ
-(W/R/E/L/B). The floored outcome P (off-floor risk difference) and the not-yet-agreed
-F/T are left for the same education-lead δ follow-up the ITT suite records — their
-factor summaries still report the on-intervention coefficient and (gain) the
-off-floor risk difference. Only the randomised term gets this causal report; every
-other coefficient stays an adjusted association.
+The ROPE block is emitted only for graded outcomes with an agreed items-scale δ (W/R/E/L/B). The floored outcome P (off-floor risk difference) and the not-yet-agreed F/T are left for the same education-lead δ follow-up the ITT suite records — their factor summaries still report the on-intervention coefficient and (gain) the off-floor risk difference. Only the randomised term gets this causal report; every other coefficient stays an adjusted association.
 
 ## What this is — and is not
 
@@ -217,8 +143,7 @@ other coefficient stays an adjusted association.
   `gamma_B = +0.47` (P ≈ 0.99) and `gamma_L = +0.34` (P ≈ 0.97) recovering the
   phonics route.
 
-Dev fits are under-tuned (R̂ ≈ 1.03–1.09); convergence is to be confirmed at the
-reporting config before any estimate is read.
+Dev fits are under-tuned (R̂ ≈ 1.03–1.09); convergence is to be confirmed at the reporting config before any estimate is read.
 
 ## Implementation
 

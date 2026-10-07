@@ -1,5 +1,5 @@
 ---
-title: "LRPDID101: Independent-prior intercept sensitivity for the word-reading arm-by-wave contrasts (EWRSWR) (W)"
+title: "LRP-RLI-DID-101: Independent-prior intercept sensitivity for the word-reading arm-by-wave contrasts (EWRSWR) (W)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,9 +25,7 @@ format:
 
 ## Overview
 
-LRPDID101 is the **independent-prior intercept sensitivity companion** to
-[LRPDID01](../lrp-rli-did-001/). It is the same arm-by-wave model, the same data and the
-same sampler settings, differing in exactly one thing: the intercept prior.
+LRPDID101 is the **independent-prior intercept sensitivity companion** to [LRPDID01](../lrp-rli-did-001/). It is the same arm-by-wave model, the same data and the same sampler settings, differing in exactly one thing: the intercept prior.
 
 | | LRPDID01 (reference) | LRPDID101 (this model) |
 | --- | --- | --- |
@@ -33,33 +35,15 @@ same sampler settings, differing in exactly one thing: the intercept prior.
 
 ## Why this model exists
 
-The arm-by-wave models centre their intercept prior on the pooled observed t1 logit —
-an **empirical-Bayes anchor**: the same t1 observations then enter the fitted
-likelihood (#390 P1). The 2026-07-24 methodological ruling retained the anchor with
-three conditions; the explicit label and the stated prior-predictive limitation landed
-with #481. This fit is the remaining condition: a sensitivity fit whose intercept
-prior is *genuinely independent* of the outcomes — not a wider scale around the same
-anchor, whose mean would remain data-dependent, but the ordinary free zero-centred
-intercept the dose variants already use.
+The arm-by-wave models centre their intercept prior on the pooled observed t1 logit — an **empirical-Bayes anchor**: the same t1 observations then enter the fitted likelihood (#390 P1). The 2026-07-24 methodological ruling retained the anchor with three conditions; the explicit label and the stated prior-predictive limitation landed with #481. This fit is the remaining condition: a sensitivity fit whose intercept prior is *genuinely independent* of the outcomes — not a wider scale around the same anchor, whose mean would remain data-dependent, but the ordinary free zero-centred intercept the dose variants already use.
 
-Because this fit's intercept was **not** told where the data are, its prior-predictive
-check is a genuine location check — exactly the diagnostic strength the anchored fits
-give up, per the limitation note their reports carry.
+Because this fit's intercept was **not** told where the data are, its prior-predictive check is a genuine location check — exactly the diagnostic strength the anchored fits give up, per the limitation note their reports carry.
 
 ## How to read the comparison
 
-The two fits may be compared only when both current reporting traces pass the complete
-automatic gate. The anchor moves the *level*; $\tau_{t2}$ is a within-t2 arm contrast
-a full wave away from the t1 anchor. If the anchor does no inferential work beyond
-locating the intercept, $\tau_{t2}$ (and the other arm gaps) should match LRPDID01 to
-within Monte-Carlo error. A material shift would mean the anchor is leaking into the
-randomised contrast, and the family's intercept policy would need revisiting.
+The two fits may be compared only when both current reporting traces pass the complete automatic gate. The anchor moves the *level*; $\tau_{t2}$ is a within-t2 arm contrast a full wave away from the t1 anchor. If the anchor does no inferential work beyond locating the intercept, $\tau_{t2}$ (and the other arm gaps) should match LRPDID01 to within Monte-Carlo error. A material shift would mean the anchor is leaking into the randomised contrast, and the family's intercept policy would need revisiting.
 
-_Sign convention and reading rules as LRPDID01:_ positive favours the intervention;
-$\tau_{t2}$ is the clean randomised t2 contrast, `arm_gap_t1` a baseline-balance
-quantity, `arm_gap_t3` the randomised early-start-versus-delayed-start schedule
-contrast, and `delta_crossover` the change between the two randomised regime
-contrasts, neither of them mechanism-identified.
+_Sign convention and reading rules as LRPDID01:_ positive favours the intervention; $\tau_{t2}$ is the clean randomised t2 contrast, `arm_gap_t1` a baseline-balance quantity, `arm_gap_t3` the randomised early-start-versus-delayed-start schedule contrast, and `delta_crossover` the change between the two randomised regime contrasts, neither of them mechanism-identified.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

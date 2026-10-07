@@ -1,38 +1,25 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Bayesian moderated nonlinear factor analysis for pooling disparate language, reading and memory measures
 
 <!-- cspell:ignore nu lambda eta varepsilon beta gamma alpha psi exp neq qquad quad operatorname logistic mid Rightarrow GPT Coxe Zulauf McCurdy Pettit crosswalk crosswalks -->
 
 ::: {.callout-note}
-Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
-Substantially revised by an LLM-based AI tool (Codex/GPT-5).
+Drafted by an LLM-based AI tool (Claude Code/Opus 4.8). Substantially revised by an LLM-based AI tool (Codex/GPT-5).
 :::
 
 ::: {.callout-warning}
-This note was prepared by an AI tool and may contain mistakes. It advances
-statistical proposals; treat the methodological and statistical claims as a
-starting point for review, not as settled fact. Verify the cited papers against
-the primary sources before any claim enters the report.
+This note was prepared by an AI tool and may contain mistakes. It advances statistical proposals; treat the methodological and statistical claims as a starting point for review, not as settled fact. Verify the cited papers against the primary sources before any claim enters the report.
 :::
 
-**Status: draft for discussion.** This is a forward-looking methodology note
-proposing — not reporting — a prospective measurement approach. It develops the
-idea of using **Bayesian moderated nonlinear factor analysis (MNLFA)** to place
-measures from disparate instruments, studies and populations onto common latent
-skills, so that this project and others' data can be combined into more
-informative models of how language, reading and memory skills interact. Nothing
-here has been fitted; the note's job is to explain the method from the ground up,
-say honestly what it would and would not buy us, and propose a staged way to
-test feasibility.
+**Status: draft for discussion.** This is a forward-looking methodology note proposing — not reporting — a prospective measurement approach. It develops the idea of using **Bayesian moderated nonlinear factor analysis (MNLFA)** to place measures from disparate instruments, studies and populations onto common latent skills, so that this project and others' data can be combined into more informative models of how language, reading and memory skills interact. Nothing here has been fitted; the note's job is to explain the method from the ground up, say honestly what it would and would not buy us, and propose a staged way to test feasibility.
 
-_File paths below are relative to `src/language_reading_predictors/`, except those
-under `scripts/`, `notes/` or `docs/`._
+_File paths below are relative to `src/language_reading_predictors/`, except those under `scripts/`, `notes/` or `docs/`._
 
 ## 1. Purpose and the three questions
 
-The project owner has asked us to explore three connected questions. They share a
-single root: our scientific reach is currently limited by the fact that the most
-interesting data live in _different instruments and different datasets_, and we
-have no principled way to put them on one ruler.
+The project owner has asked us to explore three connected questions. They share a single root: our scientific reach is currently limited by the fact that the most interesting data live in _different instruments and different datasets_, and we have no principled way to put them on one ruler.
 
 - **Q1 — Could parent-report checklist vocabulary (the vocabulary-growth, "VG",
   CDI style: a parent ticks which of N words their child understands or says,
@@ -46,22 +33,11 @@ have no principled way to put them on one ruler.
   models of how skills interact (mediation and moderation), and — just as
   important — what does it _not_ fix?**
 
-The short answers, defended below, are: **Q1 yes, with a co-administration
-caveat; Q2 yes in principle and this is exactly what the method was built for,
-but strictly conditional on having bridging/anchor data or credible external
-calibration; Q3 yes for measurement-induced attenuation, but it does nothing for
-causal confounding, temporal ordering or genuine construct mismatch.** The rest
-of the note earns those answers and connects the proposal to machinery we already
-run.
+The short answers, defended below, are: **Q1 yes, with a co-administration caveat; Q2 yes in principle and this is exactly what the method was built for, but strictly conditional on having bridging/anchor data or credible external calibration; Q3 yes for measurement-induced attenuation, but it does nothing for causal confounding, temporal ordering or genuine construct mismatch.** The rest of the note earns those answers and connects the proposal to machinery we already run.
 
 ## 2. The problem: you cannot just pool the scores
 
-Suppose we want one analysis of _how early language relates to later reading in
-children with Down syndrome_, using as much of the world's data as we can find.
-We have VG checklists; we have the LRP direct battery; other groups have their
-own studies with their own tests, often in another language. The naïve move is to
-stack the raw scores — line up everyone's "vocabulary number" in one column. This
-is almost always wrong, and seeing _why_ motivates everything that follows.
+Suppose we want one analysis of _how early language relates to later reading in children with Down syndrome_, using as much of the world's data as we can find. We have VG checklists; we have the LRP direct battery; other groups have their own studies with their own tests, often in another language. The naïve move is to stack the raw scores — line up everyone's "vocabulary number" in one column. This is almost always wrong, and seeing _why_ motivates everything that follows.
 
 - **Different rulers.** A score of 40 on a 50-word parent checklist is not the
   same quantity as 40 correct on the 170-item EOWPVT expressive naming test
@@ -90,30 +66,15 @@ is almost always wrong, and seeing _why_ motivates everything that follows.
   We must not let it be contaminated by, or confused with, artefacts of the
   measuring instrument.
 
-So the harmonisation problem is: _how do we place scores from disparate
-instruments, studies, languages and ages onto one comparable scale for an
-underlying skill — without erasing the real differences we care about, and
-without being fooled by measurement?_ This is precisely the problem that
-**integrative data analysis** (IDA — pooling several studies' participant-level
-data into one analysis) was built to confront (Curran and Hussong 2009; Bauer and
-Hussong 2009), and MNLFA is its measurement engine (Curran, McGinley, Bauer et
-al. 2014).
+So the harmonisation problem is: _how do we place scores from disparate instruments, studies, languages and ages onto one comparable scale for an underlying skill — without erasing the real differences we care about, and without being fooled by measurement?_ This is precisely the problem that **integrative data analysis** (IDA — pooling several studies' participant-level data into one analysis) was built to confront (Curran and Hussong 2009; Bauer and Hussong 2009), and MNLFA is its measurement engine (Curran, McGinley, Bauer et al. 2014).
 
 ## 3. A primer, building up to MNLFA
 
-Readers unfamiliar with factor analysis, item response theory or Bayesian latent
-models should be able to follow this section. We build the name "Bayesian
-moderated nonlinear factor analysis" one word at a time, intuition first.
+Readers unfamiliar with factor analysis, item response theory or Bayesian latent models should be able to follow this section. We build the name "Bayesian moderated nonlinear factor analysis" one word at a time, intuition first.
 
 ### 3.1 Latent variables and factor analysis: the skill is hidden; tests are noisy windows
 
-The first move is to stop treating a test score _as_ the skill and start treating
-it as _evidence about_ the skill. Think of "expressive vocabulary" as a real but
-unobservable quantity inside each child — a **latent variable** (or **factor**),
-written η ("eta"). We never see η. We see **indicators**: the child's responses
-on actual tests. Factor analysis says each indicator is a noisy, biased window
-onto η, with three numbers per indicator. For a continuous, standardised score
-_y_:
+The first move is to stop treating a test score _as_ the skill and start treating it as _evidence about_ the skill. Think of "expressive vocabulary" as a real but unobservable quantity inside each child — a **latent variable** (or **factor**), written η ("eta"). We never see η. We see **indicators**: the child's responses on actual tests. Factor analysis says each indicator is a noisy, biased window onto η, with three numbers per indicator. For a continuous, standardised score _y_:
 
 $$y = \nu + \lambda\,\eta + \varepsilon$$
 
@@ -126,38 +87,15 @@ $$y = \nu + \lambda\,\eta + \varepsilon$$
 - **ε (residual)** — everything in this test that is _not_ the shared skill:
   item quirks, guessing, a bad day. Its variance is how much fog is on the glass.
 
-The idea that makes pooling possible: **several different indicators can load on
-the same factor.** A checklist count, a naming score and a sentence-repetition
-score can each be its own (ν, λ, ε) view of _one_ expressive-language η. We then
-compare children on the estimated η — the common skill behind all of them —
-rather than comparing checklist numbers to naming numbers. The factor model is a
-principled translator between instruments. We can also have several correlated
-factors at once — a vocabulary factor, a "code" factor for letter-sounds and
-blending, a grammar factor — which is exactly what LRPMM01 already does within one
-study (its three correlated factors are vocabulary, measured by _both_ the
-receptive and expressive picture-vocabulary indicators; code; and grammar).
+The idea that makes pooling possible: **several different indicators can load on the same factor.** A checklist count, a naming score and a sentence-repetition score can each be its own (ν, λ, ε) view of _one_ expressive-language η. We then compare children on the estimated η — the common skill behind all of them — rather than comparing checklist numbers to naming numbers. The factor model is a principled translator between instruments. We can also have several correlated factors at once — a vocabulary factor, a "code" factor for letter-sounds and blending, a grammar factor — which is exactly what LRPMM01 already does within one study (its three correlated factors are vocabulary, measured by _both_ the receptive and expressive picture-vocabulary indicators; code; and grammar).
 
 ### 3.2 Measurement invariance and DIF: the translation must behave the same way for everyone
 
-The catch the whole field organises around: comparing children's η is only fair
-if _the windows behave the same way for everyone_. If a test has a different
-intercept or loading in one group than another, a difference in the raw indicator
-no longer cleanly reflects a difference in skill — part of it reflects the
-_instrument_ behaving differently. We would be measuring with a ruler whose
-markings change depending on who holds it.
+The catch the whole field organises around: comparing children's η is only fair if _the windows behave the same way for everyone_. If a test has a different intercept or loading in one group than another, a difference in the raw indicator no longer cleanly reflects a difference in skill — part of it reflects the _instrument_ behaving differently. We would be measuring with a ruler whose markings change depending on who holds it.
 
-The property we need is **measurement invariance**: the link from skill to
-indicator (the νs and λs, ideally the residual variances) is the same across the
-groups we compare. Meredith (1993) gave the classic hierarchy — _weak_ (equal
-loadings), _strong_ (equal loadings and intercepts), _strict_ (also equal
-residuals) — and showed you need at least strong invariance before comparing
-latent means is fair; Millsap (2011) is the standard treatment. Strong invariance
-is the bar this note actually needs — it is what licenses comparing latent means;
-strict invariance is stronger than required here.
+The property we need is **measurement invariance**: the link from skill to indicator (the νs and λs, ideally the residual variances) is the same across the groups we compare. Meredith (1993) gave the classic hierarchy — _weak_ (equal loadings), _strong_ (equal loadings and intercepts), _strict_ (also equal residuals) — and showed you need at least strong invariance before comparing latent means is fair; Millsap (2011) is the standard treatment. Strong invariance is the bar this note actually needs — it is what licenses comparing latent means; strict invariance is stronger than required here.
 
-When invariance fails for an item it shows **differential item functioning
-(DIF)**: it functions differently across groups even for children at the same
-true skill.
+When invariance fails for an item it shows **differential item functioning (DIF)**: it functions differently across groups even for children at the same true skill.
 
 - **Intercept (uniform) DIF** — the item is systematically easier/harder in one
   study/language/group at _every_ skill level. A vocabulary word common in
@@ -168,104 +106,41 @@ true skill.
   sits near the floor for the Down syndrome sample, so it barely discriminates
   there.
 
-Ignore DIF and pool anyway, and the artefacts leak straight into the science:
-apparent group differences that are really translation differences, distorted
-trajectories, spurious correlations. The honest options are (a) discard
-non-comparable items, wasting hard-won data, or (b) _model_ the
-non-comparability. MNLFA takes route (b) — that is what "moderated" buys.
+Ignore DIF and pool anyway, and the artefacts leak straight into the science: apparent group differences that are really translation differences, distorted trajectories, spurious correlations. The honest options are (a) discard non-comparable items, wasting hard-won data, or (b) _model_ the non-comparability. MNLFA takes route (b) — that is what "moderated" buys.
 
 ### 3.3 "Moderated": let the measurement parameters depend on covariates
 
-Traditional invariance testing handles one categorical grouping at a time and
-asks a yes/no question. Our reality is several covariates at once — study, age
-(continuous), diagnostic group, test language — with partial, graded
-non-invariance. The **moderated** in MNLFA lets the measurement parameters
-themselves be functions of covariates **x**:
+Traditional invariance testing handles one categorical grouping at a time and asks a yes/no question. Our reality is several covariates at once — study, age (continuous), diagnostic group, test language — with partial, graded non-invariance. The **moderated** in MNLFA lets the measurement parameters themselves be functions of covariates **x**:
 
 $$\nu_j(x) = \nu_{j0} + \beta_j\,x \qquad (\beta_j \neq 0 \;\Rightarrow\; \text{intercept DIF})$$
 
 $$\lambda_j(x) = \lambda_{j0} + \gamma_j\,x \qquad (\gamma_j \neq 0 \;\Rightarrow\; \text{loading DIF})$$
 
-and — crucially — lets the latent variable's own mean and variance depend on
-covariates too:
+and — crucially — lets the latent variable's own mean and variance depend on covariates too:
 
 $$\alpha(x) = \alpha_0 + c_\alpha\,x \quad(\text{mean}), \qquad \psi(x) = \exp(\psi_0 + c_\psi\,x) \quad(\text{variance; } \exp \text{ keeps it positive})$$
 
-The division of labour is the whole point. The **measurement** block
-(ν_j(x), λ_j(x)) is where DIF lives — non-invariance is no longer a
-disqualification but a _parameter we estimate_. The **structural** block
-(α(x), ψ(x)) is where the _science_ lives — α(x) is how true skill shifts with
-age, group and study (the developmental trajectory and the group contrast we
-actually care about); ψ(x) is how its spread changes. Because measurement DIF and
-true group differences are now _separate parameters in one model_, MNLFA
-estimates genuine skill differences _while_ accounting for instruments behaving
-differently. Bauer (2017) shows formally that MNLFA subsumes and unifies the two
-older invariance frameworks — multiple-groups (every parameter may vary, but only across
-one categorical grouping) and MIMIC (covariates may be continuous or categorical,
-but in its standard form DIF enters only as covariate effects on item intercepts
-and on the latent mean, not on loadings) — recovering both as special cases while
-removing both restrictions.
+The division of labour is the whole point. The **measurement** block (ν_j(x), λ_j(x)) is where DIF lives — non-invariance is no longer a disqualification but a _parameter we estimate_. The **structural** block (α(x), ψ(x)) is where the _science_ lives — α(x) is how true skill shifts with age, group and study (the developmental trajectory and the group contrast we actually care about); ψ(x) is how its spread changes. Because measurement DIF and true group differences are now _separate parameters in one model_, MNLFA estimates genuine skill differences _while_ accounting for instruments behaving differently. Bauer (2017) shows formally that MNLFA subsumes and unifies the two older invariance frameworks — multiple-groups (every parameter may vary, but only across one categorical grouping) and MIMIC (covariates may be continuous or categorical, but in its standard form DIF enters only as covariate effects on item intercepts and on the latent mean, not on loadings) — recovering both as special cases while removing both restrictions.
 
-This is where MNLFA meets our stack: age already enters our models as a smooth
-covariate; here it moderates both the latent mean (the growth curve, α(age)) and,
-if needed, item behaviour. The "study" covariate is how two researchers'
-different instruments live in one model without pretending they are the same
-instrument.
+This is where MNLFA meets our stack: age already enters our models as a smooth covariate; here it moderates both the latent mean (the growth curve, α(age)) and, if needed, item behaviour. The "study" covariate is how two researchers' different instruments live in one model without pretending they are the same instrument.
 
 ### 3.4 "Nonlinear": two senses, both relevant
 
-**Sense A — a nonlinear link, because real indicators are not continuous.** The
-clean line _y = ν + λη + ε_ assumes a continuous, roughly normal score. But CDI
-data are _binary at the item level_ (does the child say this word: yes/no) and
-_count-shaped in aggregate_ (k of N). Reading and memory tasks are often
-correct/incorrect items. For a binary item we pass η through an S-shaped
-(logistic) link:
+**Sense A — a nonlinear link, because real indicators are not continuous.** The clean line _y = ν + λη + ε_ assumes a continuous, roughly normal score. But CDI data are _binary at the item level_ (does the child say this word: yes/no) and _count-shaped in aggregate_ (k of N). Reading and memory tasks are often correct/incorrect items. For a binary item we pass η through an S-shaped (logistic) link:
 
 $$P(\text{item } j = 1 \mid \eta, x) = \operatorname{logistic}\!\big(\lambda_j(x)\,\eta - \nu_j(x)\big)$$
 
-If you know **item response theory (IRT)**, this _is_ IRT: the loading λ is the
-item's _discrimination_ and ν is its negative intercept. (We write the link as a
-subtraction here, rather than the addition of Section 3.1, so that a larger ν
-reads as a _harder_ item — the conventional IRT direction.) The item's
-_difficulty_ — the skill level η at which a correct response becomes 50% likely —
-is ν/λ, and equals ν only for an item whose loading is exactly 1. The pay-off is
-unification: the linear factor model and IRT are not rival traditions but two
-link choices in one family. Continuous indicators get an identity link, binary/
-ordinal indicators get logistic/cumulative links, counts get a count link (Bauer
-and Hussong 2009; Curran et al. 2014; Curran, Hussong, Cai et al. 2008). This
-matters enormously for us, because **our existing VG measurement model is already
-in this family**, but the strength of that claim depends on what we have. **If
-VG/CDI responses are available at item level**, each word can be a Bernoulli IRT
-indicator with its own difficulty, discrimination and possible DIF. **If we only
-have aggregate `k of N` checklist totals**, the Beta-Binomial likelihood is a
-bounded-count, overdispersion-robust indicator of the latent skill, not an
-item-level IRT model: it cannot learn word difficulties, discriminations,
-item-level DIF or anchor-item invariance. It is still in the same broad
-latent-measurement family, but it is a weaker bridge. Moving to MNLFA is therefore
-a _generalisation of what we already do_, not a rewrite: keep the Beta-Binomial
-leg for checklist totals where that is all we have; use item-level links where
-item responses are available; let direct-assessment items or totals enter through
-their own links onto the _same_ latent skills.
+If you know **item response theory (IRT)**, this _is_ IRT: the loading λ is the item's _discrimination_ and ν is its negative intercept. (We write the link as a subtraction here, rather than the addition of Section 3.1, so that a larger ν reads as a _harder_ item — the conventional IRT direction.) The item's _difficulty_ — the skill level η at which a correct response becomes 50% likely — is ν/λ, and equals ν only for an item whose loading is exactly 1. The pay-off is unification: the linear factor model and IRT are not rival traditions but two link choices in one family. Continuous indicators get an identity link, binary/ ordinal indicators get logistic/cumulative links, counts get a count link (Bauer and Hussong 2009; Curran et al. 2014; Curran, Hussong, Cai et al. 2008). This matters enormously for us, because **our existing VG measurement model is already in this family**, but the strength of that claim depends on what we have. **If VG/CDI responses are available at item level**, each word can be a Bernoulli IRT indicator with its own difficulty, discrimination and possible DIF. **If we only have aggregate `k of N` checklist totals**, the Beta-Binomial likelihood is a bounded-count, overdispersion-robust indicator of the latent skill, not an item-level IRT model: it cannot learn word difficulties, discriminations, item-level DIF or anchor-item invariance. It is still in the same broad latent-measurement family, but it is a weaker bridge. Moving to MNLFA is therefore a _generalisation of what we already do_, not a rewrite: keep the Beta-Binomial leg for checklist totals where that is all we have; use item-level links where item responses are available; let direct-assessment items or totals enter through their own links onto the _same_ latent skills.
 
-**Sense B — nonlinear, smooth moderation.** Section 3.3 wrote moderation as
-linear in **x** (α_0 + a·age). But a vocabulary trajectory over age is not a
-straight line — it accelerates then decelerates. We want to _learn_ the curve,
-not impose it. This is where our existing **Hilbert-space Gaussian process
-(HSGP)** machinery slots in:
+**Sense B — nonlinear, smooth moderation.** Section 3.3 wrote moderation as linear in **x** (α_0 + a·age). But a vocabulary trajectory over age is not a straight line — it accelerates then decelerates. We want to _learn_ the curve, not impose it. This is where our existing **Hilbert-space Gaussian process (HSGP)** machinery slots in:
 
 $$\alpha(\text{age}) = \alpha_0 + f(\text{age}), \qquad f \sim \text{smooth Gaussian-process prior (HSGP-approximated)}$$
 
-The same trick can let an item's difficulty drift _smoothly_ with age rather than
-jumping. So "nonlinear" in MNLFA, read through our stack, means nonlinear links
-for non-continuous indicators (Sense A) _and_ smooth GP-based moderation of the
-latent trajectory and, where warranted, the item parameters (Sense B). The HSGP
-curves we already fit become the moderation functions of an MNLFA.
+The same trick can let an item's difficulty drift _smoothly_ with age rather than jumping. So "nonlinear" in MNLFA, read through our stack, means nonlinear links for non-continuous indicators (Sense A) _and_ smooth GP-based moderation of the latent trajectory and, where warranted, the item parameters (Sense B). The HSGP curves we already fit become the moderation functions of an MNLFA.
 
 ### 3.5 The assembled generative model
 
-Putting the rungs together, here is the data-generating story for each child _i_
-and each item _j_ they were administered — read top to bottom as "how the data
-came to be":
+Putting the rungs together, here is the data-generating story for each child _i_ and each item _j_ they were administered — read top to bottom as "how the data came to be":
 
 1. **Covariates.** Child _i_ has known covariates **x**_i: study, age, group
    (Down syndrome / typically developing), test language.
@@ -283,125 +158,33 @@ came to be":
    are covariate-moderated); ordinal rating → cumulative/graded link; continuous
    score → identity with residual ε.
 
-Two ingredients make this fit our setting. First, the **anchoring/bridging**
-precondition: identifiability requires that _something_ be shared across studies —
-overlapping measures (the same or a translated instrument in more than one study)
-or overlapping people/items — so the model can tell genuine skill differences
-apart from instrument differences. Without at least some anchor indicators/items
-whose measurement behaviour is constrained or assumed sufficiently invariant, the
-latent scale is not pinned down, and "study differences" and "skill differences"
-are not separately estimable. This is the substantive entry ticket for any
-third-party dataset, not a software detail. Second, once fitted, each child gets
-not a point score but a **posterior distribution** over η_i — a calibrated
-statement of how much we know about that child's skill given the indicators they
-took, with wider and more model-dependent posteriors when a skill is only weakly
-measured. That distribution is the bridge to the downstream science (Section
-3.6c).
+Two ingredients make this fit our setting. First, the **anchoring/bridging** precondition: identifiability requires that _something_ be shared across studies — overlapping measures (the same or a translated instrument in more than one study) or overlapping people/items — so the model can tell genuine skill differences apart from instrument differences. Without at least some anchor indicators/items whose measurement behaviour is constrained or assumed sufficiently invariant, the latent scale is not pinned down, and "study differences" and "skill differences" are not separately estimable. This is the substantive entry ticket for any third-party dataset, not a software detail. Second, once fitted, each child gets not a point score but a **posterior distribution** over η_i — a calibrated statement of how much we know about that child's skill given the indicators they took, with wider and more model-dependent posteriors when a skill is only weakly measured. That distribution is the bridge to the downstream science (Section 3.6c).
 
 ### 3.6 Why Bayesian
 
-Everything above can be fitted by maximum likelihood, and the MNLFA literature
-largely does. We propose to fit it _Bayesianly_, on our existing PyMC/nutpie
-stack. Each reason solves a concrete problem this project has.
+Everything above can be fitted by maximum likelihood, and the MNLFA literature largely does. We propose to fit it _Bayesianly_, on our existing PyMC/nutpie stack. Each reason solves a concrete problem this project has.
 
-**(a) Priors as partial pooling — "approximate invariance", freeing only the DIF
-the data demand.** Section 3.3 let _every_ item's intercept and loading drift with
-_every_ covariate — a huge number of DIF parameters, most of which should be near
-zero (most items probably _are_ roughly invariant). Estimating them all freely
-overfits; testing them one-by-one is fragile and does not scale. The Bayesian
-answer is a _shrinkage prior_ that pulls DIF parameters towards zero unless the
-data insist — **approximate, rather than exact, invariance**. A sparsity-inducing
-**horseshoe** prior (Carvalho, Polson and Scott 2010) keeps almost all DIF tightly
-at zero (clean, comparable items) while letting a genuinely biased item escape to
-its true value. This is the Bayesian counterpart of regularised DIF detection for
-MNLFA (Bauer, Belzak and Cole 2019; Belzak and Bauer 2020) and of the
-**alignment** philosophy — estimate group factor means/variances _without_
-exact invariance, tolerating small misfit (Asparouhov and Muthén 2014). (Horseshoe
-shrinkage and alignment are mechanically different — one a sparsity prior, the
-other a post-hoc rotation to a simplicity criterion — but they share the goal of
-comparable latent scales without insisting on exact invariance.) In our hands:
-pool studies aggressively, but let the data carve out the specific items that
-genuinely behave differently in another language or group, automatically, without
-a brittle sequence of significance tests. Items the prior frees as DIF are
-_selected_ by that procedure, so they should be reported as exploratory, not as
-confirmed non-invariance.
+**(a) Priors as partial pooling — "approximate invariance", freeing only the DIF the data demand.** Section 3.3 let _every_ item's intercept and loading drift with _every_ covariate — a huge number of DIF parameters, most of which should be near zero (most items probably _are_ roughly invariant). Estimating them all freely overfits; testing them one-by-one is fragile and does not scale. The Bayesian answer is a _shrinkage prior_ that pulls DIF parameters towards zero unless the data insist — **approximate, rather than exact, invariance**. A sparsity-inducing **horseshoe** prior (Carvalho, Polson and Scott 2010) keeps almost all DIF tightly at zero (clean, comparable items) while letting a genuinely biased item escape to its true value. This is the Bayesian counterpart of regularised DIF detection for MNLFA (Bauer, Belzak and Cole 2019; Belzak and Bauer 2020) and of the **alignment** philosophy — estimate group factor means/variances _without_ exact invariance, tolerating small misfit (Asparouhov and Muthén 2014). (Horseshoe shrinkage and alignment are mechanically different — one a sparsity prior, the other a post-hoc rotation to a simplicity criterion — but they share the goal of comparable latent scales without insisting on exact invariance.) In our hands: pool studies aggressively, but let the data carve out the specific items that genuinely behave differently in another language or group, automatically, without a brittle sequence of significance tests. Items the prior frees as DIF are _selected_ by that procedure, so they should be reported as exploratory, not as confirmed non-invariance.
 
-**(b) Full-posterior uncertainty in latent scores, propagated downstream — the
-de-attenuation point.** This matters most for the scientific questions. In a
-two-step "score then regress" workflow you estimate each child's η as a point,
-then feed those points into a downstream model of how skills interact (mediation,
-moderation, the language → reading relationships LRP cares about). But the ηs are
-_estimated_, not observed; treating noisy estimates as exact values biases and
-distorts the very interaction and mediation effects we are trying to quantify —
-classically _towards_ zero for a single error-laden predictor, but in either
-direction once several correlated latent predictors and their interactions are
-involved, which is exactly the mediation/moderation structure we care about. The
-Bayesian route fits the measurement model and the structural model _jointly_, so
-the _whole posterior_ of each η — its uncertainty, not just its mean — flows into
-the downstream estimates. LRPMM01 already does measurement-error-corrected factor
-→ gain slopes for exactly this reason; doing it in one joint model means
-measurement-error correction and uncertainty propagation are handled coherently
-rather than bolted on. This is not automatic: de-attenuation depends on the
-measurement model and anchors being defensible, and propagating uncertainty can
-widen intervals when the bridge is weak.
+**(b) Full-posterior uncertainty in latent scores, propagated downstream — the de-attenuation point.** This matters most for the scientific questions. In a two-step "score then regress" workflow you estimate each child's η as a point, then feed those points into a downstream model of how skills interact (mediation, moderation, the language → reading relationships LRP cares about). But the ηs are _estimated_, not observed; treating noisy estimates as exact values biases and distorts the very interaction and mediation effects we are trying to quantify — classically _towards_ zero for a single error-laden predictor, but in either direction once several correlated latent predictors and their interactions are involved, which is exactly the mediation/moderation structure we care about. The Bayesian route fits the measurement model and the structural model _jointly_, so the _whole posterior_ of each η — its uncertainty, not just its mean — flows into the downstream estimates. LRPMM01 already does measurement-error-corrected factor → gain slopes for exactly this reason; doing it in one joint model means measurement-error correction and uncertainty propagation are handled coherently rather than bolted on. This is not automatic: de-attenuation depends on the measurement model and anchors being defensible, and propagating uncertainty can widen intervals when the bridge is weak.
 
-**(c) Graceful behaviour at small n.** This sample is ~54 children. Maximum-
-likelihood factor models with many DIF parameters are exactly where ML
-misbehaves — non-convergence, boundary estimates (negative variances, loadings
-pinned at extremes), wildly uncertain estimates reported as precise.
-Weakly-informative priors regularise these away: variances stay positive by
-construction, implausible values are gently down-weighted, and where the small
-sample cannot determine a parameter the posterior _says so_ (it stays wide)
-rather than the optimiser inventing false certainty. The Bayesian IRT/factor
-literature documents this stabilising behaviour and its workflow — prior
-predictive checks, posterior predictive checks, prior sensitivity (Bürkner 2021).
+**(c) Graceful behaviour at small n.** This sample is ~54 children. Maximum- likelihood factor models with many DIF parameters are exactly where ML misbehaves — non-convergence, boundary estimates (negative variances, loadings pinned at extremes), wildly uncertain estimates reported as precise. Weakly-informative priors regularise these away: variances stay positive by construction, implausible values are gently down-weighted, and where the small sample cannot determine a parameter the posterior _says so_ (it stays wide) rather than the optimiser inventing false certainty. The Bayesian IRT/factor literature documents this stabilising behaviour and its workflow — prior predictive checks, posterior predictive checks, prior sensitivity (Bürkner 2021).
 
-**(d) Natural fusion with the stack we already run.** None of this needs a new
-toolchain. MNLFA's aggregate-count measurement leg for checklists _is_ our
-Beta-Binomial bounded-count likelihood with overdispersion; its smooth latent
-age-trajectory and possible smooth item moderation are our HSGP-over-age; its
-sampler is the nutpie NUTS we already use; its priors and partial pooling are the
-same idioms as the existing LRP correlated-factor and latent-change-score models.
-Bayesian MNLFA is best understood not as importing a foreign method but as
-_naming and generalising the measurement model the two projects have already
-converged on_.
+**(d) Natural fusion with the stack we already run.** None of this needs a new toolchain. MNLFA's aggregate-count measurement leg for checklists _is_ our Beta-Binomial bounded-count likelihood with overdispersion; its smooth latent age-trajectory and possible smooth item moderation are our HSGP-over-age; its sampler is the nutpie NUTS we already use; its priors and partial pooling are the same idioms as the existing LRP correlated-factor and latent-change-score models. Bayesian MNLFA is best understood not as importing a foreign method but as _naming and generalising the measurement model the two projects have already converged on_.
 
 ## 4. What this buys us, by question
 
 ### Q1 — Combine CDI checklists with LRP direct measures
 
-Yes. Both become _typed indicators_ of shared latent language factors: the CDI
-"words understood" count is a Beta-Binomial(k of N) indicator of a _receptive
-vocabulary_ η; the CDI "words spoken/signed" count an indicator of _expressive_
-η; the direct receptive (`rowpvt`) and expressive (`eowpvt`) picture-vocabulary
-tests, TROG-2 grammar (`trog`), the Action Picture Test, and the taught/not-taught
-block tests load on the same factors through their own links. "Instrument" enters
-as a covariate, with DIF _modelled_ rather than assumed away.
+Yes. Both become _typed indicators_ of shared latent language factors: the CDI "words understood" count is a Beta-Binomial(k of N) indicator of a _receptive vocabulary_ η; the CDI "words spoken/signed" count an indicator of _expressive_ η; the direct receptive (`rowpvt`) and expressive (`eowpvt`) picture-vocabulary tests, TROG-2 grammar (`trog`), the Action Picture Test, and the taught/not-taught block tests load on the same factors through their own links. "Instrument" enters as a covariate, with DIF _modelled_ rather than assumed away.
 
 ::: {.callout-important title="The precondition for Q1"}
-The precondition for Q1 is **bridging information linking checklist and direct
-measures**. The cleanest bridge is co-administration: some children with _both_
-a CDI count and a direct vocabulary score, so the model can learn how the two
-instruments map onto the same η. Without any such overlap — and the
-Burgoyne (2012) RCT sample did not collect parent CDI checklists — the
-checklist scale and the direct scale are only weakly tied (through shared
-covariates and strong prior assumptions), and the harmonisation rests on
-assumptions we cannot check. This is a data-collection implication, not just a
-modelling choice.
+The precondition for Q1 is **bridging information linking checklist and direct measures**. The cleanest bridge is co-administration: some children with _both_ a CDI count and a direct vocabulary score, so the model can learn how the two instruments map onto the same η. Without any such overlap — and the Burgoyne (2012) RCT sample did not collect parent CDI checklists — the checklist scale and the direct scale are only weakly tied (through shared covariates and strong prior assumptions), and the harmonisation rests on assumptions we cannot check. This is a data-collection implication, not just a modelling choice.
 :::
 
 ### Q2 — Incorporate other researchers' datasets (the key question)
 
-This is the central use case MNLFA was built for: **integrative data analysis**
-across studies whose instruments are _not identical_. The logic is the same as
-Q1, scaled up. Different teams measured the _same underlying skill_ with
-_different tests_ — receptive vocabulary via BPVS in one study, ROWPVT or PPVT in
-another; verbal short-term memory via forward digit span in one, nonword
-repetition in another. We stop treating the test score as the quantity of
-interest and treat each test as a _noisy indicator of a latent skill on a common
-scale_. If two instruments load on the same latent factor, they can sit on one
-ruler _even when no child took both_ — but only through a measurement link; a
-common factor _label_ is not enough on its own.
+This is the central use case MNLFA was built for: **integrative data analysis** across studies whose instruments are _not identical_. The logic is the same as Q1, scaled up. Different teams measured the _same underlying skill_ with _different tests_ — receptive vocabulary via BPVS in one study, ROWPVT or PPVT in another; verbal short-term memory via forward digit span in one, nonword repetition in another. We stop treating the test score as the quantity of interest and treat each test as a _noisy indicator of a latent skill on a common scale_. If two instruments load on the same latent factor, they can sit on one ruler _even when no child took both_ — but only through a measurement link; a common factor _label_ is not enough on its own.
 
 Linkage can come from several sources, roughly from strongest to weakest:
 
@@ -417,36 +200,9 @@ Linkage can come from several sources, roughly from strongest to weakest:
    assumption supplies the link. This is calibration evidence, not a link learned
    from the pooled studies alone.
 
-Under a connected linking design, **no study need administer every measure**.
-Provided the _web_ of instruments is connected (every study links to the pooled
-set, and the union of overlaps forms one connected graph), the latent _scale_ can
-be shared even though each child contributes only the items their study used. But
-a child's factor value for a skill they did not actually measure is mostly
-imputed from covariates, factor correlations and priors; it should not be
-described as measured with the same evidential weight as an observed skill.
-Missing indicators are handled by the likelihood — full-information maximum
-likelihood (FIML) in the frequentist tradition; in our Bayesian/PyMC setting,
-naturally, by masked likelihood legs over only the observed indicators, the _same
-masking pattern LRP67 already uses_.
+Under a connected linking design, **no study need administer every measure**. Provided the _web_ of instruments is connected (every study links to the pooled set, and the union of overlaps forms one connected graph), the latent _scale_ can be shared even though each child contributes only the items their study used. But a child's factor value for a skill they did not actually measure is mostly imputed from covariates, factor correlations and priors; it should not be described as measured with the same evidential weight as an observed skill. Missing indicators are handled by the likelihood — full-information maximum likelihood (FIML) in the frequentist tradition; in our Bayesian/PyMC setting, naturally, by masked likelihood legs over only the observed indicators, the _same masking pattern LRP67 already uses_.
 
-The hard constraint, stated plainly: **at least one trustworthy shared anchor
-indicator per skill must connect each study to a common core, and some indicators
-must be constrained or assumed invariant to identify DIF on the rest.** You
-cannot let every parameter of every item vary with study and still recover where
-cohorts truly sit. Sparse overlap also limits what can be checked: with one
-anchor, its invariance is an assumption; several independent anchors are needed
-before the data can meaningfully challenge that assumption. Content-equivalent
-clusters and external crosswalks can help, but they should be labelled as
-calibration assumptions unless they are backed by common-person or common-item
-data. The harmonisation literature is explicit that **sparse overlap is the
-binding limitation** (Howe et al. 2024): when only a handful of items bridge
-studies, or anchors are themselves contaminated by DIF, harmonisation degrades and
-anchor selection becomes the crux. The canonical worked templates are the
-depression-measure harmonisation tutorial of Zhao et al. (2022) and the
-alcohol/substance-use IDA consortia, automated in the aMNLFA R package
-(Gottfredson et al. 2019). Pooling cohorts that used _different depression
-scales_ onto one latent metric is structurally identical to pooling cohorts that
-used _different vocabulary/memory/reading tests_.
+The hard constraint, stated plainly: **at least one trustworthy shared anchor indicator per skill must connect each study to a common core, and some indicators must be constrained or assumed invariant to identify DIF on the rest.** You cannot let every parameter of every item vary with study and still recover where cohorts truly sit. Sparse overlap also limits what can be checked: with one anchor, its invariance is an assumption; several independent anchors are needed before the data can meaningfully challenge that assumption. Content-equivalent clusters and external crosswalks can help, but they should be labelled as calibration assumptions unless they are backed by common-person or common-item data. The harmonisation literature is explicit that **sparse overlap is the binding limitation** (Howe et al. 2024): when only a handful of items bridge studies, or anchors are themselves contaminated by DIF, harmonisation degrades and anchor selection becomes the crux. The canonical worked templates are the depression-measure harmonisation tutorial of Zhao et al. (2022) and the alcohol/substance-use IDA consortia, automated in the aMNLFA R package (Gottfredson et al. 2019). Pooling cohorts that used _different depression scales_ onto one latent metric is structurally identical to pooling cohorts that used _different vocabulary/memory/reading tests_.
 
 Two further practical choices for the note's record:
 
@@ -472,11 +228,7 @@ Two further practical choices for the note's record:
 
 ### Q3 — De-attenuation and enrichment, and the explicit non-fixes
 
-Joint Bayesian fitting propagates latent-score uncertainty into the
-mediation/moderation estimates. Where the measurement model is right and the
-anchors are strong, this can reduce _measurement-induced_ attenuation and may
-improve precision; where the bridge is weak, it should instead expose the
-uncertainty by widening the posterior. State plainly what it does **not** do:
+Joint Bayesian fitting propagates latent-score uncertainty into the mediation/moderation estimates. Where the measurement model is right and the anchors are strong, this can reduce _measurement-induced_ attenuation and may improve precision; where the bridge is weak, it should instead expose the uncertainty by widening the posterior. State plainly what it does **not** do:
 
 - It does **not** remove **causal confounding.** If an unmeasured common cause
   drives both predictor and outcome, sharper measurement gives a more precise
@@ -509,62 +261,15 @@ uncertainty by widening the posterior. State plainly what it does **not** do:
 
 ## 4b. Memory specifically: the clearest case for cross-dataset harmonisation
 
-Memory is both the most scientifically central gap and the cleanest test case for
-Q2, for two reasons.
+Memory is both the most scientifically central gap and the cleanest test case for Q2, for two reasons.
 
-**The DS phenotype makes a correlated, multi-construct memory model essential.**
-Down syndrome shows a _specific, disproportionate deficit in verbal short-term
-memory_ (the phonological loop), against relatively _spared visuospatial_
-short-term memory (Jarrold, Baddeley and Hewes 1999; Jarrold, Baddeley and
-Phillips 2002; Purser and Jarrold 2005; Baddeley and Jarrold 2007). The deficit is
-specific to verbal material and not attributable to hearing or speech-motor
-difficulty (Jarrold et al. 2002), and is a capacity limitation rather than rapid
-decay (Purser and Jarrold 2005). Crucially, verbal short-term memory is
-mechanistically implicated in _learning_: the phonological loop is a
-language-learning device that stores novel word-forms while lexical records are
-built (Baddeley, Gathercole and Papagno 1998), so a verbal-memory bottleneck
-throttles vocabulary growth — and, downstream, reading. Nonword repetition (the
-purest phonological-memory marker, with word repetition as a speech/perceptual
-control; Laws 1998) predicts later vocabulary and grammar in DS over a five-year
-follow-up (Laws and Gunn 2004), and DS reading deficits track vocabulary and
-phonological awareness, not decoding per se (Næss et al. 2011; Næss 2016) —
-echoing Burgoyne et al. (2012), where receptive language, not phoneme awareness,
-predicted reading growth. This is why the right object is a _correlated
-multi-construct latent model_ — verbal STM distinct from a relatively spared
-visuospatial STM, with the DS-vs-TD contrast expressed as a factor-mean
-difference (a moderation MNLFA handles natively), and memory → vocabulary →
-reading entering as error-corrected _paths_, which is the science.
+**The DS phenotype makes a correlated, multi-construct memory model essential.** Down syndrome shows a _specific, disproportionate deficit in verbal short-term memory_ (the phonological loop), against relatively _spared visuospatial_ short-term memory (Jarrold, Baddeley and Hewes 1999; Jarrold, Baddeley and Phillips 2002; Purser and Jarrold 2005; Baddeley and Jarrold 2007). The deficit is specific to verbal material and not attributable to hearing or speech-motor difficulty (Jarrold et al. 2002), and is a capacity limitation rather than rapid decay (Purser and Jarrold 2005). Crucially, verbal short-term memory is mechanistically implicated in _learning_: the phonological loop is a language-learning device that stores novel word-forms while lexical records are built (Baddeley, Gathercole and Papagno 1998), so a verbal-memory bottleneck throttles vocabulary growth — and, downstream, reading. Nonword repetition (the purest phonological-memory marker, with word repetition as a speech/perceptual control; Laws 1998) predicts later vocabulary and grammar in DS over a five-year follow-up (Laws and Gunn 2004), and DS reading deficits track vocabulary and phonological awareness, not decoding per se (Næss et al. 2011; Næss 2016) — echoing Burgoyne et al. (2012), where receptive language, not phoneme awareness, predicted reading growth. This is why the right object is a _correlated multi-construct latent model_ — verbal STM distinct from a relatively spared visuospatial STM, with the DS-vs-TD contrast expressed as a factor-mean difference (a moderation MNLFA handles natively), and memory → vocabulary → reading entering as error-corrected _paths_, which is the science.
 
-**Memory is exactly where our own coverage is thinnest — and where pooling pays
-off.** LRP's memory coverage is verbal-only: the Early Repetition Battery word
-(`erbword`), nonword (`erbnw`) and total (`erbto`) repetition, characterised in
-the repo as indexing verbal/phonological short-term memory. There is **no digit
-span, no Corsi/visuospatial span, and no explicit working-memory task** anywhere
-in `data_variables.py` or `measures.py`; and the ERB measures currently live only
-in the exploratory gradient-boosting layer (LRP25-30), not the Bayesian
-`measures.py` MEASURES dict. So a third-party dataset that carries forward digit
-span, a nonword-repetition variant, or Corsi/visual span could do two things at
-once: provide an **anchor** (nonword repetition is a plausible shared indicator
-bridging studies — though it is itself phonologically and linguistically loaded
-and can behave differently across languages and task versions, so its invariance
-as an anchor must be _tested_, not assumed) and _extend_ the latent space. A
-digit-span study and a nonword-repetition study can both inform the same
-verbal-STM trajectory only if they are connected by shared anchors or by enough
-cross-construct overlap; where a child has no memory indicator, their memory
-factor is imputed from the model, not directly measured. A Corsi study adds a
-separate, weakly-correlated visuospatial factor that is more language-neutral but
-taps the distinct, relatively spared construct. That is harmonising
-_different memory tests onto one verbal-STM metric_ — structurally the depression-
-harmonisation template — and it is what would finally let memory enter the
-interaction/mediation models that LRP alone cannot support. (The exploratory
-LRP25-30 work exists precisely to decide whether the shared DAG needs a
-verbal/phonological STM _node_; MNLFA pooling is how that node could be measured
-well enough to use.)
+**Memory is exactly where our own coverage is thinnest — and where pooling pays off.** LRP's memory coverage is verbal-only: the Early Repetition Battery word (`erbword`), nonword (`erbnw`) and total (`erbto`) repetition, characterised in the repo as indexing verbal/phonological short-term memory. There is **no digit span, no Corsi/visuospatial span, and no explicit working-memory task** anywhere in `data_variables.py` or `measures.py`; and the ERB measures currently live only in the exploratory gradient-boosting layer (LRP25-30), not the Bayesian `measures.py` MEASURES dict. So a third-party dataset that carries forward digit span, a nonword-repetition variant, or Corsi/visual span could do two things at once: provide an **anchor** (nonword repetition is a plausible shared indicator bridging studies — though it is itself phonologically and linguistically loaded and can behave differently across languages and task versions, so its invariance as an anchor must be _tested_, not assumed) and _extend_ the latent space. A digit-span study and a nonword-repetition study can both inform the same verbal-STM trajectory only if they are connected by shared anchors or by enough cross-construct overlap; where a child has no memory indicator, their memory factor is imputed from the model, not directly measured. A Corsi study adds a separate, weakly-correlated visuospatial factor that is more language-neutral but taps the distinct, relatively spared construct. That is harmonising _different memory tests onto one verbal-STM metric_ — structurally the depression- harmonisation template — and it is what would finally let memory enter the interaction/mediation models that LRP alone cannot support. (The exploratory LRP25-30 work exists precisely to decide whether the shared DAG needs a verbal/phonological STM _node_; MNLFA pooling is how that node could be measured well enough to use.)
 
 ## 5. Relationship to our existing models and shared backbone
 
-MNLFA is not a departure; it is the convergent generalisation of three things we
-already have.
+MNLFA is not a departure; it is the convergent generalisation of three things we already have.
 
 | Existing piece                                                                                          | What it already does                                                                                                                                                                                                                                                    | What MNLFA generalises                                                                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -573,10 +278,7 @@ already have.
 | **Measurement-sensitivity audit** (`scripts/measurement_audit.py`)                                      | Descriptive per-measure floor/ceiling, range used, dispersion, mover fraction; flags detection-limited measures; "cannot estimate reliability from single summary scores"                                                                                               | The exact limitation an MNLFA item/latent layer is _designed_ to address — reliability and DIF become estimable once items load on a latent skill.                                             |
 | **HSGP + Beta-Binomial + nutpie stack**                                                                 | Smooth age effects; overdispersion-robust k-of-N likelihood; the sampler and workflow                                                                                                                                                                                   | Become, respectively, the _moderation functions_, the _checklist measurement link_, and the _estimation engine_ of an MNLFA. No new toolchain.                                                 |
 
-In short: the measurement leg already exists (LRP67), the multi-factor structure
-already exists (LRPMM01), the smooth moderation already exists (HSGP), and the
-audit already tells us why we need the latent layer. MNLFA assembles them and lets
-"study/instrument" become a modelled covariate.
+In short: the measurement leg already exists (LRP67), the multi-factor structure already exists (LRPMM01), the smooth moderation already exists (HSGP), and the audit already tells us why we need the latent layer. MNLFA assembles them and lets "study/instrument" become a modelled covariate.
 
 ## 6. Preconditions, risks and limitations
 
@@ -657,10 +359,7 @@ Each stage has an explicit go/no-go gate; we do not advance until the gate passe
    external criteria where available, known DS-vs-comparison contrasts, and
    longitudinal patterns before scaling to several cohorts.
 
-At every stage, prior predictive checks, posterior predictive checks and prior
-sensitivity are mandatory, and findings are reported as exploratory triangulation,
-not inferential headlines. Any anchor choice, content-equivalent cluster or
-external calibration must get a sensitivity analysis.
+At every stage, prior predictive checks, posterior predictive checks and prior sensitivity are mandatory, and findings are reported as exploratory triangulation, not inferential headlines. Any anchor choice, content-equivalent cluster or external calibration must get a sensitivity analysis.
 
 ## 8. Open questions for discussion
 
@@ -787,10 +486,5 @@ Down syndrome phenotype — memory, language and reading:
   doi:10.1016/j.jecp.2005.01.002
 
 ::: {.callout-note title="A nuance to keep honest"}
-A nuance to keep honest (per Polišenská and Kapalková 2013): state the DS
-oral-language profile as _receptive vocabulary a relative strength, expressive
-language and grammar/morphosyntax a relative weakness_ — strongest as a
-DS-versus-other-syndrome and DS-versus-mental-age contrast — rather than an
-absolute grammar collapse; grammar can track lexical level once vocabulary is
-matched.
+A nuance to keep honest (per Polišenská and Kapalková 2013): state the DS oral-language profile as _receptive vocabulary a relative strength, expressive language and grammar/morphosyntax a relative weakness_ — strongest as a DS-versus-other-syndrome and DS-versus-mental-age contrast — rather than an absolute grammar collapse; grammar can track lexical level once vocabulary is matched.
 :::

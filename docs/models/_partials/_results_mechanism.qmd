@@ -1,22 +1,15 @@
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Results
 
-In plain terms: this section asks how one skill tracks another once we hold the
-adjustment set fixed — an association after controlling for confounders, read off
-as a slope and a curve, not as proof that one skill *causes* the other.
+In plain terms: this section asks how one skill tracks another once we hold the adjustment set fixed — an association after controlling for confounders, read off as a slope and a curve, not as proof that one skill *causes* the other.
 
-Mechanism coefficients and curves are **adjusted associations**. They describe how
-two measured skills go together after the specified adjustment set; they do not
-identify a causal skill-to-skill effect under the revised DAG.
+Mechanism coefficients and curves are **adjusted associations**. They describe how two measured skills go together after the specified adjustment set; they do not identify a causal skill-to-skill effect under the revised DAG.
 
-Exposure and outcome are measured at the **same wave**. Conditioning the outcome on
-its own previous score does not make the exposure temporally prior to it, so nothing
-here rules out reverse or synchronised development. The child random intercept
-absorbs repeated-measures dependence; it is **not** a control for latent general
-ability, and because it is not allowed to correlate with the exposure, a single
-fitted coefficient or curve mixes between-child and within-child information. Where a
-fit declares the between/within split (`decompose_between_within`, #603) that mixing
-is undone and the two are reported separately — the "exposure slopes by question"
-table below says which is which.
+Exposure and outcome are measured at the **same wave**. Conditioning the outcome on its own previous score does not make the exposure temporally prior to it, so nothing here rules out reverse or synchronised development. The child random intercept absorbs repeated-measures dependence; it is **not** a control for latent general ability, and because it is not allowed to correlate with the exposure, a single fitted coefficient or curve mixes between-child and within-child information. Where a fit declares the between/within split (`decompose_between_within`, #603) that mixing is undone and the two are reported separately — the "exposure slopes by question" table below says which is which.
 
 ```{python}
 # | echo: false

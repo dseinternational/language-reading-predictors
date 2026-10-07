@@ -1,5 +1,5 @@
 ---
-title: "LRPDID12: Waitlist-crossover arm-by-wave sensitivity for nonword reading (NWR) (NW), off-floor prevalence"
+title: "LRP-RLI-DID-012: Waitlist-crossover arm-by-wave sensitivity for nonword reading (NWR) (NW), off-floor prevalence"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -23,10 +27,7 @@ format:
 
 LRPDID12 jointly models whether each child is off the nonword-reading floor at t1, t2 and t3, with a separate immediate-minus-waitlist gap at each wave. It is a longitudinal sensitivity analysis alongside the available-case modified ITT floor-rule estimate (LRPITT11), not an independent replication.
 
-_The estimand is off-floor prevalence, not floor exit._ Nonword reading is heavily floored (a large share of period post-scores are zero).
-On the graded count scale a handful of dispersed tail values, not the arm contrast,
-would drive the fit, so the observation is a **Bernoulli on the binary "off-floor"
-indicator** (period post > 0), with no dispersion parameter.
+_The estimand is off-floor prevalence, not floor exit._ Nonword reading is heavily floored (a large share of period post-scores are zero). On the graded count scale a handful of dispersed tail values, not the arm contrast, would drive the fit, so the observation is a **Bernoulli on the binary "off-floor" indicator** (period post > 0), with no dispersion parameter.
 
 The quantity is **off-floor prevalence**, `Pr(score > 0)` at each wave over every observed child — **not** the floor-exit transition `Pr(t2 > 0 | t1 = 0)` that #119 defines as the ITT floor-rule's **post-hoc exploratory headline**. The two differ materially: a child already off floor who stays off counts identically to one who newly moves off, so prevalence blends “already off and stayed” with “came off”. LRPITT11 carries the exploratory transition analysis on the single randomised t1→t2 phase. Read these arm-by-wave contrasts as differences in *being* off floor, never as “coming off the floor” or as a graded gain.
 

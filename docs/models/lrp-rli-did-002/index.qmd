@@ -1,5 +1,5 @@
 ---
-title: "LRPDID02: Waitlist-crossover arm-by-wave sensitivity for letter-sound knowledge (YARC-LSK) (LS)"
+title: "LRP-RLI-DID-002: Waitlist-crossover arm-by-wave sensitivity for letter-sound knowledge (YARC-LSK) (LS)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

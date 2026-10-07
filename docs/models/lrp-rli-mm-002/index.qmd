@@ -1,5 +1,5 @@
 ---
-title: "LRPMM02: Errors-in-variables code→word-reading mechanism (latent code factor)"
+title: "LRP-RLI-MM-002: Errors-in-variables code→word-reading mechanism (latent code factor)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}

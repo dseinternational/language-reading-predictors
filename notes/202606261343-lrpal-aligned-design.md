@@ -1,4 +1,9 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Aligned-40-week per-protocol family (LRPAL) — design decisions
+
+**Historical record.** The aligned windows differ in age, timing and elapsed time. They do not provide equal dose or a randomised treatment comparison. See [the later record](202609212100-assessment-interval-lengths.md) and [METHODS.md](../METHODS.md).
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
@@ -9,14 +14,7 @@ Date: 2026-06-26
 
 ## Scope
 
-A statistical-model family (`kind="aligned"`, modules `lrpal01–08` + the `lrpal01d`
-dose variant) that compares the two RLI arms on a **like-for-like intervention
-dose** by aligning each child to its own intervention onset, rather than to
-calendar/assessment wave. It answers "after ~40 weeks of the program _from
-onset_, where does each arm sit, and what is that aligned outcome associated
-with?" — a per-protocol companion to the randomised LRPITT suite and its
-within-person replication (LRPDID). This note records the decisions a future
-reader might question.
+A statistical-model family (`kind="aligned"`, modules `lrpal01–08` + the `lrpal01d` dose variant) that compares the two RLI arms on a **like-for-like intervention dose** by aligning each child to its own intervention onset, rather than to calendar/assessment wave. It answers "after ~40 weeks of the program _from onset_, where does each arm sit, and what is that aligned outcome associated with?" — a per-protocol companion to the randomised LRPITT suite and its within-person replication (LRPDID). This note records the decisions a future reader might question.
 
 ## The onset alignment (confirmed from the data)
 
@@ -29,70 +27,38 @@ Cumulative sessions (`attend_cumul`) by arm × wave fix the onset and window:
 | t3   | ~137                | ~70                   |
 | t4   | ~190                | ~127                  |
 
-So the immediate arm onsets at **t1** and the wait-list arm at **t2** (after its
-wait). Two periods of intervention from onset (~the 40-week program, ~130 sessions)
-lands at **t3** for the immediate arm and **t4** for the wait-list arm. The aligned
-single gain is therefore:
+So the immediate arm onsets at **t1** and the wait-list arm at **t2** (after its wait). Two periods of intervention from onset (~the 40-week program, ~130 sessions) lands at **t3** for the immediate arm and **t4** for the wait-list arm. The aligned single gain is therefore:
 
 - **Immediate:** pre = t1 (onset), post = t3.
 - **Wait-list:** pre = t2 (onset), post = t4.
 
-One row per child (54: 28 immediate, 26 wait-list; W gives 52 after dropping 2
-incomplete). Data: Burgoyne et al. 2012, the RLI RCT
-(doi:10.1111/j.1469-7610.2012.02557.x).
+One row per child (54: 28 immediate, 26 wait-list; W gives 52 after dropping 2 incomplete). Data: Burgoyne et al. 2012, the RLI RCT (doi:10.1111/j.1469-7610.2012.02557.x).
 
 ## Estimand and identification
 
 ### Decision 1 — per-protocol, so **nothing is a clean treatment effect**
 
-Aligning by onset buys a like-for-like dose comparison but **spends the
-randomisation**: the immediate-vs-wait-list contrast at the aligned endpoints
-(`beta_cohort`) is not the available-case modified ITT estimate. The two arms reach their aligned
-window at different calendar times and **different ages** (see Decision 2), so
-`beta_cohort` is a confounded cohort/timing association. Accordingly the pipeline
-flags **no** term causal (`causal_terms=()`): every coefficient — cohort, own
-baseline, age-at-onset, ability — is reported as an _association_. The randomised
-estimate of record stays in LRPITT/LRPDID.
+Aligning by onset buys a like-for-like dose comparison but **spends the randomisation**: the immediate-vs-wait-list contrast at the aligned endpoints (`beta_cohort`) is not the available-case modified ITT estimate. The two arms reach their aligned window at different calendar times and **different ages** (see Decision 2), so `beta_cohort` is a confounded cohort/timing association. Accordingly the pipeline flags **no** term causal (`causal_terms=()`): every coefficient — cohort, own baseline, age-at-onset, ability — is reported as an _association_. The randomised estimate of record stays in LRPITT/LRPDID.
 
 ### Decision 2 — age-at-onset is the headline confound
 
-Because the wait-list arm onsets a wave later, it reaches its aligned window **~3–4
-months older** (immediate onset ≈ 83.8 mo at t1; wait-list onset ≈ 87.4 mo at t2).
-Age enters as **age-at-onset** (the age at each arm's own pre-wave), not a fixed
-wave age. In the W exemplar `gamma_A` is negative and credible, so the cohort
-contrast must be read net of this age gap — it is the main reason `beta_cohort`
-(+0.19 logit, about +1.9 words) is _weaker_ than the available-case modified ITT
-estimate τ (about +0.44).
+Because the wait-list arm onsets a wave later, it reaches its aligned window **~3–4 months older** (immediate onset ≈ 83.8 mo at t1; wait-list onset ≈ 87.4 mo at t2). Age enters as **age-at-onset** (the age at each arm's own pre-wave), not a fixed wave age. In the W exemplar `gamma_A` is negative and credible, so the cohort contrast must be read net of this age gap — it is the main reason `beta_cohort` (+0.19 logit, about +1.9 words) is _weaker_ than the available-case modified ITT estimate τ (about +0.44).
 
 ### Decision 3 — one row per child, **no random intercept**
 
-Each child contributes a single aligned gain, so there are no repeated measures to
-pool: the model is a cross-sectional Beta-Binomial ANCOVA with no child random
-intercept (unlike the gain/level factor families, which stack periods/timepoints).
+Each child contributes a single aligned gain, so there are no repeated measures to pool: the model is a cross-sectional Beta-Binomial ANCOVA with no child random intercept (unlike the gain/level factor families, which stack periods/timepoints).
 
 ### Decision 4 — ability is merged from t1 for **both** arms
 
-Cognitive ability (block design) is a t1-only baseline. For the wait-list arm the
-onset row is t2, where `blocks` is not re-measured — so ability is taken from t1
-for every child, never from the wait-list arm's t2 onset row. (Age-at-onset and the
-own baseline _do_ come from the onset row; ability does not.)
+Cognitive ability (block design) is a t1-only baseline. For the wait-list arm the onset row is t2, where `blocks` is not re-measured — so ability is taken from t1 for every child, never from the wait-list arm's t2 onset row. (Age-at-onset and the own baseline _do_ come from the onset row; ability does not.)
 
 ### Decision 5 — dose is a collider → sensitivity variant only (`lrpal01d`)
 
-Cumulative sessions are a **collider** on the DAG (a descendant of both group — the
-immediate arm accrues sessions earlier — and ability — more able / available
-children attend more), so conditioning on dose can open a back-door. Dose therefore
-enters **only** the `lrpal01d` sensitivity variant, never the primary adjustment
-set. As expected (the Phase-0b "dose ≈ null" check), `gamma_dose` is weak and
-inconclusive once onset baseline, age-at-onset and ability are in the model
-(W: +0.04, P ≈ 0.64, CrI −0.15..0.22) — the apparent dose signal is largely the
-randomised contrast relabelled.
+Cumulative sessions are a **collider** on the DAG (a descendant of both group — the immediate arm accrues sessions earlier — and ability — more able / available children attend more), so conditioning on dose can open a back-door. Dose therefore enters **only** the `lrpal01d` sensitivity variant, never the primary adjustment set. As expected (the Phase-0b "dose ≈ null" check), `gamma_dose` is weak and inconclusive once onset baseline, age-at-onset and ability are in the model (W: +0.04, P ≈ 0.64, CrI −0.15..0.22) — the apparent dose signal is largely the randomised contrast relabelled.
 
 ### Decision 6 — phonetic spelling (P) takes the floor rule
 
-P is heavily floored, so `lrpal05` uses `likelihood="bernoulli_offfloor"` (a
-Bernoulli on aligned post > 0, no `kappa`); its cohort marginal is an off-floor
-risk difference. Same rule as the available-case modified ITT suite and the gain/level factor families.
+P is heavily floored, so `lrpal05` uses `likelihood="bernoulli_offfloor"` (a Bernoulli on aligned post > 0, no `kappa`); its cohort marginal is an off-floor risk difference. Same rule as the available-case modified ITT suite and the gain/level factor families.
 
 ## What this is — and is not
 
@@ -104,19 +70,9 @@ risk difference. Same rule as the available-case modified ITT suite and the gain
 
 ## Reporting (ROPE conventions, and a deliberate deferral)
 
-The ROPE-anchored evidence reporting adopted for the suite
-(`notes/202606261304-evidence-strength-and-rope-reporting.md`) prefers the
-**median**, **leads with the interval** rather than the point, separates
-**direction** (`P(coef > 0)`) from **magnitude** (`P(|effect| ≥ δ)` against a
-minimally-important difference δ / region of practical equivalence), and flags the
-**Type-M / winner's-curse** inflation of point estimates at small samples. The LRPAL
-reports adopt the **prose** side of this in full: direction is labelled as direction,
-the interval leads, and the Type-M caveat is stated — per-arm _n_ is only ~26–28, so
-the warning bites harder here than in the pooled suite.
+The ROPE-anchored evidence reporting adopted for the suite (`notes/202606261304-evidence-strength-and-rope-reporting.md`) prefers the **median**, **leads with the interval** rather than the point, separates **direction** (`P(coef > 0)`) from **magnitude** (`P(|effect| ≥ δ)` against a minimally-important difference δ / region of practical equivalence), and flags the **Type-M / winner's-curse** inflation of point estimates at small samples. The LRPAL reports adopt the **prose** side of this in full: direction is labelled as direction, the interval leads, and the Type-M caveat is stated — per-arm _n_ is only ~26–28, so the warning bites harder here than in the pooled suite.
 
-The ROPE/δ **magnitude card** itself (`reporting.rope_summary` + `rope_summary.png`,
-emitted by `fit_itt`) is **deliberately not wired into `fit_aligned`**, for three
-reasons:
+The ROPE/δ **magnitude card** itself (`reporting.rope_summary` + `rope_summary.png`, emitted by `fit_itt`) is **deliberately not wired into `fit_aligned`**, for three reasons:
 
 1. **It would mis-frame a confounded association as a treatment benefit.**
    `rope_summary` reports `P(benefit ≥ δ)` for the available-case modified ITT estimate; LRPAL's
@@ -133,12 +89,7 @@ reasons:
    has only a placeholder `ROPE_DELTA_PROB = 0.10` (an off-floor risk-difference δ) —
    both pending the education lead.
 
-Revisit when the ITT ROPE block is rolled out beyond the `lrpitt07` exemplar. If a
-magnitude read is added to LRPAL then, it must be framed as the size of an
-**association**, against an association-appropriate δ — never as a treatment benefit.
-Separately, the tabulated point in `factor_summary` is still the posterior **mean**
-(the shared helper has not been converted to median-first); that conversion is a
-suite-wide change, out of scope here.
+Revisit when the ITT ROPE block is rolled out beyond the `lrpitt07` exemplar. If a magnitude read is added to LRPAL then, it must be framed as the size of an **association**, against an association-appropriate δ — never as a treatment benefit. Separately, the tabulated point in `factor_summary` is still the posterior **mean** (the shared helper has not been converted to median-first); that conversion is a suite-wide change, out of scope here.
 
 ## Validation (dev config)
 

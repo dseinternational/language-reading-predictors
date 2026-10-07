@@ -1,5 +1,5 @@
 ---
-title: "LRP191: GP knee-test — intervention sessions (IS) -> word reading (WR)"
+title: "LRP-RLI-MECH-191: GP knee-test, intervention sessions (IS) -> word reading (WR)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,39 +25,15 @@ format:
 
 ## Overview
 
-LRP191 is a **new** dose-response **GP knee-test**: does the amount of intervention delivered show
-a **"knee"** — a number of sessions beyond which more sessions go with a more marked difference in
-word reading — the way [LRP58](../lrp-rli-mech-058) found for letter sounds?
+This model estimates a smooth association between sessions attended and word reading. Unlike the straight-line or period-specific slopes in [DOSE-077](../lrp-rli-dose-077/), a Hilbert-space Gaussian process (HSGP) allows the slope to vary across session counts. The exposure is measured in sessions attended within a period. The declared sampling target is `target_accept=0.999`.
 
-The `dose_response` family (LRP77 and companions) fits sessions as a straight-line / period-varying
-slope and has no curve in which to find a knee; this model instead fits the session exposure as a
-nonparametric **HSGP** curve, so a knee can be looked for. It is the first continuous-covariate GP
-mechanism in the suite: the readiness knee is reported in the exposure's own **raw units** (sessions
-attended in a period), not a bounded count. `target_accept` is **0.999** (per LRP58).
-
-_Exposure — per-period sessions, not cumulative dose._ The exposure is per-period sessions attended (`attend`), the same exposure LRP77 uses — **not**
-cumulative dose. Cumulative attendance is a running sum of the $IS$ collider and, if *conditioned
-on*, reopens the latent-$GA$ backdoor (see LRP77 / #269); here sessions is the exposure, not an
-adjuster. `attend` has 55 missing values (the pre-/no-intervention rows, where a per-period session
-count is undefined); these survive as NaN and are dropped by the factory's exposure keep-mask, so
-the fit uses exactly the on-intervention rows that actually carry a dose.
+**Exposure.** The model uses per-period attendance (`attend`). It excludes rows without an observed session count through the factory's exposure mask. Read the current row audit for the included children and periods.
 
 ## Adjustment set
 
-Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general
-ability ($GA$) held (the criterion that reproduces LRP58 and dose-077 exactly): $IS$'s parents are
-$\{A, GA, IG\}$ and nothing else, so the minimal observed set blocking every backdoor to word
-reading is $\{A, IG\}$. Group $G\,(= IG)$ is the always-in term, $A$ the linear age precision
-covariate, and $W_{\text{pre}}$ the autoregressive baseline. No measure or hearing/speech adjusters
-are needed (they are not parents of $IS$). This is **identical adjustment to dose-077** — only the
-functional form (HSGP curve vs period-varying slope) changes.
+Revised DAG (2026-07-10), re-derived by a backdoor d-separation search with the latent general ability ($GA$) held (the criterion that reproduces LRP58 and dose-077 exactly): $IS$'s parents are $\{A, GA, IG\}$ and nothing else, so the selected measured adjustment set is $\{A, IG\}$. Group $G\,(= IG)$ is the always-in term, $A$ the linear age precision covariate, and $W_{\text{pre}}$ the autoregressive baseline. The specification includes no measure, hearing or speech adjusters. This set does not remove the latent-ability confounding described below. This is **identical adjustment to dose-077** — only the functional form (HSGP curve vs period-varying slope) changes.
 
-_Strictly observational — never a treatment effect._ Session dose was **not** randomised (how much a child attended reflects ability, attendance and
-availability) and $IS$ is a partial collider, so the curve is an **adjusted association /
-sensitivity view**, never a treatment effect. Residual confounding by latent general ability ($GA$)
-remains. Read the estimand as "how word reading differs across observed session counts, and whether
-that relationship bends" — **not** "more sessions cause faster progress". The corresponding
-randomised-arm result is an available-case modified ITT estimate in the ITT suite.
+_Strictly observational — never a treatment effect._ Session dose was **not** randomised (how much a child attended reflects ability, attendance and availability) and $IS$ is a partial collider, so the curve is an **adjusted association / sensitivity view**, never a treatment effect. Residual confounding by latent general ability ($GA$) remains. Read the estimand as "how word reading differs across observed session counts, and whether that relationship bends" — **not** "more sessions cause faster progress". The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

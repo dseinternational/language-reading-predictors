@@ -1,9 +1,14 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 # Dose-response model audit and repair plan (2026-08-23)
+
+**Historical record.** This audit predates the dose decomposition and reporting corrections. Read the later remediation for the decisions taken. See [the later record](202608232100-dose-response-587-remediation.md) and [METHODS.md](../METHODS.md).
 
 Preliminary research data and models — all conclusions remain provisional.
 

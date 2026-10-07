@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Byrne reading-language-memory: follow-up analysis plan (issue #164)
 
 <!-- cspell:ignore Byrne MacDonald Buckley readgrp basread basspel bpvs trog woco basdig bassim basnum basmat rlmhg rlmjc xsbr xspg rlm natcen -->
@@ -29,9 +32,7 @@
   report conventions. Every historical model already declares
   `study_id` / `design` / `estimand_type` / `causal_status` in its `config.json`.
 
-So the **infrastructure to add more historical models cheaply now exists on `main`**. What
-remains is (a) a short list of data-owner / education-lead decisions and (b) the
-per-measure and cross-study modelling work those decisions unblock.
+So the **infrastructure to add more historical models cheaply now exists on `main`**. What remains is (a) a short list of data-owner / education-lead decisions and (b) the per-measure and cross-study modelling work those decisions unblock.
 
 ## Analysis sequence
 
@@ -64,22 +65,13 @@ per-measure and cross-study modelling work those decisions unblock.
    in step 4 are explicit and defensible. Pooling before then would blend
    incommensurable scales.
 
-Ids follow the #165 scheme: `rlmhg` = historical growth, `rlmjc` = historical
-joint/correlated, `xsbr` = cross-study bridge, `xspg` = cross-study pooled growth.
+Ids follow the #165 scheme: `rlmhg` = historical growth, `rlmjc` = historical joint/correlated, `xsbr` = cross-study bridge, `xspg` = cross-study pooled growth.
 
-**Panel depth / late-wave group attrition.** `rlmhg01` stopping at wave 3
-generalises: for `basread`, wave 5 is Down-syndrome-only (average and
-reading-matched both drop to zero observed) and wave 4 already thins to 20/25/16,
-so any measure whose panel runs past wave 3 loses the between-group contrast at
-the final wave(s). Each `rlmhg02`+ model must state its usable wave range per
-group; the joint model (`rlmjc01`) and the three-group-vs-two-group framing
-(decision 4) both depend on where the group comparison stays estimable. `basmat`
-(wave 3+ only) is the extreme case already flagged.
+**Panel depth / late-wave group attrition.** `rlmhg01` stopping at wave 3 generalises: for `basread`, wave 5 is Down-syndrome-only (average and reading-matched both drop to zero observed) and wave 4 already thins to 20/25/16, so any measure whose panel runs past wave 3 loses the between-group contrast at the final wave(s). Each `rlmhg02`+ model must state its usable wave range per group; the joint model (`rlmjc01`) and the three-group-vs-two-group framing (decision 4) both depend on where the group comparison stays estimable. `basmat` (wave 3+ only) is the extreme case already flagged.
 
 ## Decisions needed before most of this can proceed
 
-These are the gates. They are **human / data-owner / education-lead** calls, not
-coding tasks.
+These are the gates. They are **human / data-owner / education-lead** calls, not coding tasks.
 
 1. **Authoritative extract + provenance.** The README flags that a separate raw
    export had 96 rows vs the prepared 97. Confirm the prepared wide/long files are
@@ -127,12 +119,7 @@ coding tasks.
 
 ## Report labelling (already supported)
 
-Every historical model must state it is **descriptive natural-history evidence,
-not an intervention effect** (`readgrp` is a cohort factor). `rlmhg01` does this in
-its Overview callout. Bridge models are measurement diagnostics; pooled models
-must state their linking assumptions up front. The #165 metadata fields carry this
-into `config.json` and the report header, so it is machine-checkable, not just
-prose.
+Every historical model must state it is **descriptive natural-history evidence, not an intervention effect** (`readgrp` is a cohort factor). `rlmhg01` does this in its Overview callout. Bridge models are measurement diagnostics; pooled models must state their linking assumptions up front. The #165 metadata fields carry this into `config.json` and the report header, so it is machine-checkable, not just prose.
 
 ## Acceptance-criteria mapping (issue #164)
 

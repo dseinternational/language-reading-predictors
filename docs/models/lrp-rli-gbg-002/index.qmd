@@ -1,5 +1,5 @@
 ---
-title: "LRPGBG02: Predictors of taught-vocabulary gains"
+title: "LRP-RLI-GBG-002: Predictors of taught-vocabulary gains"
 
 format:
   html:
@@ -42,30 +42,17 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG02 models **gains in directly-taught expressive vocabulary** (`b1extau_gain`)
-between consecutive longitudinal timepoints — the change in the Block 1
-taught-words expressive score. It is the taught-vocabulary analogue of
-[LRPGBG06](../lrp-rli-gbg-006/index.qmd), which models the *standardised* expressive-vocabulary gain
-(`eowpvt_gain`); the two are kept separate so the predictor analysis distinguishes
-the words the programme directly taught from general vocabulary.
+LRPGBG02 models **gains in directly-taught expressive vocabulary** (`b1extau_gain`) between consecutive longitudinal timepoints — the change in the Block 1 taught-words expressive score. It is the taught-vocabulary analogue of [LRPGBG06](../lrp-rli-gbg-006/index.qmd), which models the *standardised* expressive-vocabulary gain (`eowpvt_gain`); the two are kept separate so the predictor analysis distinguishes the words the programme directly taught from general vocabulary.
 
-This is a **baseline exploratory model** for the taught-vocabulary gain task. It
-was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169),
-running on the full `Predictors.DEFAULT_GAIN` set (plus the auto-included
-`b1extau` baseline level), with no outlier exclusion.
+This is a **baseline exploratory model** for the taught-vocabulary gain task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_GAIN` set (plus the auto-included `b1extau` baseline level), with no outlier exclusion.
 
 ::: {.callout-note title="Leakage exclusion: b1exto"}
 
-The Block 1 expressive *total* `b1exto` equals taught + not-taught
-(`b1extau + b1exnt`), so it contains the target/baseline construct directly. It is
-removed from the predictor set (the only deviation from LRPGBG06) so the model
-identifies substantive predictors of taught-vocabulary gains rather than
-recovering the score from a superset of itself.
+The Block 1 expressive *total* `b1exto` equals taught + not-taught (`b1extau + b1exnt`), so it contains the target/baseline construct directly. It is removed from the predictor set (the only deviation from LRPGBG06) so the model identifies substantive predictors of taught-vocabulary gains rather than recovering the score from a superset of itself.
 
 :::
 
-Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
-prevent data leakage across timepoints for the same child.
+Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
 
 This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
@@ -143,8 +130,7 @@ print(": Model hyperparameters {#tbl-config}")
 print(", ".join(f"`{v}`" for v in config["predictor_vars"]))
 ```
 
-The predictor set spans demographics, cognitive assessments, language, speech
-and reading measures.
+The predictor set spans demographics, cognitive assessments, language, speech and reading measures.
 
 ### Target variable
 
@@ -253,8 +239,7 @@ The box plot shows the variation across shuffles. Positive importance means shuf
 
 ### SHAP analysis
 
-[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values
-decompose each prediction into the contribution of each feature.
+[SHAP (SHapley Additive exPlanations)](https://shap.readthedocs.io/) values decompose each prediction into the contribution of each feature.
 
 The bar plots show the ten predictors with the largest mean |SHAP| and collapse the rest into one "other features" row.
 
@@ -264,9 +249,7 @@ The bar plots show the ten predictors with the largest mean |SHAP| and collapse 
 
 #### Waterfall plot (most representative observation)
 
-SHAP waterfall plot for the most representative observation (lowest combined
-residual and distance from the median feature vector), showing how each feature
-pushes the prediction from the base value.
+SHAP waterfall plot for the most representative observation (lowest combined residual and distance from the median feature vector), showing how each feature pushes the prediction from the base value.
 
 ![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
 
@@ -306,8 +289,7 @@ print(":::")
 
 ## Partial dependence
 
-Partial dependence plots show the marginal effect of each feature on the predicted
-target, averaging over the values of all other features.
+Partial dependence plots show the marginal effect of each feature on the predicted target, averaging over the values of all other features.
 
 ![Partial dependence plots](partial_dependence.png){#fig-partial-dependence .lightbox fig-align="left"}
 

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT03: Available-case modified ITT analysis of not-taught receptive vocabulary, block 1 (UR)"
+title: "LRP-RLI-ITT-003: Available-case modified ITT analysis of not-taught receptive vocabulary, block 1 (UR)"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
@@ -36,15 +40,9 @@ $$
        + \gamma_A\, A_{\text{std},i},
 $$
 
-with Beta-Binomial likelihood $UR_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$,
-$\mu_i = \sigma(\eta_i)$, $N = 12$. Priors follow the shared template in `priors.py`.
-HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity
-verdict).
+with Beta-Binomial likelihood $UR_{\text{post},i} \sim \text{BetaBinomial}(N, \mu_i\kappa, (1-\mu_i)\kappa)$, $\mu_i = \sigma(\eta_i)$, $N = 12$. Priors follow the shared template in `priors.py`. HSGPs on age and own baseline are off by default (the 2026-04-18 sensitivity verdict).
 
-_Item count (ceiling) unconfirmed._ The not-taught set's item count ($N = 12$) is the observed maximum, flagged
-unconfirmed in `measures.py` (Burgoyne et al. 2012, Table 3, documents only the
-24-item taught tests). Probability-scale summaries are therefore approximate
-pending confirmation from the data dictionary.
+_Item count (ceiling) unconfirmed._ The not-taught set's item count ($N = 12$) is the observed maximum, flagged unconfirmed in `measures.py` (Burgoyne et al. 2012, Table 3, documents only the 24-item taught tests). Probability-scale summaries are therefore approximate pending confirmation from the data dictionary.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

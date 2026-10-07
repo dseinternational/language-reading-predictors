@@ -1,5 +1,5 @@
 ---
-title: "RLM-CA-001: Concurrent correlates of BAS word reading"
+title: "LRP-RLM-CA-001: Concurrent correlates of BAS word reading"
 
 format:
   html:
@@ -12,6 +12,10 @@ format:
     code-links:
       - repo
 ---
+
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).

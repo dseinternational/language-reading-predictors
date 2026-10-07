@@ -1,5 +1,5 @@
 ---
-title: "LRP69: Does baseline non-verbal ability predict verbal/reading trajectory shape? (joint growth curves, independent core)"
+title: "LRP-RLI-GC-069: Does baseline non-verbal ability predict verbal/reading trajectory shape? (joint growth curves, independent core)"
 
 format:
   html:
@@ -13,6 +13,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -21,17 +25,9 @@ format:
 
 ## Overview
 
-LRP69 answers issue #187 (Q5): it characterises the **longitudinal trajectories**
-of the verbal and reading measures across the four RLI waves and asks whether a
-child's **baseline non-verbal ability** predicts the *shape* of those trajectories
-— principally the growth **rate**.
+LRP69 answers issue #187 (Q5): it characterises the **longitudinal trajectories** of the verbal and reading measures across the four RLI waves and asks whether a child's **baseline non-verbal ability** predicts the *shape* of those trajectories — principally the growth **rate**.
 
-It is a joint multivariate **latent growth-curve** model: each measure has its own
-per-child latent intercept and linear age slope on the logit scale, and baseline
-non-verbal ability (`blocks`) enters as a per-child predictor of both. This is the
-*descriptive*, growth-shape complement to LRP67 (which models what within-child
-*change* drives reading change). LRP69 is the **independent-core** model (no
-cross-measure coupling); LRP70 adds a shared growth-tempo factor.
+It is a joint multivariate **latent growth-curve** model: each measure has its own per-child latent intercept and linear age slope on the logit scale, and baseline non-verbal ability (`blocks`) enters as a per-child predictor of both. This is the *descriptive*, growth-shape complement to LRP67 (which models what within-child *change* drives reading change). LRP69 is the **independent-core** model (no cross-measure coupling); LRP70 adds a shared growth-tempo factor.
 
 _Symbol mapping (read before the tables)._
 
@@ -43,14 +39,11 @@ _Symbol mapping (read before the tables)._
 | Word reading | **W** | `ewrswr` | 79 |
 | Letter-sound knowledge | **L** | `yarclet` | 32 |
 
-Non-verbal ability is **block design** (`blocks`, WPPSI-III Block Design),
-recorded at t1 only and complete for all 54 children — a time-invariant baseline
-predictor, not a trajectory outcome.
+Non-verbal ability is **block design** (`blocks`, WPPSI-III Block Design), recorded at t1 only and complete for all 54 children — a time-invariant baseline predictor, not a trajectory outcome.
 
 ## Model structure
 
-For each measure $m \in \{R, E, T, W, L\}$, child $i$ and wave $t$, a latent logit
-level follows a linear growth curve in standardised age $a$:
+For each measure $m \in \{R, E, T, W, L\}$, child $i$ and wave $t$, a latent logit level follows a linear growth curve in standardised age $a$:
 
 $$
 \theta_m[i,t] = \text{intercept}_m[i] + \text{slope}_m[i]\,a[i,t],
@@ -64,17 +57,7 @@ $$
 \text{slope}_m[i] = \beta_m + \gamma_m\,z(\text{blocks}_i) + \sigma^1_m z^1_m[i].
 $$
 
-$\gamma_m$ (baseline non-verbal ability → growth **rate**) is the headline Q5
-estimand; $\delta_m$ is the effect on the **level at the sample-mean (mid-study)
-age** — age is standardised over all child-wave cells, so the intercept is at the
-pooled mean age, not at study entry (the entry-level association is
-$\delta_m + \gamma_m\,\mathbb{E}[\text{age\_std at } t_1]$). Observed counts enter
-a **masked** Beta-Binomial ($\kappa_m$ dispersion) so a child missing one score
-still contributes its other waves. The child random intercept and slope are
-**independent per measure** — the within-measure intercept–slope correlation is
-deliberately omitted at n≈54, mirroring the joint ITT model's disabled LKJ residual
-correlation. The intervention-dose covariate is omitted (the revised DAG's `IS`
-collider). Everything is non-centred.
+$\gamma_m$ (baseline non-verbal ability → growth **rate**) is the headline Q5 estimand; $\delta_m$ is the effect on the **level at the sample-mean (mid-study) age** — age is standardised over all child-wave cells, so the intercept is at the pooled mean age, not at study entry (the entry-level association is $\delta_m + \gamma_m\,\mathbb{E}[\text{age\_std at } t_1]$). Observed counts enter a **masked** Beta-Binomial ($\kappa_m$ dispersion) so a child missing one score still contributes its other waves. The child random intercept and slope are **independent per measure** — the within-measure intercept–slope correlation is deliberately omitted at n≈54, mirroring the joint ITT model's disabled LKJ residual correlation. The intervention-dose covariate is omitted (the revised DAG's `IS` collider). Everything is non-centred.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}
