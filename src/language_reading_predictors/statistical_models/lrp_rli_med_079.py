@@ -15,21 +15,14 @@ and adjustment set manufacture for a mediator the DAG says is causally inert for
 
 Interpretation:
 
-- The residual **mediator -> outcome association** ``b_M`` (grammar -> reading, after
-  {A, E, R, W_pre}) is the readout of interest. Grammar is strongly *correlated* with
-  DS word reading (Byrne, MacDonald & Buckley 2002: age-partialled TROG-reading
-  r ~ 0.54-0.63, *stronger* than vocabulary), so a large residual ``b_M`` here would
-  show the adjustment set does **not** close the `GA` back-door — calibrating how much
-  of LRP59's letter-sound ``b_M`` could likewise be confounding. A residual ``b_M``
-  near zero shows the adjustment substantially closes it, so LRP59's clearly-positive
-  ``b_M`` reflects more than the generic ability bleed-through that inflates *every*
-  skill-reading correlation.
-- The full **NIE through `T`** is reported too, but read it with care: the available-case modified ITT estimate
-  on grammar is near zero (`tau_T` ~ 0), so a small NIE is partly "the intervention
-  barely moves `T`", not only "`T` does not predict reading". The ``b_M`` comparison is
-  the cleaner negative-control quantity.
+- The residual mediator -> outcome association ``b_M`` is the main
+  negative-control readout. A large value is consistent with residual
+  confounding or model misspecification under the stated DAG. A near-zero
+  value does not establish that the GA backdoor is closed for grammar or
+  letter sounds. The measures can differ in their relation with ability,
+  measurement error and precision.
 
-Design mirrors LRP59 exactly, swapping the mediator L -> T: phase 0 only, mediator
+Design uses the same mediation family with mediator T: phase 0 only, mediator
 `T_t2` (Beta-Binomial on `T_t1`), outcome `W_t2`, adjustment
 {G, A, E, R, W_pre, T_t1}. All ID-2 caveats apply; nothing here is a causal route.
 """

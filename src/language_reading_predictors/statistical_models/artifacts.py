@@ -1,34 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Single artefact interface for statistical-model fits (#394 steps 2-3).
+"""Write, register and record artefacts from statistical-model fits.
 
-Historically every family pipeline wrote its tables with an inline
-``df.to_csv(os.path.join(ctx.output_dir, ...))`` followed by a manual
-``ctx.tables[...]`` registration, and guarded optional figures with ad-hoc
-``except Exception`` blocks that printed a warning and dropped the failure on
-the floor. That idiom appeared at over a hundred call sites in the monolithic
-pipeline, so nothing recorded which artefacts a fit produced, which optional
-ones were skipped, or why.
+``save_table`` validates and writes tables. ``guard_optional`` records optional
+failures while the fit continues. ``write_manifest`` reconciles these records
+with files on disk, including outputs from other writers as ``untracked``.
 
-This module centralises the mechanics without changing behaviour:
-
-- :func:`save_table` is the one operation that writes a table CSV into the
-  fit's output directory, registers it on the run context, optionally
-  validates required columns, and records the artefact.
-- :func:`guard_optional` reproduces the warn-and-continue guard around
-  optional artefacts (figures, coverage tables) while persisting a structured
-  record of what was skipped and why.
-- :func:`write_manifest` assembles ``artifact_manifest.json`` at report
-  finalisation: every recorded artefact plus a reconciliation scan of the
-  output directory, so files written by helpers that have not yet migrated to
-  this interface (shared ``dse_research_utils`` writers, plot helpers, the
-  report template copy) still appear, marked ``untracked``.
-
-The interface duck-types the context (``output_dir`` / ``tables`` /
-``artifacts`` attributes) so lightweight sweep and test harnesses that build a
-minimal context object keep working; registration and recording are simply
-skipped when the corresponding attribute is absent.
+Contexts must supply ``output_dir``. Registration and recording are skipped
+when the optional ``tables`` or ``artifacts`` attributes are absent.
 """
 
 from __future__ import annotations
@@ -143,13 +123,9 @@ def save_table(
 ) -> pd.DataFrame:
     """Write ``df`` into the fit's output directory, register and record it.
 
-    One operation replaces the historical three-line idiom (``to_csv`` +
-    ``ctx.tables[...] =`` + nothing recorded). ``filename`` defaults to
-    ``{name}.csv``; ``index=True`` preserves the matrix CSVs that publish
-    their row labels. ``register=False`` preserves the few artefacts that were
-    deliberately never registered on the context (per-measure loop outputs,
-    row manifests). ``required_columns`` fails loudly before anything is
-    written, so a schema drift cannot publish a partial table.
+    ``filename`` defaults to ``{name}.csv``. Use ``index=True`` to retain row
+    labels and ``register=False`` to omit the ``ctx.tables`` entry. Missing
+    ``required_columns`` raise before the table is written.
 
     Returns ``df`` unchanged so call sites can keep chaining.
     """
@@ -227,15 +203,9 @@ def guard_optional(
 ) -> Iterator[None]:
     """Warn-and-continue guard for optional artefacts, recording any skip.
 
-    Behaviour-preserving replacement for the pipeline's ad-hoc ``except
-    Exception`` blocks: an expensive fit must never be lost to a plotting or
-    summary hiccup, so the failure prints the same ``[yellow]{label} {verb}``
-    warning and the fit continues — but the failure type and message are now
-    persisted to the artefact manifest instead of scrolling away. ``verb``
-    reproduces each historical guard's own wording ("skipped", "failed",
-    "not written") so converted sites stay message-identical. Only
-    ``Exception`` is caught (``KeyboardInterrupt``/``SystemExit`` propagate),
-    matching the guards this replaces.
+    Catch ``Exception``, print ``{label} {verb}`` with the error, and record its
+    type and message in the manifest. ``KeyboardInterrupt`` and ``SystemExit``
+    propagate. Use only for outputs whose failure may leave the fit running.
     """
     try:
         yield
@@ -271,15 +241,10 @@ def _scan_output_dir(output_dir: str) -> list[str]:
 def write_manifest(ctx: Any) -> dict[str, Any]:
     """Write ``artifact_manifest.json`` reconciling the log with the directory.
 
-    Recorded artefacts carry their full provenance (status, shape, any skip
-    reason). Files present on disk but never routed through this interface —
-    figures from plot helpers, shared-writer diagnostics, the copied report
-    template — are listed as ``untracked`` with a kind inferred from their
-    extension, so the manifest is a complete inventory of the fit directory
-    from the first adoption and the recorded/untracked split measures how much
-    of the pipeline has migrated. A recorded skip whose file nevertheless
-    exists (a later retry succeeded outside the guard) is reported as it was
-    recorded; disk presence is authoritative only for ``untracked`` entries.
+    Recorded artefacts retain their status, shape and skip reason. Files from
+    other writers appear as ``untracked``, with kind inferred from the extension.
+    A recorded write with no file becomes ``missing``. A recorded skip retains
+    that status even if a later writer created the file without updating the log.
     """
     log = _log_of(ctx)
     records = dict(log.records) if log is not None else {}

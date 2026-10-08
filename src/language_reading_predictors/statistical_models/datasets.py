@@ -1,29 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Dataset and per-study measure metadata (issue #165).
+"""Dataset and measure metadata for the Byrne study.
 
-The intervention study (RLI) is described implicitly by :mod:`data_variables`
-(``Variables``) and the global :data:`measures.MEASURES` catalogue. As soon as a
-second dataset enters the package (the Byrne, MacDonald & Buckley
-reading-language-memory study, ``study_id="rlm"``), those single-study
-assumptions need to become explicit *metadata* rather than being hard-coded into
-loaders and models.
-
-This module is a **leaf** (it imports only :mod:`environment`) so it can be
-imported from ``preprocessing`` / ``factories`` / ``pipeline`` without a cycle.
-It defines:
-
-- :class:`StudyMeasure` - a per-study bounded-count measure (kept **separate**
-  from the RLI symbol namespace so a study-local symbol such as ``trog`` never
-  collides with ``Variables.TROG`` / global ``MEASURES``);
-- :class:`DatasetSpec` - where a study's long-format CSV lives and how its
-  subject / wave / group columns are named;
-- the Byrne catalogue (:data:`RLM_MEASURES`) and dataset (:data:`RLM_DATASET`).
-
-Consolidating the RLI ``MEASURES`` into this same abstraction is deliberately
-out of scope for now (see #165) - this layer sits *alongside* the existing
-global catalogue rather than replacing it.
+Study-local symbols are separate from the RLI catalogue in ``measures.MEASURES``.
+This module depends on ``environment`` but not loaders or model factories, so
+each can use the catalogue without an import cycle.
 """
 
 from __future__ import annotations

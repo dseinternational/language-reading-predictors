@@ -7,13 +7,7 @@ The registered ``kind="historical_joint"`` model jointly fits several bounded
 measures from the Byrne reading-language-memory cohort and reports the
 between-child correlation of their stable levels.  Its within-child companion
 also estimates the correlation of wave-specific departures from those stable
-levels.  This module replaces the family's free-form ``ModelSpec.extra``
-boundary with immutable settings and a validated plan resolved before an output
-transaction is opened or study data are loaded (#394 pillar 4).
-
-The original ``lrp-rlm-jc-001`` path remains behaviour-preserving: its selected
-rows, likelihoods, priors, fitted equation, diagnostic variables and output
-tables do not change.
+levels. Resolve the plan before loading data or opening an output transaction.
 """
 
 from __future__ import annotations
@@ -139,12 +133,7 @@ class HistoricalJointModelSettings:
     sigma_within_prior_sigma: float = 0.5
     within_lkj_eta: float = 2.0
     prediction_target: str = PREDICTION_TARGET_NEW_CHILD
-    """Out-of-sample target this family's cross-validation answers (#626).
-
-    Recorded rather than left implicit: the family published
-    ``loo_unit="undeclared_prediction_target_not_implemented"`` precisely because no
-    target had been declared, and the declaration is what fixes both what is held out
-    and what the calibration diagnostic's holdout unit has to be."""
+    """Prediction target shared by cross-validation and calibration."""
     kfold_folds: int = 5
     """Folds in the grouped child-level K-fold that estimates it.
 
@@ -442,19 +431,8 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         extension_waves=settings.extension_waves,
     )
 
-    # 2026-08-23 joint audit, finding 8, closed by #626. The reason before that audit
-    # — "multiple likelihood nodes, so no pointwise unit is defined" — was wrong: the
-    # nodes share an observation coordinate, so their contributions sum per child-wave
-    # row. What was missing was a *defined and implemented prediction target*. Both are
-    # now declared: the target is a new child in a replicate cohort, and the estimator
-    # is a grouped child-level K-fold, because the importance-sampling route this
-    # family would otherwise take is not usable here. Its own diagnostics say so — with
-    # the child's latent effects integrated out, as a new-child target requires, the
-    # Pareto shape estimates run into the tens rather than fractions, since a child
-    # contributing a whole multi-measure profile makes the leave-one-child-out
-    # posterior far from the full one. #626 is explicit that naive PSIS is not
-    # published where Pareto-k is unacceptable, so the K-fold refits replace it rather
-    # than sitting beside it.
+    # Grouped K-fold estimates the declared new-child target. Previous integrated
+    # child-level PSIS fits failed their Pareto checks; see the #626 decision note.
     loo_reason = (
         "the out-of-sample prediction target is a new child in a replicate cohort, "
         "and it is estimated by grouped child-level K-fold refits rather than by "
@@ -555,11 +533,7 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         observation_nodes=tuple(f"score_{measure}" for measure in settings.measures),
         eta_prior_sigma=settings.eta_prior_sigma,
         sigma_subject_prior_sigma=settings.sigma_subject_prior_sigma,
-        # Every prior scale the fitted model does not contain is recorded as
-        # null, in both directions. config.json is the estimand of record; it
-        # must not name a prior the posterior lacks, and before the 2026-08-21
-        # review (finding 10) it nulled the unused kappa but kept live
-        # within-child scales for the between-child model, which has neither.
+        # Record unused prior scales as null, rather than as fitted parameters.
         dispersion_prior_sigma=(None if settings.within_correlation else settings.dispersion_prior_sigma),
         lkj_eta=settings.lkj_eta,
         within_correlation=settings.within_correlation,

@@ -11,7 +11,7 @@ t1 and the end of the randomised period t2.
 Why it exists: in the four-wave model of record the post-crossover t3/t4
 likelihood reaches the reported t2 change through parameters the waves share —
 the balance term ``arm_gap_t1`` the changes are measured from, the child random
-intercept, the dispersion, and the single time-invariant ``group x ability``
+intercept and the single time-invariant ``group x ability``
 term. Across the stored suite the posterior correlation between ``arm_gap_t1``
 and ``d_grp_time[t2]`` runs from -0.07 to -0.44. The contrast is therefore
 randomisation-anchored but longitudinal-model-dependent, and calling it simply

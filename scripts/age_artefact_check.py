@@ -8,10 +8,9 @@ notes/202607261405-binomial-exchangeability-item-difficulty-review.md. The suite
 finds a credibly negative linear-age precision term for word reading conditional on
 own baseline (``gamma_A`` ~ -0.12 logit; adj-065 -0.26; the errors-in-variables fit
 -0.34). The hypothesis under test: older children sit higher on the item ladder where
-words are harder, so the slope is a measurement artefact. Two children with the same
-baseline score face the same next words regardless of age, so the artefact can only
-enter through unmodelled baseline curvature absorbed by age via the age-baseline
-correlation. This script tests that channel twice:
+words are harder, so the slope is a measurement artefact. Under the simulated item ladders, unmodelled baseline curvature can affect the
+age coefficient because age and baseline ability are correlated. This script
+examines that proposed explanation in two ways:
 
 Part 1 (real data, randomised t1->t2 window): regress W post on baseline + age + arm
 with the baseline entered (a) linearly and (b) with hinge terms at 25/30 items (the
@@ -23,9 +22,9 @@ smoothly graded, homogeneous), age correlated with baseline ability at the obser
 level, and growth INDEPENDENT of age (true age effect = 0). The fitted age
 coefficient measures how much spurious slope each ladder can generate.
 
-Result recorded in the note: every ladder yields a POSITIVE mean age coefficient
-under the null (errors-in-baseline makes age a proxy for true ability), so the
-observed negative slope cannot be a difficulty-ladder artefact.
+The dated note records positive mean age coefficients for the tested ladders
+under this null. That result argues against these simulated explanations. It
+does not rule out other item-difficulty or measurement-error mechanisms.
 
 Usage:
     python scripts/age_artefact_check.py [--reps 1000] [--seed 20260726] [--data data/rli_data_long.csv]

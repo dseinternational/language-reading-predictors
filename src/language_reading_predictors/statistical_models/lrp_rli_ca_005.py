@@ -12,8 +12,8 @@ and expressive TE vocabulary, and standardised expressive E vocabulary), plus ag
 a group nuisance term.
 
 The family's core skill set is {W, L, B, TR, TE, R, E}: each model conditions its
-focal outcome on the remaining six, so the models are complementary full conditionals
-of the same measure set. Floored measures (P, N) stay excluded. R is a 170-item
+focal outcome on the remaining six, so the models describe conditional associations
+within the same measure set. Floored measures (P, N) stay excluded. R is a 170-item
 standardised transfer measure and does not have the late-wave ceiling compression
 flagged for the 24-item taught receptive measure in ``lrp_rli_ca_003``.
 

@@ -3,10 +3,9 @@
 
 """Typed settings and a resolved run plan for dose-response models.
 
-The family estimates observational associations between intervention-session dose
-and bounded skill outcomes.  Resolution happens before an output transaction is
-opened or RLI data are loaded, while preserving the existing fitted equations and
-artefacts (#394 pillar 4).
+The family estimates observational associations between session dose and bounded
+skill outcomes. Resolve settings before loading RLI data or opening an output
+transaction.
 """
 
 from __future__ import annotations
@@ -265,14 +264,7 @@ class DoseResponseRunPlan:
         }
 
     def coefficient_meanings(self) -> dict[str, str]:
-        """One unambiguous sentence per fitted coefficient (#587 finding 2).
-
-        The audit's acceptance criterion is that treatment presence, intensity,
-        assigned arm/history and the between/within dose split each have a meaning a
-        reader cannot confuse with another. They are recorded here, resolved from the
-        declared settings, so ``config.json`` and the report carry the same statement
-        and neither can drift from the fitted equation.
-        """
+        """Describe fitted coefficients for shared use in metadata and reports."""
         meanings: dict[str, str] = {
             "alpha": "Reference-phase intercept (period 1, untreated, at every covariate mean).",
             "alpha_phase": (
@@ -471,10 +463,7 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
         if link_pair_required
         else None
     )
-    # Reject symbols no measure defines *before* any I/O (#587 finding 12). The
-    # previous resolver accepted an arbitrary string and only failed inside the
-    # loader, after the output directory had been reset and the data read — exactly
-    # the ordering the family contract says it prevents.
+    # Reject unknown measures before opening an output transaction.
     unknown = sorted(
         {
             symbol
@@ -548,12 +537,10 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
         loader_covariates=loader_covariates,
         observation_node="y_post",
         compute_loo=True,
-        # Whole-child, not row-level (#587 finding 4). A transition row's own baseline
-        # IS the previous transition's fitted outcome — every period-2 row and all but
-        # one period-3 row — so dropping a single row's likelihood factor leaves that
-        # held-out score in the next row's design matrix. Holding out the whole child
-        # removes it, and the family's small child random-intercept SD keeps the PSIS
-        # approximation reliable.
+        # Group all transition likelihoods by child. A score can also be the next
+        # transition's baseline, so row-level holdout would retain it as a predictor
+        # in another fitted row. This child-level score still conditions on the
+        # supplied baseline predictors; check Pareto diagnostics for reliability.
         loo_unit="child",
         loo_note=(
             "Leave-one-child-out PSIS over the child-summed pointwise log likelihood. "

@@ -295,11 +295,8 @@ if _has("group_trajectory.png"):
     _traj = _csv("group_trajectory.csv")
     print("### Score trajectories — the crossover picture\n")
     print(_img("group_trajectory.png", "Per-arm score trajectory across t1–t3, with credible ribbons and observed arm means"))
-    # The direction sentence is DERIVED from this fit's posterior, never asserted
-    # (#576 finding 8). The pre-#576 text told every reader that "the immediate arm
-    # pulls ahead at t2 and the wait-list arm catches up", which contradicts a null,
-    # negative or widening-gap posterior — and eleven of these reports render from
-    # the same partial.
+    # Derive the direction from this posterior; the design alone does not imply
+    # that the immediate arm pulls ahead or that the wait-list arm catches up.
     _t2_dir = ""
     if did_summary is not None and "prob_tau_t2_pos" in did_summary.columns:
         _p2 = float(_d["prob_tau_t2_pos"])

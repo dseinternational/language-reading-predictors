@@ -22,7 +22,8 @@ w = 1..3::
 
 ``h_L`` / ``h_E`` are the headline coefficients. ``Delta_c[w-1]`` is the
 previous transition's **latent** change (the McArdle true-score layer is kept,
-so measurement floors and noise stay out of the change estimates).
+so the measurement likelihood propagates score uncertainty into the
+change estimates; it does not remove all floor or measurement-error effects).
 
 Two deviations from the merged spec sketch, both required by machinery that
 landed after it was written (#250, ``notes/202607141030-time-lagged-model-designs.md``):

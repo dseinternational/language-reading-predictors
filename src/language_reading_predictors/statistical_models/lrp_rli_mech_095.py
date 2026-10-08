@@ -10,8 +10,10 @@ be high together for larger word-reading gains?") is answered for all four vocab
 measures. Letter sounds enter as the HSGP ``f_mech``; taught-expressive vocabulary
 enters as ``gamma_mod * z(TE)`` + the interaction ``gamma_int * z(logit L) * z(TE)``.
 
-``gamma_int > 0`` = synergy (both high needed); ``~0`` = additive; ``< 0`` =
-substitutive. L and TE are positively correlated in this cohort, so the discordant
+A positive ``gamma_int`` makes the letter-sound log-odds association larger as
+TE rises; a negative value makes it smaller. A value near zero gives little
+evidence for the added product term. Its sign alone does not establish a
+prerequisite or threshold. L and TE are positively correlated in this cohort, so the discordant
 corners are sparse and the interaction is weakly powered - exploratory only.
 
 Adjustment set = the LRP58 L -> W set {G, A, W_pre, HS, IS, SP} + the TE main effect and

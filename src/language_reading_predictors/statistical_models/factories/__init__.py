@@ -1,22 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Model construction, one module per family.
+"""Compatibility exports for model factories.
 
-**A re-export facade since #637 stage 3.** The 8,506-line ``factories.py`` this
-replaces was one of the three dependency hubs the maintainability review named. It
-is now twenty modules: :mod:`~factories.base` for the pieces more than one family
-needs, and one per family for the rest. Every family module depends only on
-``base``; nothing crosses between families.
-
-Two helpers moved into ``base`` to make that true: ``_bivariate_lkj_residual``,
-which the joint-mechanism design reuses from the joint family, and
-``_resolve_adjusted_predictor``, which the horseshoe family reuses from the
-adjusted one.
-
-Every name is re-exported here so existing call sites keep working. #637 asks for
-exactly that ("split factories by family behind temporary re-exports"), and
-*temporary* is the operative word: new code should import from the owning module.
+Each family owns its construction module and imports shared helpers from
+``base``. New code should import from the owning module.
 """
 
 from __future__ import annotations

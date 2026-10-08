@@ -1,27 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Consolidate the baseline non-verbal ability -> vocabulary adjusted association (issue #186, Q4).
+"""Summarise adjusted block-design associations across six vocabulary outcomes.
 
-Surfaces ``gamma_blocks`` -- the block-design (non-verbal ability) coefficient the
-ability-adjusted available-case modified ITT models (LRPITT17-22) already fit -- across the six vocabulary
-outcomes as a single Q4 read-out. ``gamma_blocks`` is the *partial* association of
-baseline non-verbal ability with each vocabulary outcome, holding the child's own
-baseline, linear age and randomised arm fixed.
+The ability-adjusted available-case modified ITT models fit ``gamma_blocks``
+conditional on own baseline vocabulary, linear age and assigned arm. Block design
+is an observed ability measure; adjustment does not remove confounding by latent
+general ability. The coefficient describes an adjusted association, not a causal
+effect or a tested improvement in held-out prediction.
 
-Per the locked DAG (``notes/202606231600-dag-revision-consolidated.md``) block
-design is an off-DAG, pre-randomisation child covariate and latent general ability
-(``GA``) is the unobserved common cause, so this is an **adjusted association**
-(block design is an ability proxy, confounded by ``GA``), **never a causal effect**.
-Because the model already conditions on the child's own baseline vocabulary, the
-coefficient is the *incremental* predictive value of non-verbal ability beyond
-baseline vocabulary and age -- not the raw (marginal) correlation.
-
-For each model it reports, on the logit scale (per +1 SD of block design): the
-posterior median, 50/90/95% equal-tailed intervals, ``P(beta > 0)`` and the
-round-odds evidence label; plus an items-scale average marginal effect (expected
-vocabulary items gained per +1 SD of non-verbal ability, at the sample operating
-point). Writes a consolidated CSV and a forest figure.
+Writes a CSV and forest plot with logit coefficients, 50/90/95% equal-tailed
+intervals and direction probabilities. If ``eta`` is available, also reports the
+change in expected post-score after adding one SD of block design to each fitted
+profile. This score contrast has a 90% interval.
 
 Usage::
 
@@ -61,13 +52,6 @@ ADJUSTER = "gamma_blocks"
 def _spec(model_id: str):
     mod = importlib.import_module(f"language_reading_predictors.statistical_models.{model_id}")
     return mod.SPEC
-
-
-# Equal-tailed intervals come from the shared primitives (this file already uses
-# the shared evidence ladder). Unlike the local re-implementation they drop
-# non-finite draws before taking the quantiles rather than propagating NaN; a
-# posterior with non-finite draws for these parameters is a fit the convergence
-# gate now fails closed on, so nothing is masked here.
 
 
 def summarise_gamma(g: np.ndarray, eta: np.ndarray | None, n_trials: int) -> dict[str, object]:

@@ -239,9 +239,10 @@ def test_group_recode_intervention_is_positive(tmp_path):
     """Sign-convention guard (positive = intervention benefit).
 
     The immediate-intervention arm (``group == 1``) must recode to ``G == 1``
-    and the wait-list control (``group == 2``) to ``G == 0``, so every
-    coefficient on ``G`` (tau, tau_i/tau_k, beta_G, b_G, b_GM, a_G) reads
-    *positive* when the intervention raises the outcome. Guards the
+    and the wait-list control (``group == 2``) to ``G == 0``. A positive arm
+    coefficient then raises the fitted immediate-arm outcome at the term's
+    reference profile. Moderated marginal contrasts still require all active
+    interactions. Guards the
     ``G = 2 - group`` recode in :func:`load_and_prepare` against silent
     reversal. See the "Sign convention" section of METHODS.md.
     """

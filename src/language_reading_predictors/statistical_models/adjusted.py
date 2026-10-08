@@ -128,13 +128,9 @@ class AdjustedModelSettings:
     predictor_slope_sigma: float = 0.3
     prior_sensitivity_sigmas: tuple[float, ...] = (0.5, 0.7)
     gamma_own_sensitivity_sigmas: tuple[float, ...] = (0.5,)
-    """Own-baseline prior SDs for the sensitivity sweep (the fitted value is
-    :data:`GAMMA_OWN_SIGMA`). ``gamma_own ~ Normal(1, 0.25)`` is the one shared
-    prior informative in its mean and its docstring asks for a 0.25-vs-0.5 check;
-    this family never ran it until the 2026-08-22 review (finding 5): the baseline
-    the slopes condition on is itself a member of the correlated ability cluster
-    the predictors come from, so a prior-pulled baseline slope redistributes shared
-    variance into the partial slopes the family reports."""
+    """Own-baseline prior SDs for sensitivity refits; the fitted SD is
+    :data:`GAMMA_OWN_SIGMA`. This prior can affect partial predictor slopes when
+    their inputs correlate with the outcome baseline."""
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)

@@ -27,15 +27,9 @@ from language_reading_predictors.statistical_models.invariants import (
 
 
 def _map_panel_rows(values, index: dict, *, what: str) -> np.ndarray:
-    """Map tidy-row keys to dense model indices, refusing keys the panel lacks.
+    """Map row keys to model indices and reject keys absent from the panel.
 
-    The previous ``Series.map(index).to_numpy(dtype=int)`` turned an unknown key
-    into NaN and then cast it to int — undefined behaviour that is silently 0 on
-    arm64 and INT64_MIN on x86-64, so a row naming a subject outside
-    ``panel.subject_ids`` sampled from subject 0 on one platform and from
-    out-of-bounds memory on the other (a test fixture did exactly that, and CI
-    failed with a Beta-Binomial domain error while the same test passed on macOS,
-    2026-08-22). Failing loudly is the only portable behaviour.
+    Check missing keys before integer conversion to avoid invalid indices.
     """
     mapped = np.array([index.get(value, -1) for value in values], dtype=np.int64)
     if mapped.size and (mapped < 0).any():
@@ -58,8 +52,8 @@ def build_historical_growth_model(
     # value explicitly in its spec; this default matches the reviewed choice.
     sigma_subject_prior_sigma: float = 1.0,
     # 1/sqrt(kappa) ~ HalfNormal(0.25) since the 2026-08-21 review (finding 8):
-    # a HalfNormal on kappa itself cannot reach the near-Binomial limit, which is
-    # the answer the data prefer for most of these measures. See
+    # HalfNormal(50) on kappa assigns negligible mass near the Binomial limit.
+    # The dispersion-scale prior gives more mass to that region. See
     # ``priors.inv_sqrt_kappa_prior`` for the calibration.
     dispersion_prior_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload, LongitudinalPanel]:

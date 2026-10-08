@@ -45,10 +45,8 @@ def model_dir(model_id: str, config: str = "reporting") -> Path:
     return _report.model_dir(model_id, config)
 
 
-# Artefacts that EXIST but could not be parsed: (model_id, artefact) -> reason.
-# ``report.readers`` (#662) separates that state from "not fitted yet", which the
-# previous ``path.exists()`` + ``json.loads`` pattern could not. A corrupt or
-# truncated file must not render as the reassuring pending-fit placeholder.
+# Track parse failures by (model_id, artefact). A corrupt file must not appear
+# as a fit that has not yet run.
 unreadable_artifacts: dict[tuple[str, str], str] = {}
 
 

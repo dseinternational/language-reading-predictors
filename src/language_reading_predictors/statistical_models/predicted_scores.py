@@ -1,11 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Predicted-scores contrast figures for the randomised-contrast families (#316).
+"""Predicted-score distributions, effect densities and posterior icon arrays.
 
-The model reports previously showed the treatment effect only as a logit-scale
-forest entry; nothing displayed what the model says about *actual test scores*.
-This module adds the undergraduate-readability artefacts:
+The report artefacts are:
 
 1. a **predicted-scores contrast panel** — the posterior-predictive distribution
    of the test score for a *new typical child* under the treated and untreated
@@ -144,23 +142,15 @@ class PredictiveContrast:
 
     @property
     def score_difference_independent(self) -> np.ndarray:
-        """Treated-minus-untreated score for two **independently drawn** children.
+        """Treated-minus-untreated score with independent observation noise.
 
-        Not a paired / common-random-number contrast, despite what this property
-        was called until the 2026-08-22 ITT audit (finding 4). ``_scores`` is
-        invoked once per arm and resamples both the Beta propensity and the
-        Binomial count each time, so only the posterior draw, reference row,
-        ``kappa`` and child intercept are shared. Two independent draws of
-        extra-Binomial and sampling noise therefore enter the difference: with the
-        treatment effect fixed to zero the differences are overwhelmingly non-zero
-        and the interval is items-wide, where a genuine within-child contrast
-        would be identically zero.
-
-        It is a legitimate *between-children superiority* quantity — how much one
-        intervention child out-scores one wait-list child — and is reported under
-        that reading. The within-child average treatment effect is
-        :attr:`ame_items` / :attr:`ame_prob`, which is what the effect annotations
-        and ``rope_summary.csv`` use.
+        The two scores share a posterior draw, reference profile and simulated
+        child intercept. Their Beta propensities and Binomial counts are drawn
+        independently conditional on those shared values. The result therefore
+        includes outcome variation even when the mean treatment contrast is zero.
+        It is not a draw of an identified individual treatment effect or a fully
+        independent pair of children. Effect annotations use :attr:`ame_items`
+        and :attr:`ame_prob`, which compare the conditional means.
         """
         return self.score_intervention - self.score_control
 
@@ -265,8 +255,8 @@ def _new_child_adjustment(
     return eta0 - u_child[idx], sigma
 
 
-# Gauss–Hermite degree for the new-child intercept integral. 32 nodes make the
-# smooth 1-D Normal integral of expit effectively exact at negligible cost.
+# Fixed Gauss-Hermite resolution for the one-dimensional child-intercept integral.
+# This numerical approximation does not provide an integration-error bound.
 _GH_DEG = 32
 
 
@@ -373,10 +363,7 @@ def counterfactual_predictive_contrast(
 
     # New-child, population-average effect: strip the fitted child intercept and
     # integrate over the population Normal(0, sigma_child) intercept distribution.
-    # Computed for BOTH likelihoods whenever the model has a child intercept — the
-    # floor-rule Bernoulli path used to return before any new-child step (#391
-    # finding 4), so its reports could only show the observed-child conditional
-    # effect. Reused below for the graded score simulation.
+    # Compute this for both likelihoods and reuse it for graded score simulation.
     eta0_new, sigma_child = _new_child_adjustment(
         trace,
         eta0,
@@ -448,13 +435,12 @@ def predicted_scores_table(
     **observed-child, sample-conditional** effect whose median must agree with
     ``treatment_marginal.csv`` / ``rope_summary.csv`` (guard test). For graded
     outcomes the per-arm predictive score distributions and their difference are
-    **new-child, population-average** quantities; that difference is between two
-    *independently drawn* children, not one child under both arms (2026-08-22 ITT
-    audit, finding 4 — see
-    :attr:`PredictiveContrast.score_difference_independent`), and is named
-    ``predicted_score_difference_independent_children`` so it cannot be read as a
-    within-child potential-outcome contrast. For the binary floor rule: the
-    per-arm off-floor probabilities (observed-child) and their risk difference.
+    **new-child, population-average** quantities. The difference uses independent
+    observation noise with shared profiles and child intercepts, as documented
+    in :attr:`PredictiveContrast.score_difference_independent`. Its legacy name
+    ``predicted_score_difference_independent_children`` does not mean the two
+    children are independent in every respect. For the binary floor rule, write
+    the observed-child arm probabilities and their risk difference.
 
     When the model has a child random intercept, a companion
     ``average_marginal_effect_new_child_population`` row (and, for the floor rule,
@@ -789,11 +775,10 @@ def save_predicted_effect(
 def icon_array_counts(p_benefit: float, p_rope: float, p_harm: float, *, total: int = 100) -> tuple[int, int, int]:
     """Integer dot counts for the icon array, summing exactly to ``total``.
 
-    Largest-remainder (Hamilton) rounding over the *four*-way split (benefit /
-    negligible / harm / the small-effect remainder between them). The three ROPE
-    probabilities may sum to less than 1 — effects between delta and the ROPE
-    edge in either direction fall outside all three — so the remainder is folded
-    into the negligible band for display, which the caption states. A sum
+    Largest-remainder (Hamilton) rounding over benefit, negligible, harm and any
+    unassigned probability. A deficit in the supplied probabilities is folded
+    into the middle display band. The local ``_rope_triple`` uses one common
+    threshold, so its three events cover the full distribution. A sum
     materially above 1 has no coherent icon-array reading and is rejected;
     boundary ties from ``rope_card``'s inclusive comparisons (a draw exactly at
     delta counts as both benefit and negligible) may push the sum a hair over 1

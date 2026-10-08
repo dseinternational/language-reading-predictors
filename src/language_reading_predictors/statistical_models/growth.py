@@ -3,21 +3,11 @@
 
 """Typed settings and a resolved run plan for the latent growth-curve family.
 
-Mirrors the ITT / gain-factor / level-factor / DiD / concurrent / aligned run-plan
-pattern for the joint multivariate latent growth-curve (``kind="growth"``) models. A
-model module declares its settings; the plan is resolved and **validated before any
-data are loaded or an output directory is reset**, then drives data preparation,
-factory construction and the ``config.json`` / ``model_recipe.md`` audit trail. This
-removes the untyped ``spec.extra`` boundary (where a misspelled key silently
-defaulted) and records the resolved design, estimand, causal status, analysis
-population and missing-data assumption alongside every fit.
-
-The growth design characterises one or more measures' within-child trajectories
-(linear in standardised age) and asks whether a **baseline** ability proxy predicts
-trajectory shape: ``gamma`` on the growth *rate* and ``delta`` on the level at mean
-age. The RLI models use four trial waves and a multivariate outcome; the Byrne/RLM
-port uses its paper-compatible first three waves and BAS word reading. Every term is
-an **adjusted, latent-general-ability-confounded association**, never causal.
+Resolve the plan before loading data or opening an output transaction. The model
+describes trajectories linear in standardised age. A baseline ability proxy
+relates to growth rate through ``gamma`` and to level at mean age through ``delta``.
+RLI models use four waves; the Byrne port uses the first three. These are adjusted
+associations, subject to latent-ability confounding.
 """
 
 from __future__ import annotations

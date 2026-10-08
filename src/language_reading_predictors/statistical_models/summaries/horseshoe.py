@@ -42,7 +42,7 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
             "beta_hdi_hi": float(hdi[1]),
             # Direction from the median — the house lead statistic, and the same
             # statistic the key-findings box reads, so the CSV and the box cannot
-            # disagree on a spike-and-slab posterior whose mean and median
+            # disagree on a shrinkage posterior whose mean and median
             # straddle zero (2026-08-21 review, finding 10).
             "sign": "+" if median > 0 else ("-" if median < 0 else "0"),
         }

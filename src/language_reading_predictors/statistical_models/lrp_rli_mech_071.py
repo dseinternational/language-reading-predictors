@@ -9,9 +9,11 @@ adjustment {G, A, HS, IS(attend), SP, W_pre}; #245) with
 
     ... + gamma_mod * z(E_post) + gamma_int * z(logit L_post) * z(E_post)
 
-so the letter-sound -> reading effect can scale with a child's vocabulary level
+so the letter-sound -> reading association can vary with a child's vocabulary level
 (the lexical-quality / dual-route hypothesis). ``gamma_int > 0`` would mean
-the code-based route converts to reading *more* strongly for higher-vocabulary children.
+the modelled letter-sound log-odds association is larger for
+higher-vocabulary children. This does not identify a reading route or causal
+effect modification.
 
 Confounder set is the revised LRP58 set {G, A, HS, IS(attend), SP} + W_pre. Under
 the revised DAG (2026-07-10, #245) expressive vocabulary is no longer a
@@ -22,7 +24,7 @@ deferred pending a DAG review).
 
 The nonparametric ``f_mech(L)`` HSGP is unchanged (it stays a function of the
 raw ``logit L_post``); the GP-varying-slope refinement is deferred. With the
-interaction present, the ``f_mech`` slope is the L -> W effect *at the mean of
+interaction present, the ``f_mech`` slope is the L -> W association *at the mean of
 E*.
 
 See the companion note and ``docs/models/lrp-rli-mech-071/index.qmd``.

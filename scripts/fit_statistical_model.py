@@ -43,9 +43,7 @@ from language_reading_predictors.statistical_models.provenance import (
 )
 
 
-# Auto-discovered (#165): every statistical_models submodule that defines its
-# own top-level fit() is registered under its module name (== its CLI id), so a
-# new lrp.../rlm... model needs no edit here. See statistical_models/registry.py.
+# Discover model filenames lazily; only selected model modules are imported.
 MODELS = discover_models()
 
 

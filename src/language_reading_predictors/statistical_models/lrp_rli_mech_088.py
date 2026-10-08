@@ -41,8 +41,8 @@ TE and RV (and their descendants) are *descendants* of TR (``TR -> TE``,
 ``TR -> RV``) that also affect W: conditioning on them would block legitimate
 indirect paths (e.g. ``TR -> TE -> W``) and bias the slope toward the direct-only
 component, so they are deliberately NOT in the adjustment set. GA (general ability)
-is latent and unadjustable - the child random intercept proxies its time-invariant
-part, so the slope stays an adjusted association, never a causal effect. One
+is latent and unadjustable - the child random intercept models repeated observations without controlling
+GA, so the slope stays an adjusted association, never a causal effect. One
 further interpretive caveat specific to this exposure: taught-vocabulary variation
 is largely intervention-generated, so the slope describes covariation within a
 treated system.
@@ -70,8 +70,8 @@ SPEC = ModelSpec(
     mechanism_symbol="TR",
     adjustment=["G", "A", "W_pre"],
     # Age enters as a linear gamma_A term; the subject random intercept handles the
-    # non-independent rows (up to 3 phases x 53 children) and proxies the
-    # time-invariant part of latent ability.
+    # non-independent rows (up to 3 phases x 53 children). It does not
+    # control unmeasured general ability.
     model_settings=MechanismModelSettings(
         # Load the exposure (TR) and outcome (W); TR has no measure confounder, so
         # the complete-case mask is W + TR only.

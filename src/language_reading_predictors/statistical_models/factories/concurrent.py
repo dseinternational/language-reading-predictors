@@ -212,8 +212,8 @@ def build_rlm_concurrent_model(
     The Beta-Binomial concentration takes the Byrne families' **dispersion-scale**
     prior (``1/sqrt(kappa) ~ HalfNormal(dispersion_prior_sigma)``, ``kappa`` a
     Deterministic, via :func:`_rlm_dispersion_kappa`) rather than
-    ``kappa_prior``'s ``HalfNormal(50)``, which at these denominators excludes
-    the near-Binomial limit a priori (2026-08-21 historical review, finding 8;
+    ``kappa_prior``'s ``HalfNormal(50)``, which at these denominators assigns
+    negligible mass near the Binomial limit (2026-08-21 historical review, finding 8;
     extended to the adjusted, horseshoe and concurrent RLM factories on
     2026-08-22).
     """

@@ -3,10 +3,11 @@
 
 """Mechanism orchestration (``kind="mechanism"``, LRP56 / LRP57 / LRP58).
 
-``fit_mechanism`` relates one measure's period change to another measure's
-period-start level across all phases, with subject random intercepts and either a
-linear slope or an HSGP shape, plus optional linear moderation. The exposure →
-outcome coupling is an *adjusted association* — the DAG adjustment set is
+``fit_mechanism`` relates a period-end outcome to a measured exposure after
+adjusting for the outcome's period-start score. The exposure is measured at
+period end by default, or at period start in the lagged variant. The model uses
+child random intercepts and a linear slope or HSGP curve, plus optional moderation.
+The exposure-outcome coupling is an *adjusted association*: the DAG adjustment set is
 conditioned on and recorded, but the exposure is not randomised — so the fitted
 curve, its items-scale translation and the readiness threshold are all read as
 associations, never as "X drives Y".
@@ -505,10 +506,8 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
 def _write_dispersion_summary(ctx: StatisticalFitContext) -> pd.DataFrame | None:
     """``dispersion_summary.csv``: the concentration posterior and its implied VIF.
 
-    The Beta-Binomial concentration is a nuisance parameter only if the prior leaves
-    the ordinary hypothesis "no extra-Binomial variation" available. On a
-    high-denominator outcome the family's shared ``kappa ~ HalfNormal(50)`` does not:
-    with ``alpha + beta = kappa`` the variance inflation over Binomial is
+    The concentration prior can affect estimated dispersion and coefficients.
+    With ``alpha + beta = kappa`` the variance inflation over Binomial is
 
         VIF = (kappa + n) / (kappa + 1) = 1 + (n - 1) / (kappa + 1)
 
@@ -955,8 +954,8 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     """Readiness-threshold summary for the mechanism curve (#230 §2/§5).
 
     Post-processes the fitted nonparametric mechanism curve (``f_mech``) into a
-    posterior for the predictor count at which the outcome rises *fastest* — the
-    "knee" (the steepest rise, not the onset), via
+    posterior for the predictor value where the fitted latent-logit contribution
+    rises fastest, via
     :func:`reporting.readiness_threshold`. Only the GP mechanism has a curve to
     find a knee in; linear / phase-specific fits (no ``f_mech``) are skipped
     quietly. Writes ``readiness_threshold.csv`` and a plot. Guarded by the

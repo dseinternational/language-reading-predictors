@@ -1,44 +1,22 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Data-space report figures for the longitudinal families (#317).
+"""Draw longitudinal score trajectories and per-child predictive panels.
 
-The repeated-measures families previously rendered no data-space figure at all —
-a level-factors report showed coefficient tables but never a score trajectory.
-This module adds the two undergraduate-readability figures issue #317 specifies:
+Arm trajectories integrate the declared child random effects and average over
+each arm-wave cell's observed covariate profiles. Panel-family trajectories
+instead average the fitted child latent states, including states for missing
+cells. Both display posterior medians of mean scores with credible intervals;
+their reference populations differ.
 
-1. a **group trajectory** — the model's posterior mean score across waves (items
-   scale) with credible ribbons, observed means overlaid, and a crossover marker at
-   t2. Per arm for the waitlist-crossover families (``level_factors`` / ``did``); per
-   measure for ``growth`` (whose "arm" is a latent tempo factor, not an observed
-   randomised arm). The ribbon is **population-level / marginal over children**:
-   per posterior draw the fitted child intercept is removed and the child random
-   effect is integrated over its ``Normal(0, sigma_child)`` distribution
-   (Gauss--Hermite), then the per-row marginal probability is averaged over the
-   children observed in each wave x arm cell (g-computation over the cell's own
-   children). This is **not** the same-children conditional display of figure 2, and
-   captions must say so.
+Per-child panels show fitted-child predictive ranges and observed scores. Binary
+floor outcomes use credible intervals for the off-floor probability. Selection
+combines a seeded sample with the largest available Pareto-k values, which flag
+unstable importance sampling rather than necessarily the poorest model fit.
+Panel labels omit subject IDs.
 
-2. **per-child fitted-vs-observed small multiples** — a grid of ~12 children (a
-   seeded random draw plus the 2--3 worst-fitting by Pareto-k, flagged), observed
-   scores as dots over waves with the posterior-predictive ribbon behind. These are
-   **same-children** predictions (the posterior-predictive rows are conditional on
-   each child's own fitted intercept), which makes the child random intercept
-   concrete. Panels are indexed, never labelled with subject ids.
-
-Floored outcomes (P, N; ``bernoulli_offfloor``) replace the item-score axis with an
-off-floor probability axis: ``expit(eta)`` is P(off-floor), the observed overlay is
-the off-floor rate / the 0/1 indicator.
-
-The obs_id families (``level_factors``, ``did``, ``gain_factors``, ``mechanism``)
-carry everything the figures need in the trace (``posterior/eta``, ``u_child`` /
-``sigma_child``, ``posterior_predictive`` + ``observed_data``); the multivariate
-masked families (``growth``, ``lcsm``) store a flat masked ``y_obs`` with no
-cell->(child, wave, outcome) mapping, so their figures are built at fit time from the
-``WavePanel`` and the dense latent grid (``theta`` / ``x_latent``).
-
-Style and guarding mirror ``predicted_scores.py``; ``figure_io.save_styled_figure``
-emits the PNG + SVG sibling + data CSV.
+Masked panel figures use the ``WavePanel`` and dense latent grid at fit time.
+``save_styled_figure`` writes PNG, SVG and data CSV files.
 """
 
 from __future__ import annotations
@@ -109,8 +87,8 @@ def select_children(
     """Choose the children shown in the small multiples, reproducibly.
 
     Returns ``(ordered_child_ids, worst_set)``. The panel is the union of the
-    ``n_worst`` children with the highest per-child Pareto-k (the worst-fitting,
-    flagged in ``worst_set``) and a **seeded** random draw filling the grid up to
+    ``n_worst`` children with the highest per-child Pareto-k (flagged in
+    ``worst_set``) and a seeded random draw filling the grid up to
     ``n_total``; seeding from the run config makes refits comparable (#317). With no
     Pareto-k available the panel is a pure seeded draw. The returned ids are ordered
     worst-first so the flagged panels lead the grid.
@@ -125,7 +103,7 @@ def select_children(
         else:
             k = np.asarray(pareto_k_by_child, dtype=float)
             items = list(enumerate(k.tolist()))
-        # Highest k first; NaNs (undefined k) sort last.
+        # Exclude undefined values before sorting the highest k first.
         items = [(c, v) for c, v in items if np.isfinite(v)]
         items.sort(key=lambda cv: cv[1], reverse=True)
         worst = [int(c) for c, _ in items[: min(n_worst, n_total)]]
@@ -190,7 +168,7 @@ def marginal_cell_probabilities(
     row, ``extra_effect_sd`` its per-draw SD and ``extra_effect_mask`` the boolean
     rows it applies to. Leaving it in ``eta`` would produce a *fitted-children
     conditional* curve labelled population-level (#576 finding 5), so it is removed
-    and integrated exactly like the intercept: the two deviations are independent, so
+    and integrated like the intercept: the model declares independent deviations, so
     on the masked rows the marginalising SD is
     ``sqrt(sigma_child**2 + sigma_delta**2)``.
 
@@ -576,8 +554,8 @@ def write_child_fit_obsid(
     """Per-child fitted-vs-observed small multiples for an obs_id family (#317 fig 2).
 
     Same-children predictions: the posterior-predictive rows are conditional on each
-    child's own fitted intercept. Selects a seeded random draw plus the worst-fitting
-    children by Pareto-k (flagged). Writes ``{name}.png`` / ``.svg`` / ``.csv``.
+    child's own fitted intercept. Selects a seeded sample plus children with the
+    highest Pareto-k values. Writes ``{name}.png`` / ``.svg`` / ``.csv``.
     """
     child_idx = np.asarray(child_idx, dtype=int)
     wave = np.asarray(wave, dtype=int)
@@ -750,12 +728,13 @@ def write_outcome_trajectory(
     max_draws: int = 4000,
     name: str = "group_trajectory",
 ) -> pd.DataFrame:
-    """Per-measure population growth trajectory (no arm) for the panel families (#317).
+    """Per-measure fitted-cohort trajectory without an arm split.
 
     For each outcome the ribbon is the posterior of the mean expected score across
-    the cohort at each wave (``mean_over_children(sigmoid(latent)) * n_trials``);
-    observed dots are the per-wave observed means. Writes ``{name}.png`` / ``.svg`` /
-    ``.csv``.
+    the fitted children at each wave, including latent states for missing cells
+    (``mean_over_children(sigmoid(latent)) * n_trials``). This averages fitted
+    latent states rather than integrating new-child states. Observed dots average
+    the available scores. Writes ``{name}.png``, ``.svg`` and ``.csv``.
     """
     from language_reading_predictors.statistical_models.measures import MEASURES
 

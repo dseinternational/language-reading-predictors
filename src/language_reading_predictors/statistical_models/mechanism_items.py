@@ -1,78 +1,29 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""The mechanism family's declared natural-scale estimand (#319, #602).
+"""Compute the mechanism family's exposure contrasts on the outcome scale.
 
-The mechanism reports plot the HSGP (or linear) dose-response on the *logit
-contribution* scale (``mechanism_curve.csv``: ``f_mech`` vs the exposure logit),
-which is unreadable for the undergraduate-readability audience and hides that the
-items-scale exchange rate varies along the curve. This module renders the same
-fitted relation on the **items scale** — exposure items on the x-axis (e.g. "Letter
-sounds known, out of 32"), predicted outcome items on the y-axis (e.g. "Words
-read, out of 79") — with its credible ribbon, and computes the family's headline
-contrast on it.
-
-## One declared estimand (#602)
-
-Until #602 the family published two different natural-scale answers to the same
-question in the same report: ``mechanism_summary.csv`` contrasted the **observed
-minimum and maximum** exposure and averaged fitted probabilities across rows, while
-the items curve's worked example contrasted the **interquartile** exposure for a
-constructed "typical child" — ``expit`` of a row-averaged linear predictor with the
-child intercept removed. Neither was wrong; they were different estimands over
-different intervals, and averaging probabilities is not applying the link to an
-average, so the two would have disagreed even on one interval.
-
-The family now declares a single headline estimand, and everything here computes
-it:
-
-**Reference population.** Standardise over the **fitted rows**: hold each row's own
-phase, covariates, autoregressive baseline and *fitted child random intercept* at
-their values, set only the exposure, and average the resulting predicted items. For
-posterior draw ``s`` and exposure value ``x``,
+Standardise over the fitted rows. Retain each row's phase, covariates,
+autoregressive baseline and fitted child intercept. Set the exposure to a common
+value and any moderator to its standardised mean. For draw ``s`` and exposure
+``x``,
 
     y(x, s) = N_outcome * mean_i expit( eta_base[i, s] + f_i(x, s) )
 
-where ``eta_base[i, s] = eta[i, s] - f_i(x_i, s) - moderator[i, s]`` is that row's
-linear predictor with the fitted mechanism and moderator contributions removed, and
-``f_i(x, s)`` is the mechanism contribution row ``i`` would carry at exposure ``x``.
-Because ``eta`` is registered as a deterministic, ``eta_base`` is recovered from it
-rather than re-derived, so it cannot silently drift from the factory's term set. The
-child intercept is **retained at its fitted value**, so the answer is "averaged over
-the children actually analysed" rather than "for a constructed typical child"; any
-moderator is held at its standardised mean (its main effect and interaction both
-vanish).
+where ``eta_base`` removes the fitted mechanism and moderator terms from the
+stored ``eta``. The headline contrast spans the fitted exposure's interquartile
+range, configurable through ``items_ref_quantiles``. A labelled secondary
+contrast spans the observed range. Curve, summary and caption use the same
+draws; the curve displays posterior means and the example points display medians.
 
-**Exposure interval.** The **interquartile range of the fitted exposure**
-(``items_ref_quantiles``, per-model configurable, ``(0.25, 0.75)`` by default). The
-observed extremes are order statistics of a 156-row sample: they move with a single
-child entering or leaving, and they are exactly where an HSGP curve is least
-constrained. The full observed range is still reported, as an explicitly labelled
-**secondary** contrast.
+HSGP and pooled linear contributions depend only on exposure. A between/within
+split holds the child's study-average exposure fixed while changing its deviation.
+The between term cancels from the logit contrast but still affects outcome-scale
+predictions through the reference level. Per-period slopes use each row's period,
+so standardisation retains the fitted period composition.
 
-The plotted curve is the same standardised quantity evaluated across the observed
-exposure grid, so the annotated worked-example points lie exactly on it, and the
-headline number in ``mechanism_summary.csv``, ``key_findings.json`` and the figure
-caption is one number computed once.
-
-## Row-dependent mechanism terms
-
-``f_i(x, s)`` depends on the row for two of the family's designs, which is why the
-contribution is resolved as a function rather than a vector:
-
-* **HSGP curve** and **pooled linear slope** — the contribution depends on the
-  exposure only, so it is the same for every row at a given ``x``.
-* **Between/within split** (#603) — ``f_i(x) = beta_between * mbar_i +
-  beta_within * (z(x) - mbar_i)``: moving a wave's exposure holds that child's
-  study average fixed, which is exactly the within-child reading. The between term
-  cancels from any contrast, so the headline contrast is the *within-child* one.
-* **Per-period slopes** (#604) — ``f_i(x) = beta_mech_phase[phase_i] * z(x)``, so
-  the standardised contrast averages the per-period slopes over the fitted rows'
-  period composition.
-
-Everything here is an **adjusted association** under the DAG, never a causal
-skill-to-skill effect — the one figure a student is most likely to over-read — so
-the flag is drawn on the figure itself and stated in the caption.
+These quantities are adjusted associations under the model, without a causal
+skill-to-skill interpretation.
 """
 
 from __future__ import annotations
@@ -160,9 +111,8 @@ def _exposure_to_z(x_exposure: np.ndarray, z_obs: np.ndarray, n_trials: int | No
     The factory builds ``z`` as ``(t(x) - mean) / sd`` with ``t`` the logit-safe
     transform for a bounded-count exposure and the identity for a standardised
     covariate, so ``z`` is an exact affine function of ``t(x)``. Recovering that
-    affine map from the stored pairs — and checking it reproduces every fitted value
-    — is both exact at arbitrary reference points and a row-identity guard: a
-    re-loaded frame whose rows differ from the fitted ones will not fit.
+    affine map from the stored pairs checks their transform consistency. It does
+    not independently establish that the supplied rows are the fitted rows.
 
     Falls back to interpolating ``z`` over the observed grid when the affine
     recovery is not exact (an unexpected transform), which is accurate at every
@@ -447,8 +397,7 @@ def mechanism_items_curve(
         "ci_prob": float(ci_prob),
         **contrast(x_lo, x_hi),
     }
-    # The former headline, retained under an explicit label so nothing is lost and
-    # nobody has to guess which interval a published number came from (#602).
+    # Label the observed-range contrast separately from the headline interval.
     worked["secondary"] = {
         "estimand": SECONDARY_ESTIMAND,
         "contrast": "secondary_observed_range",

@@ -6,9 +6,10 @@
 DAG-focused level-factors model (#224): associations with the taught expressive
 vocabulary score level (block 1, ``b1extau``) at each of the four timepoints
 (Beta-Binomial logit, child random intercept; no own baseline). group x time is a
-per-timepoint group effect (trajectory divergence) - the clean randomised contrast
-lives only at t2 (``d_grp_time[t2]``, see below); ability x time and group x ability complete the focal
-set. Every non-t2 coefficient is an adjusted association under the DAG. SES excluded
+per-timepoint group effect (trajectory divergence) - the t2 change is
+``d_grp_time[t2]``; later changes compare randomised treatment schedules; ability x time
+and group x ability complete the focal
+set. Other coefficients are adjusted associations under the DAG. SES excluded
 (non-DAG / redundant).
 
 Revised-DAG update (#247; adjustment set re-derived against
@@ -16,19 +17,22 @@ Revised-DAG update (#247; adjustment set re-derived against
 parents — hearing (HS), speech production (SP) and phonological memory (RW) — enter via
 ``adjust_for`` (``hs``, ``deapp_c``, ``erbto``). Measured skill parents are deliberately
 NOT conditioned on: in a levels model a contemporaneous skill level is a post-treatment
-mediator of the group×time effect, so adjusting for it would bias the very trajectory
-the model estimates. The clean randomised contrast remains the t2 group effect
-(``d_grp_time[t2]``, see below); every other coefficient is an adjusted association, and the child
+mediator of the group×time effect. Adjusting for it could block a
+treatment-mediated path and change the estimand. The t2 change compares intervention
+with no intervention yet; later changes
+compare randomised treatment schedules. Other coefficients are adjusted
+associations, and the child
 random intercept is a partial shrunken stand-in for between-child heterogeneity that
 does not control latent general ability.
 
-Arm-gap parameterisation (#552): the per-timepoint group coefficient is centred
-on the timepoint-1 arm gap — ``arm_gap_t1`` (the covariate-adjusted
-pre-randomisation gap, a balance quantity, never an effect) plus the change in
-that gap at each later wave, ``d_grp_time[t]`` — so the clean randomised contrast
+The arm-gap parameterisation (#552) uses ``arm_gap_t1`` for the covariate-adjusted
+pre-randomisation arm gap. This measures baseline balance. At later waves,
+``d_grp_time[t]`` gives the change from that gap. The randomised-window contrast
 is the **t2 change ``d_grp_time[t2]``**, a difference-in-differences of adjusted
 levels. The later changes compare randomised early-start and delayed-start
-treatment schedules, as explained in :mod:`level_factors`. The per-wave gaps
+treatment schedules, as explained in :mod:`level_factors`. Shared parameters
+allow all waves to inform these estimates; compare the t1/t2-only companion
+when assessing dependence on the longitudinal working model. The per-wave gaps
 ``b_grp_time[t]`` remain a derived levels view. The former free
 per-timepoint vector (whose t2 element ``b_grp_time[1]`` carried the adjusted
 chance t1 imbalance) is retained only as the ``arm_gap_reference="free"``

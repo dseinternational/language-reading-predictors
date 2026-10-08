@@ -86,8 +86,8 @@ def build_correlated_factor_model(
     **correlated domain factors** - vocabulary / code / grammar - each measured by
     its standardised T1 skill indicators, with an LKJ prior on the factor
     correlation matrix. Factor variances are fixed to 1 and loadings are positive.
-    Because the indicator residual variance ``sigma_indicator`` is free, a loading
-    ``lambda`` is a coefficient on the unit-variance factor, **not** in general a
+    In the legacy free loading/residual parameterisation, a loading ``lambda``
+    is a coefficient on the unit-variance factor, **not** in general a
     correlation; the indicator-factor **correlation** is ``lambda / sqrt(lambda**2
     + sigma**2)`` (the standardised loading, equal to ``sqrt(communality)``) and
     the **communality** ``lambda**2 / (lambda**2 + sigma**2)`` is the share of the
@@ -122,8 +122,8 @@ def build_correlated_factor_model(
     makes each indicator's communality the free parameter — ``c ~ Beta(comm_alpha,
     comm_beta)`` on (0, 1), with ``lambda = sqrt(c)`` and ``sigma = sqrt(1 - c)``
     derived — exactly as ``build_rlm_corr_factor_model`` already does (#409 item B).
-    Standardised indicators have unit sample variance, so this enforces the
-    ``lambda**2 + sigma**2 = 1`` budget the data pipeline implies. The legacy free
+    Standardised indicators have unit sample variance; the default additionally
+    assumes unit model variance via ``lambda**2 + sigma**2 = 1``. The legacy free
     pair (``lambda`` and ``sigma`` iid ``HalfNormal(1)``) implies ``communality ~
     Beta(1/2, 1/2)`` — both squares are chi-square with one degree of freedom — an
     arcsine prior piling mass on both singular corners (the ``lambda -> 0`` neck and
@@ -217,41 +217,12 @@ def build_correlated_factor_model(
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
 
         # --- Measurement: correlated unit-variance domain factors ---
-        # The per-child factor scores are MARGINALISED OUT of the Gaussian
-        # measurement likelihood. The original build sampled a latent
-        # score for every child x domain and conditioned both the indicators and the
-        # structural outcome on it; coupled to the free loading / residual scales
-        # this gave an energy funnel (the reporting fit failed BFMI on every chain
-        # with ~1% divergences at n ~ 51). Because the measurement model is Gaussian
-        # in the factors, the indicators marginalise analytically to
-        # ``Z_i ~ MVN(0, Lambda Corr Lambda' + diag(sigma^2))`` with no per-child
-        # latent, and the factor scores are reintroduced ONLY for the (non-Gaussian)
-        # structural leg via their conjugate Gaussian conditional -- non-centred
-        # around the data-informed conditional mean, so the standard-normal offset
-        # ``factor_z`` is decoupled from the loading / residual scales. This is a
-        # measure-preserving reparameterisation: the posterior over loadings,
-        # residuals, factor correlations, factor scores and slopes is unchanged;
-        # only the sampler geometry is.
-        # Correlation-only role, so use bare ``LKJCorr`` rather than
-        # ``LKJCholeskyCov``. The previous build discarded both the Cholesky factor
-        # and the sds (``_, corr, _``) and used only the correlation; but in a CFA the
-        # factor scale is fixed by the loadings, so those D sd components are
-        # **unidentified**. They wandered, mixed poorly, and — because the convergence
-        # gate scans every free RV — failed R-hat/ESS on ``factor_cov`` (R-hat up to
-        # 1.024, ESS down to 213 at reporting tier) while every quantity the model
-        # actually reports converged cleanly (``factor_corr`` R-hat <= 1.003 with ESS
-        # 2.2k-24k; ``lambda_load`` and ``communality`` better still). The gate was
-        # therefore failing on a nuisance parameter nothing downstream reads.
-        #
-        # Bare ``LKJCorr`` has no sds to leave unidentified and gives the correlation
-        # the same LKJ(eta) marginal, so this is measure-preserving for everything
-        # reported. It follows the reasoning already applied in
-        # ``build_longitudinal_corr_factor_model`` and the measure-correlation block
-        # below, and ``lrp-rli-lcf-001`` — which already used bare ``LKJCorr`` — is the
-        # natural experiment: it passed the gate where these four did not.
-        #
-        # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
-        # R = L @ L.T. A single-domain model has no free correlation at all.
+        # Integrate the factors out of the Gaussian measurement likelihood, then
+        # draw their conjugate conditional for the structural leg below. This
+        # preserves the model while changing its sampling geometry.
+        # Factor variances are fixed to one, so request correlation only; unused
+        # covariance scales would add free variables without a likelihood role.
+        # This environment's LKJCorr returns L, so recover R = L @ L.T.
         if D > 1:
             factor_chol = _priors.declare(
                 pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta),
@@ -585,8 +556,8 @@ def build_rlm_corr_factor_model(
 
         # Communality parameterisation (see the docstring): the free parameter is the
         # communality c in (0, 1); the loading and residual are derived so that
-        # lambda**2 + sigma**2 = 1 exactly. This enforces the unit variance the
-        # standardised indicators imply and removes the over-parameterised
+        # lambda**2 + sigma**2 = 1 exactly. This is the model's unit-variance
+        # assumption for standardised indicators and removes the over-parameterised
         # lambda-sigma ridge / Heywood corner that gate-failed the free build.
         comm_free = _priors.declare(
             pm.Beta("communality_free", alpha=comm_alpha, beta=comm_beta, dims="free_indicator"),

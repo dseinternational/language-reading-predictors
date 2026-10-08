@@ -17,7 +17,7 @@ coming within 10% of Binomial would need ``kappa > 1689`` - a region
 this denominator; if the prior is binding anywhere in the family it is here.
 
 Read it exactly as LRP304: does the family's declared items-scale headline contrast
-move when the model is *allowed* to conclude there is no extra-Binomial dispersion,
+move when the prior gives appreciable support to near-Binomial dispersion,
 and did the data move ``kappa`` at all? ``dispersion_summary.csv`` publishes the
 posterior concentration against its prior and the implied variance-inflation factor.
 """

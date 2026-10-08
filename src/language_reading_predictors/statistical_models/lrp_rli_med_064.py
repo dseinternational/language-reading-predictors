@@ -84,7 +84,7 @@ SPEC = ModelSpec(
         "via letter-sound knowledge (L) vs expressive vocabulary (E)?"
     ),
     outcome_symbol="W",
-    mechanism_symbol=None,  # two mediators; named in extra["mediators"]
+    mechanism_symbol=None,  # The two mediator symbols are declared in model_settings.mediators.
     adjustment=[
         # R retained — settled by the time-indexed d-separation (#264;
         # notes/202607142340-lrp264-mediation-adjustment-dsep.md); E is a *mediator*

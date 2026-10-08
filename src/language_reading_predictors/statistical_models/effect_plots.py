@@ -10,13 +10,9 @@ risk-difference-scale) effect draws:
   shaded; and
 * ``P(effect > delta)`` as the minimally-important difference delta rises.
 
-``write_rope_figures`` can lay these out as one combined two-panel figure (the
-default, kept for the families that present them together) or, with
-``split=True``, as two individual files (``rope_summary`` and
-``rope_benefit_curve``) so each is reusable on its own. The drawing is shared, so
-the two layouts stay identical bar the arrangement and figure size. The core is
-kept free of any fit context so both the fit pipeline and the standalone
-regeneration script can call it.
+``write_rope_figures`` writes a combined panel by default or separate
+``rope_summary`` and ``rope_benefit_curve`` figures with ``split=True``.
+It takes effect draws directly so pipelines and regeneration scripts can use it.
 """
 
 from __future__ import annotations
@@ -31,7 +27,6 @@ from language_reading_predictors.figure_io import save_styled_figure
 
 __all__ = ["benefit_curve_table", "write_rope_figures"]
 
-#: Effect-density and benefit-curve accents (unchanged from the original panel).
 _EFFECT_COLOR = "#1b7837"
 _BENEFIT_COLOR = "#2166ac"
 _ROPE_COLOR = "#bdbdbd"

@@ -259,9 +259,8 @@ def load_rlm_feasibility_design(
     wave_one = wave_one - anchors[group_index, 0, :]
     complete_wave_one = wave_one[np.isfinite(wave_one).all(axis=1)]
     empirical_correlation = np.corrcoef(complete_wave_one, rowvar=False)
-    # Shrink the small-sample correlation toward independence before using it as
-    # a simulation truth.  This retains the stable common-cause signal without
-    # pretending the empirical 4x4 matrix is known exactly.
+    # Shrink the empirical correlation toward independence so the simulation
+    # does not treat the small-sample estimate as the known population matrix.
     correlation_initial = 0.50 * empirical_correlation + 0.50 * np.eye(len(OUTCOMES))
     eigenvalues, eigenvectors = np.linalg.eigh(correlation_initial)
     correlation_initial = (eigenvectors * np.clip(eigenvalues, 1e-6, None)) @ eigenvectors.T
@@ -294,7 +293,7 @@ def simulation_truth(
     *,
     reverse_strength: float,
 ) -> RlmSimulationTruth:
-    """Construct a realistic truth while preserving empirical mean trajectories."""
+    """Set simulation parameters that preserve the empirical mean trajectories."""
 
     if not np.isfinite(reverse_strength) or reverse_strength < 0:
         raise ValueError("reverse_strength must be a non-negative finite number")

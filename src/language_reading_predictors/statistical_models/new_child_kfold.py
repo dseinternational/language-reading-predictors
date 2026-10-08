@@ -1,51 +1,20 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Grouped child-level K-fold cross-validation for the new-child target (#626).
+"""Child-grouped K-fold validation for prediction of a new child.
 
-The companion to :mod:`new_child_predictive`, and the route a family takes when the
-importance-sampling one is refused. Both answer the *same* declared question — how well
-does this model predict a child it has never seen — so a family declares the target once
-and picks the estimator its diagnostics allow.
+This refit-based alternative to :mod:`new_child_predictive` avoids importance
+weights when PSIS diagnostics fail. Each fold withholds children's outcomes,
+fits through the family's callback, then scores the held-out children with fresh
+population draws of their latent effects. Global parameter shapes must match the
+full model. Covariates remain supplied where the declared target conditions on
+them.
 
-## Why a second estimator is needed at all
-
-PSIS approximates the leave-one-out posterior by reweighting the full-data posterior.
-That works while the two are close. For a child contributing one row per measure it
-usually is; for a child contributing a whole four-wave profile across several correlated
-measures it is not, and the Pareto shape estimate says so loudly — the historical
-joint-growth fits report values in the tens, not fractions. #626 is explicit that naive
-PSIS must not be published where Pareto-k is unacceptable, and an unpublishable estimate
-is not a validation. Refitting without the held-out children removes the approximation
-entirely: nothing is reweighted, so there is no shape parameter to fail.
-
-## What one fold does
-
-The children are partitioned into ``n_folds`` folds, stratified by group so every fold
-leaves out a comparable mix rather than, say, most of one cohort. For each fold the model
-is **rebuilt and refitted on the training children only**, through the family's own
-loader-and-factory callback — the alignment guard :mod:`loo_refit` established, for the
-same reason: a held-out density is only interpretable if the refit is the same model.
-
-The held-out children are then scored under that fold's posterior. Their own latent
-effects were never in the training fit, so they are drawn from the population exactly as
-:mod:`new_child_predictive` draws them, and the fold's global parameters are transplanted
-into the full model to do it. A fold whose training subset changes the *shape* of any
-global parameter — a group-by-wave cell that no training child supports — is refused
-rather than aligned by hand, because a silently reshaped transplant would score the
-held-out children against a different model.
-
-## What it gives back
-
-``elpd_kfold`` with its standard error, a per-child pointwise contribution, and — the
-half of #626 that PSIS could not supply for these families — a calibration diagnostic
-whose holdout unit is genuinely the child: the PIT of each held-out child's total on each
-measure, computed from predictive draws of a fit that never saw them. No importance
-weights are involved, so unlike the PSIS-weighted PIT it carries no reliability caveat of
-its own.
-
-The cost is ``n_folds`` refits at the fit's own sampling settings, which is why this is
-opt-in per model rather than a default diagnostic.
+Outputs include summed log predictive scores, their between-child standard error,
+per-child scores and randomised PIT calibration of per-measure totals. Publication
+requires complete coverage, converged folds and finite, stable latent-integration
+batches. Batch agreement does not bound integration error. Models opt in because
+each fold requires another fit.
 """
 
 from __future__ import annotations
@@ -640,14 +609,8 @@ def _score_held_out(
         redrawn = _dataset(getattr(drawn, "posterior_predictive", None))
         if redrawn is None:  # pragma: no cover - defensive
             raise ValueError("posterior predictive re-draw returned no group")
-        # Only the FIRST pass's predictive draws are kept. Each posterior draw
-        # contributes one predictive draw to the PIT, and that draw already carries a
-        # latent sampled fresh for it, so it is a draw from the new-child predictive
-        # whether one batch was generated or sixty-four. Keeping every batch would
-        # change nothing statistically and cost chain x draw x rows x n_latent_draws
-        # floats — gigabytes for a multi-measure panel at reporting scale. The
-        # re-draws still matter for the log-likelihood integral, which is what they
-        # are generated for.
+        # Keep one predictive draw per posterior draw for PIT. Later latent draws
+        # refine the likelihood integral without multiplying stored predictive arrays.
         if index == 0:
             for node in nodes:
                 predictive[node].append(np.asarray(redrawn[node].transpose("chain", "draw", ...).values))
@@ -728,10 +691,9 @@ def _fold_pit(
 ) -> pd.DataFrame:
     """Randomised PIT of each held-out child's per-measure total.
 
-    Genuinely held out: the predictive draws come from a fit the child was not in, so
-    no importance weights and no Pareto-k caveat. Randomised because the totals are
-    discrete — without the tie-breaking term a count distribution's PIT is
-    systematically non-uniform whatever the model does (Czado, Gneiting and Held 2009).
+    Predictive draws come from a fit with that child's outcomes withheld.
+    Random tie breaking accounts for discrete totals (Czado, Gneiting and Held
+    2009). The diagnostic uses no importance weights.
     """
     from language_reading_predictors.statistical_models.new_child_predictive import (
         _pit_groups,
@@ -783,10 +745,7 @@ def _fold_pit(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-#: Sampling tiers whose fits are diagnostic-only, where ``n_folds`` extra refits buy
-#: nothing: a dev-config fold cannot converge, so its held-out density is noise. The
-#: skip is recorded rather than silent, and the code path itself is still exercised by
-#: the tests and by any rep-lite run.
+#: Skip refits at diagnostic-only tiers whose draw budget cannot meet the ESS gate.
 _SKIP_CONFIGS = frozenset({"dev"})
 
 
@@ -798,8 +757,7 @@ def write_child_kfold(
 ) -> KFoldValidation | None:
     """Run grouped K-fold and persist its summary, per-child and PIT tables.
 
-    Returns ``None`` at a diagnostic-only sampling tier, where the refits would cost
-    as much as the fit and produce folds that cannot converge.
+    Return ``None`` at a diagnostic-only sampling tier and record the skip.
     """
     config_name = str(getattr(ctx.reporting, "config_name", "") or "")
     if config_name in _SKIP_CONFIGS:

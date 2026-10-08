@@ -1,44 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Typed settings and a resolved run plan for the difference-in-differences family (#394 pillar 4).
+"""Typed settings and a validated plan for waitlist-crossover models.
 
-Mirrors the ITT / gain-factor / level-factor run-plan pattern (:mod:`itt`,
-:mod:`gain_factors`, :mod:`level_factors`) for the waitlist-crossover
-difference-in-differences (``kind="did"``) models. A model module declares its
-settings; the plan is resolved and **validated before any data are loaded or an
-output directory is reset**, then a single object drives data preparation, factory
-construction and the ``config.json`` / ``model_recipe.md`` audit trail. This removes
-the untyped ``spec.extra`` boundary (where a misspelled key silently defaulted) and
-records the resolved design, estimand, causal status, analysis population and
-missing-data assumption alongside every fit.
+Arm-by-wave models estimate separate t1, t2 and t3 gaps. ``tau_t2`` is the
+adjusted t2 gap in levels, with a prior-weighted baseline adjustment rather than
+exact differencing. ``arm_gap_t3`` compares early-start and delayed-start
+treatment schedules. Both use the original assignment, subject to the model,
+selection and missing-data assumptions in ``METHODS.md``.
 
-Two designs share the family. **Binary** models fit the t1-t3 *levels* frame and
-estimate the arm gap at each wave separately: ``tau_t2`` is the randomised
-immediate-treatment-versus-no-treatment assignment contrast — the covariate-adjusted
-t2 arm-gap *level*, not the differenced quantity ``tau_t2 - arm_gap_t1``; the shared
-child random intercept and the tight ``arm_gap_t1`` prior supply a partial,
-prior-weighted baseline adjustment rather than exact differencing (the level-factor
-family's t1-referenced ``d_grp_time[t2]``, #552, is the gap-*change* estimand) —
-``arm_gap_t3`` the randomised **early-start-versus-delayed-start treatment-schedule**
-contrast, and ``delta_crossover = tau_t2 - arm_gap_t3`` the change between those two
-randomised regime contrasts. **Dose** variants keep the P1/P2 *transition* frame
-because sessions are interval exposures, carry an explicit crossover cell term with
-the ``attend`` session covariate, and their session coefficient is observational,
-never randomised.
-
-**What t3 is, and is not** (2026-08-24 review, #576 finding 3). Original assignment
-is still randomised at t3, so ``arm_gap_t3`` identifies the effect of *assignment to
-the early-start treatment history versus the delayed-start one*, under the same
-available-case selection and model assumptions as ``tau_t2``. It is **not** a
-treated-versus-untreated effect, because both arms are treated by t3; and latent
-ability does not become a confounder of randomised assignment merely because the
-waitlist arm has crossed over. What is genuinely unavailable is the *mechanism*:
-duration, carryover, maturation, ceiling effects and different taught blocks are
-inseparable in that one number, so ``delta_crossover`` is a change between two
-randomised regime contrasts and never evidence of an identified catch-up process.
-That mechanistic limitation is a different thing from observational confounding, and
-the family's prose, metadata and reports must not conflate them.
+``delta_crossover = tau_t2 - arm_gap_t3`` describes a change between those
+contrasts. It does not identify catch-up, duration, carryover or maturation.
+Dose variants instead use period-1 and period-2 transition rows; session slopes
+are observational associations.
 """
 
 from __future__ import annotations
@@ -121,14 +95,7 @@ def _tuple_of_ints(value: Any, *, name: str) -> tuple[int, ...]:
 
 
 def _optional_positive_float(value: Any, *, name: str) -> float | None:
-    """Validate an optional prior width, rejecting ``bool`` explicitly (#576).
-
-    ``bool`` is a subclass of ``int``, so a bare ``isinstance(value, (int, float))``
-    check accepted ``tau_t2_prior_sigma=True`` and silently fitted the causal term
-    at ``Normal(0, 1.0)`` — a real prior change disguised as a typo'd flag. Every
-    optional prior width in this family goes through here so the same slip cannot
-    reappear on a new setting.
-    """
+    """Validate a positive finite prior width; Boolean flags are not widths."""
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -238,12 +205,8 @@ class DiDModelSettings:
     # intercept SD.
     arm_gap_t1_prior_sigma: float | None = None
     sigma_child_prior_sigma: float | None = None
-    # #576 material qualification 2: the dispersion prior. The family default,
-    # ``kappa ~ HalfNormal(50)``, cannot reach the near-Binomial limit at a high
-    # denominator — at n = 170 its prior median implies about 5.9x Binomial
-    # variance — so ``"halfnormal_inverse_sqrt"`` (1/sqrt(kappa) ~ HalfNormal)
-    # is the registered sensitivity. The default is deliberately *not* changed:
-    # every stored DiD fit was sampled under the concentration prior.
+    # HalfNormal(50) concentration gives negligible mass near the Binomial limit
+    # for large test ceilings. The inverse-square-root companion checks sensitivity.
     kappa_prior_family: str = "halfnormal_concentration"
     kappa_prior_sigma: float | None = None
 
@@ -262,11 +225,8 @@ class DiDModelSettings:
             raise ValueError("period_varying_dose requires dose=True")
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}")
-        # The remaining cross-field constraints build_did_model enforces (#455). They
-        # depend on nothing but these settings, so the factory would only reject them
-        # after make_context had reset an output directory and the loader had read the
-        # panel. Checked here, incoherent settings fail at settings construction time
-        # (often at model-module import time, otherwise at resolve time). The factory keeps its own copies as belt-and-braces for direct callers.
+        # Reject contradictory settings before data loading. The factory also
+        # checks them for direct callers.
         if self.dose and self.likelihood == "bernoulli_offfloor":
             raise ValueError("bernoulli_offfloor is the binary prevalence estimand; use dose=False")
         if self.use_varying_delta and self.dose:
@@ -322,10 +282,7 @@ class DiDModelSettings:
                 "the off-floor Bernoulli branch has no dispersion parameter, so a "
                 "kappa prior declaration would be silently ignored"
             )
-        # Design windows the factory hard-requires (#576 lower-severity 4). Both
-        # used to survive resolution and fail inside ``build_did_model`` — after
-        # ``make_context`` had reset an output directory and the loader had read
-        # the panel. They depend on nothing but these settings, so they belong here.
+        # Reject unsupported design windows before opening an output transaction.
         if self.dose:
             if self.waves != (0, 1, 2):
                 raise ValueError(
@@ -430,20 +387,11 @@ class DiDRunPlan:
 
     @property
     def psense_terms(self) -> tuple[str, ...]:
-        """Parameters to power-scale: the focal effect plus variant-defining terms.
+        """Power-scale the focal coefficient and variant-defining terms.
 
-        Power-scaling used to cover :attr:`effect_term` alone, which left every term
-        that *defines* a variant unmeasured (#390 P2). A reader of DID-007 saw no flag
-        on its period-varying dose structure because it was never measured, not because
-        it came back clean; likewise DID-013's between-child catch-up scale. Those are
-        the places a weak likelihood is most likely, each being informed by far fewer
-        observations than the headline.
-
-        Deliberately stops at variant-defining terms. Adding the ordinary nuisance
-        scales (``kappa``, ``sigma_child``) would flag across the whole suite at this n
-        and bury the rows worth reading. ``sigma_delta`` remains a sensitivity quantity
-        whatever it power-scales to — each waitlist deviation is informed by a single t3
-        observation, so it cannot identify individual responders.
+        ``sigma_delta`` remains exploratory regardless of this check. Each
+        waitlist deviation has only one t3 observation and cannot identify
+        individual responders. Ordinary nuisance scales are outside this list.
         """
         terms = [self.effect_term]
         if self.period_varying:
@@ -454,24 +402,10 @@ class DiDRunPlan:
 
     @property
     def run_plan_digest(self) -> str:
-        """Canonical digest of the fields that define the fitted equation (#576 finding 6).
+        """Digest the modelling fields that bind a primary fit to its sweep.
 
-        The prior-sensitivity runner rebuilds the *currently registered* declaration
-        and compares it with the stored primary through model/outcome identity, the
-        data hash, row counts and arm totals. None of those move when the likelihood,
-        the intercept anchor, the age adjustment, the random-effect choice or a prior
-        width changes, so a primary fitted under an older plan could receive — and be
-        released by — a sweep generated under a newer one. This digest closes that:
-        it is recorded on the reference and on every sweep cell, and a mismatch fails
-        the bundle closed.
-
-        Deliberately over the **modelling** fields only, taken from a fixed key list
-        with the same defaults :class:`DiDModelSettings` resolves. Two consequences
-        are wanted. A stored plan written before a field existed digests identically
-        to a fresh plan that takes that field's default, so existing fits stay
-        reproducible without a refit; and a prose revision to ``estimand`` /
-        ``causal_status`` — this review makes several — does not invalidate evidence
-        for an equation that did not change.
+        Legacy omitted fields take their declared defaults. Prose fields are
+        excluded so wording changes do not invalidate an unchanged equation.
         """
         return did_run_plan_digest(self.as_dict())
 
@@ -651,11 +585,6 @@ def resolve_did_run_plan(spec: ModelSpec) -> DiDRunPlan:
     period_varying = settings.dose and settings.period_varying_dose
     # The outcome loads as its own outcome when a spec does not list an explicit set.
     outcomes = settings.outcomes if settings.outcomes else (own,)
-    # An explicit ``outcomes`` tuple that omits the focal outcome used to resolve
-    # cleanly and fail inside the factory with ``KeyError: Outcome 'W' missing from
-    # prepared data`` — after the output directory had been reset and the panel read
-    # (#576 lower-severity 4). The focal outcome is the one column the model cannot
-    # be built without, so the check belongs before any I/O.
     if own not in outcomes:
         raise ValueError(
             f"{spec.model_id}: the declared outcomes {list(outcomes)} do not include "

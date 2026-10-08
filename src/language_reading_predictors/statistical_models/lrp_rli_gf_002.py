@@ -12,7 +12,7 @@ Under the revised DAG the parents of RV are age, general ability, hearing (HS), 
 receptive vocabulary (TR) and phonological memory (RW). So beyond the own baseline,
 age and cognitive ability (blocks), the adjustment set adds the measured upstream skill
 TR (``skill_symbols``) and the non-measure confounders hearing and phonological memory
-(``adjust_for``: ``hs``/``deapp`` are not RV parents, but ``hs`` and ``erbto`` are).
+(``adjust_for``: ``deapp`` is not an RV parent; ``hs`` and ``erbto`` are).
 
 Only the randomised on-intervention term is causal — and its **period-1** average
 marginal effect (the genuinely randomised, all-untreated-baseline transition) is an

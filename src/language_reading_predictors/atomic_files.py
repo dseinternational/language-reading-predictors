@@ -1,24 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Atomic single-file replacement, delegated to the shared library (#662).
+"""Atomic file replacement with a caller-selected permission policy.
 
-``dse_research_utils.storage.files.atomic_write`` owns the temporary-file
-creation, the single ``os.replace`` and the failure cleanup. This module keeps
-the two things the library deliberately leaves to the consumer:
-
-* **Serialisation.** Every caller still writes its own bytes in the callback, so
-  CSV/JSON encoding, index handling and trailing newlines are unchanged.
-* **Permissions.** The shared helper creates its temporary file with
-  ``mkstemp``'s owner-only ``0600`` and the destination inherits that. Sites that
-  previously created their temporary file with a plain ``open`` published a file
-  at the process's umask-derived mode (usually ``0644``), and those artefacts are
-  read back by report rendering and by the upload script. :func:`write_atomic`
-  therefore takes an explicit ``mode`` policy rather than silently narrowing
-  them.
-
-The library's contract — visible old-or-new file, no locking, no bundle
-transaction — is unchanged; see the 0.14.0 file-and-provenance guide.
+The shared helper creates, replaces and cleans up temporary files. Callers
+provide the serialisation callback. The default keeps private temporary-file
+permissions; ``process_default`` uses the mode of a newly opened file. This
+replaces one file at a time and provides no locking or multi-file transaction.
 """
 
 from __future__ import annotations
@@ -58,8 +46,7 @@ def write_atomic(
     """Replace ``path`` with what ``write_temporary`` writes, in one rename.
 
     ``mode="process_default"`` chmods the temporary file to the mode a plain
-    ``open`` would have produced, so a caller that previously wrote through an
-    ordinary ``open`` keeps publishing a world-readable artefact.
+    ``open`` would have produced. Read access depends on the process's umask.
     """
     if mode not in ("private", "process_default"):
         raise ValueError("mode must be 'private' or 'process_default'")

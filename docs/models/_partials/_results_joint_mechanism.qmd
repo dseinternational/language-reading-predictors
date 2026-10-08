@@ -332,9 +332,9 @@ print(
         "Prior predictive check — nonword decoding",
     )
 )
-# Per-outcome LOO-PIT (transition design only — the levels design computes no
-# PSIS-based diagnostics; see the note below). The word-reading `loo_pit.png` is
-# already shown in the technical section; this is its nonword sibling.
+# Conditional leave-one-cell-out PIT for nonword decoding. New-child prediction
+# uses separately labelled tables and figures. Word-reading PIT appears in the
+# technical section.
 print(
     _img(
         "loo_pit_n.png",

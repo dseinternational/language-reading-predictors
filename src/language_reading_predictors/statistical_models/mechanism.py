@@ -3,20 +3,10 @@
 
 """Typed settings and construction plans for the ``mechanism`` family.
 
-The mechanism family already had one prepared-data construction path shared by the
-primary fit and exact leave-one-out refits (#438). This module now adds the earlier,
-pure boundary required by #394 pillar 4: :class:`MechanismModelSettings` and
-:class:`MechanismRunPlan` validate the declared design **before data loading or an
-output-directory reset**, generate the human-readable model recipe, and provide the
-machine-readable ``resolved_run_plan`` recorded in ``config.json``.
-
-The existing :class:`MechanismPlan` remains the post-load plan used by the fit and
-``reloo``. It carries the effective adjustment set after preprocessing has removed
-constant covariates, while its ``run_plan`` retains the complete declared contract.
-This tranche is behaviour-preserving: every existing mechanism model keeps its
-Beta-Binomial likelihood, exposure alignment and transform, priors, rows and factory
-arguments. New likelihood or exposure-transform capabilities for #433 belong in a
-separate scientific change after this boundary is reviewed.
+:class:`MechanismRunPlan` validates the design before output or data operations
+and supplies the model recipe and saved settings. :class:`MechanismPlan` adds
+prepared data and the active adjustment set after constant covariates are removed.
+Primary fits and leave-one-out refits use the same construction path.
 """
 
 from __future__ import annotations
@@ -191,9 +181,8 @@ def _validate_missing_covariate_policy(
 class MechanismModelSettings:
     """Immutable settings declared by a mechanism-model module.
 
-    Defaults reproduce the historical family: all bounded outcomes are loaded, the
-    outcome's own period-start score is the autoregressive baseline, the exposure is
-    the same-period post-score, and an HSGP curve plus child random intercept is fit.
+    Defaults load ``ITT_OUTCOMES``, use word reading's period-start score as the
+    baseline, and fit the same-period exposure with an HSGP curve and child intercept.
     ``target_accept`` is deliberately absent because it is a run option, not a model
     setting.
     """
@@ -216,15 +205,14 @@ class MechanismModelSettings:
     mech_hsgp_m: int | None = None
     mech_lengthscale_tight: bool = False
     items_ref_quantiles: tuple[float, float] = (0.25, 0.75)
-    #: Mundlak between/within split of the exposure (#603). Default off, so no
-    #: registered fit changes; linear designs only.
+    #: Split the linear exposure into child means and within-child deviations.
     decompose_between_within: bool = False
     #: Partially-pooled per-period exposure slopes (#604). Default off; linear
     #: designs only, and never alongside ``phase_specific_mechanism``.
     phase_varying_slope: bool = False
     #: Beta-Binomial concentration prior family and scale (#605). The registered
-    #: default enforces a floor on overdispersion at high denominators;
-    #: ``"halfnormal_inverse_sqrt"`` reaches the near-Binomial limit.
+    #: default puts negligible mass near the Binomial limit at high denominators;
+    #: ``"halfnormal_inverse_sqrt"`` gives that region appreciable mass.
     kappa_prior_family: str = "halfnormal_concentration"
     kappa_sigma: float | None = None
 
@@ -254,10 +242,7 @@ class MechanismModelSettings:
             if not self.kappa_sigma > 0:
                 raise ValueError("kappa_sigma must be a positive number or None")
             object.__setattr__(self, "kappa_sigma", float(self.kappa_sigma))
-        # The cross-field design rules live in one place shared with the factory
-        # (#637 stage 1). They had drifted in both directions: the settings alone
-        # rejected linear+phase-specific, the factory alone rejected
-        # ``mechanism_at_pre`` beside a covariate exposure.
+        # Apply the same cross-field rules as direct factory calls.
         validate_mechanism_design(
             linear_mechanism=self.linear_mechanism,
             phase_specific_mechanism=self.phase_specific_mechanism,
@@ -562,13 +547,7 @@ def declared_mechanism_settings(
 
 
 def _reject_unsupported_mechanism_design(spec: ModelSpec, settings: MechanismModelSettings) -> None:
-    """Fail closed on configurations the family cannot honestly report (#586).
-
-    None of these is reachable from a registered model today, which is exactly why
-    they went unnoticed: each resolved cleanly, and would have failed — if at all —
-    only after an output directory had been reset and the data loaded, or not at all,
-    silently fitting something other than the declared design. They are rejected here,
-    in the pure run-plan stage, before any I/O.
+    """Reject designs the family cannot fit and report as declared, before I/O.
     """
     model_id = spec.model_id
     exposure, outcome = spec.mechanism_symbol, spec.outcome_symbol
@@ -720,12 +699,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
     if unknown_confounders:
         raise ValueError(f"{spec.model_id}: unrecognised mechanism confounder(s): {', '.join(unknown_confounders)}")
 
-    # Required-measure coverage is checked against the **effective** outcome set,
-    # whether declared or defaulted (#586). Guarding this on ``outcomes is not None``
-    # meant a model leaving the default in place could name a bounded exposure,
-    # baseline or moderator outside ``ITT_OUTCOMES`` (N, TR, TE, ...) and resolve
-    # cleanly, only to fail in the factory after the output directory had been reset
-    # and the data loaded.
+    # Check required measures against the resolved load set, including defaults.
     effective_outcomes = settings.outcomes or ITT_OUTCOMES
     required_measures = {
         spec.outcome_symbol,
@@ -832,15 +806,8 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         "missingness ignorable."
     )
 
-    # Complete-case only on the pre-scores the fitted model actually consumes
-    # (#586 finding 4). This used to be *every* loaded outcome, but the factory's
-    # linear predictor reads exactly one period-start score — the autoregressive
-    # baseline — while the exposure, measure confounders and moderator are all
-    # contemporaneous post measurements. Requiring their baselines dropped rows for
-    # a measurement absent from the model: mech-063/163 lost four otherwise
-    # eligible transitions apiece to a missing ``N_pre`` whose ``N_post`` and every
-    # fitted term were observed. The exposure's own pre-score joins the requirement
-    # only under ``mechanism_at_pre``, where it *is* the regressor.
+    # Require only period-start scores used by the fitted predictor. The exposure
+    # baseline is needed only when it is itself the regressor.
     pre_required: tuple[str, ...] = (settings.adjust_baseline_symbol,)
     if settings.mechanism_at_pre:
         pre_required = tuple(dict.fromkeys(pre_required + (spec.mechanism_symbol,)))
@@ -926,17 +893,8 @@ def resolve_mechanism_plan(spec: ModelSpec, *, run_plan: MechanismRunPlan | None
     prepared = load_and_prepare(**resolved.prepare_kwargs())
 
     if resolved.exposure_positive_only:
-        # Restrict to rows that actually carry a positive exposure (#586 finding 2,
-        # decided 2026-08-23). ``attend`` is an interval covariate read from the
-        # transition's pre row, and the loader treats an absent session count as a
-        # recorded zero — so mech-191's frame kept 28 zero-session rows while its
-        # module and report both stated it held exactly the on-intervention rows.
-        # Those zeros were not spread across the design: in period 1 *all* 25 fitted
-        # waitlist rows sat at zero and no immediate-arm row did, so the bottom of
-        # the exposure range was an arm-and-period contrast rather than a dose one.
-        # This is an estimand restriction, not a data-quality drop: what remains is
-        # an association among treated periods, and it no longer borrows the
-        # randomised zero-dose anchor.
+        # Restrict the estimand to positive-exposure periods. This removes the
+        # untreated zero-dose comparison rather than correcting a data error.
         symbol = resolved.mechanism_symbol
         scaler = prepared.covariate_scalers.get(symbol)
         z = np.asarray(prepared.covariates[symbol], dtype=float)
@@ -981,7 +939,7 @@ def build_mechanism_for_plan(
     """Build the mechanism model for ``plan``, optionally on a row subset.
 
     ``prepared`` defaults to the plan's full analysis frame. A refit passes a
-    :func:`factories._subset` view so the construction is identical apart from the
+    :func:`preprocessing._subset` view so the construction is identical apart from the
     rows. The factory keywords are shared by reference, which is the point: a refit
     cannot silently differ in likelihood, priors or adjustment set.
     """
@@ -1030,7 +988,7 @@ def mechanism_diagnostic_vars(plan: MechanismPlan) -> list[str]:
 def holdout_is_safe(prepared: PreparedData, idx: int) -> tuple[bool, str]:
     """Whether row ``idx`` can be held out without changing the parameter vector.
 
-    ``factories._subset`` re-indexes children densely, so dropping the *only* row
+    ``preprocessing._subset`` re-indexes children densely, so dropping the *only* row
     for a child removes an element of ``u_child_raw`` and shifts every later child's
     index. The refit posterior would then be incompatible with the full model used
     to evaluate the held-out point, and — worse — the shift would silently misalign

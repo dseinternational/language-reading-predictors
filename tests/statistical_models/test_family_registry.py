@@ -1,18 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""One description of each family, and the catalogues derived from it (#637 stage 4).
+"""Check the family descriptors and the catalogues derived from them (#637).
 
-A ``ModelSpec.kind`` used to be answered in four places — its settings class, its
-run-plan resolver, its pipeline entry points and its key-findings builder — each
-with its own catalogue of the twenty-three families. The clearest symptom was
-``blending_sensitivity._PLAN_RESOLVERS``, a seven-entry subset of a fact the
-package already knew: adding a family to it was a separate act of memory from
-adding the family, and a gated family missing from it made the currency check
-raise rather than run.
-
-These tests parameterise over :data:`FAMILIES` itself, so a new family is covered
-the moment it is described rather than when someone remembers to extend a list.
+Each descriptor names the settings class, run-plan resolver, pipeline entry
+points and findings builder. The tests cover every entry in :data:`FAMILIES`
+and require the settings, blending and findings catalogues to agree with it.
 """
 
 from __future__ import annotations

@@ -1,29 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Typed settings and a resolved run plan for the onset-aligned family (#394 pillar 4).
+"""Typed settings and a validated plan for onset-aligned associations.
 
-Mirrors the ITT / gain-factor / level-factor / DiD / concurrent run-plan pattern for
-the per-protocol onset-aligned (``kind="aligned"``) models. A model module declares
-its settings; the plan is resolved and **validated before any data are loaded or an
-output directory is reset**, then drives data preparation, factory construction and
-the ``config.json`` / ``model_recipe.md`` audit trail. This removes the untyped
-``spec.extra`` boundary (where a misspelled key silently defaulted) and records the
-resolved design, estimand, causal status, analysis population and missing-data
-assumption alongside every fit.
+Resolve the plan before loading data or opening an output transaction. Each
+child contributes one row, so the model has no child random intercept. The
+cohort contrast remains an association because onset age, timing and window
+length differ between arms. Dose adjustment is a sensitivity analysis.
 
-The aligned design is a per-protocol onset-aligned single-gain ANCOVA (LRPAL): a
-cross-sectional Beta-Binomial regression of the aligned post-score on its own onset
-baseline, age-at-onset and cognitive ability, optionally with a cohort indicator and
-the cumulative session dose. One row per child, so there is **no child random
-intercept**. The cohort contrast is a **per-protocol association**, not the
-available-case modified ITT estimate (it is confounded by age-at-onset and cohort/timing), and the
-dose term is a collider descendant of group and ability -- a sensitivity variant.
-The heavily-floored outcome P takes the suite floor rule
-(``likelihood="bernoulli_offfloor"``): a Bernoulli on the off-floor indicator with
-the **binary off-floor-at-onset indicator** as the own-baseline main effect (#391
-finding 2, adopted here by the 2026-08-21 aligned review) and the cohort marginal
-an off-floor risk difference.
+Graded fits model the bounded post-score with its onset baseline. The
+``bernoulli_offfloor`` branch models off-floor status and adjusts for binary
+off-floor-at-onset status, rather than restricting to baseline-floor children.
 """
 
 from __future__ import annotations
@@ -57,10 +44,7 @@ _LEGACY_KEYS = frozenset(
         "use_dose",
         "likelihood",
         "score_mean_link",
-        # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
-        # ``context.make_context`` (CLI override > spec default > preset) and is never
-        # read by this family's settings. Listed so a legitimate per-model declaration
-        # is not rejected as a misspelling by the strict unknown-key check.
+        # Legacy sampling option resolved centrally, outside family settings.
         "target_accept",
     }
 )
@@ -122,8 +106,7 @@ class AlignedModelSettings:
                 f"{model_id}: unknown aligned setting(s): {', '.join(unknown)}. "
                 "Declare AlignedModelSettings so misspellings fail fast."
             )
-        # Pass raw values through so __post_init__ is the single validation/coercion
-        # point; pre-coercing here would silently reshape misshaped legacy settings.
+        # Keep raw values so __post_init__ can reject invalid legacy types.
         return cls(
             ability_covariate=extra.get("ability_covariate"),
             use_cohort=extra.get("use_cohort", True),
@@ -278,9 +261,7 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
         raise ValueError(f"{spec.model_id}: expected kind 'aligned', got {spec.kind!r}")
     if not spec.outcome_symbol:
         raise ValueError(f"{spec.model_id}: outcome_symbol is required for an aligned model")
-    # Validate the outcome against the measure registry *before* make_context can
-    # reset an output directory (2026-08-21 aligned review, finding 5) — the
-    # loader's KeyError otherwise fires only after the reset.
+    # Reject unknown outcomes before opening an output transaction.
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     if spec.outcome_symbol not in MEASURES:
@@ -333,9 +314,6 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
             "question and not the response-link one (#619)."
         )
 
-    # The design and estimand must describe the fitted likelihood: the off-floor
-    # variant is a Bernoulli on the off-floor indicator, not a Beta-Binomial on
-    # the post-score (2026-08-21 aligned review, finding 3).
     if off_floor:
         design = (
             "Per-protocol onset-aligned off-floor analysis: a cross-sectional "

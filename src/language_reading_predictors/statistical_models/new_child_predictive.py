@@ -1,78 +1,23 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""New-child prediction target and its matching validation for the joint families (#626).
+"""New-child prediction and integrated PSIS validation for joint families.
 
-## The gap this closes
+The target is a new child in a replicate cohort of the realised size and group
+composition, at supplied covariates. Child-level effects are redrawn by the model
+so its sample-dependent centring also applies to the replicate cohort. Merely
+summing likelihood cells by child does not perform this integration.
 
-The joint families aggregate their pointwise likelihood to the **child** unit and call
-the result leave-one-child-out PSIS-LOO. That aggregation is necessary — leaving out
-one child-outcome *cell* would predict one measure from the same child's other measure
-— but on its own it is not sufficient. Where the model carries a **child-level latent**
-(the LKJ residual block in ``joint``, the bivariate child intercept in
-``joint_mechanism``, the stable and within-child deviations in ``historical_joint``),
-the importance weights reweight a posterior in which that child's *own* latent is still
-informed by its own data. The quantity is then "predict this child's scores given a
-posterior that has already seen them through their random effect" — a conditional
-quantity, not the generalisation to a child the model has never met.
+For each posterior draw, average likelihoods over fresh population draws of the
+child effects. PSIS then approximates leave-one-child-out prediction using that
+integrated likelihood. Predictive draws with fresh effects supply per-measure
+total-score PIT checks with the matching weights.
 
-``historical_joint`` refused to publish any LOO at all for this reason, recording
-``loo_unit="undeclared_prediction_target_not_implemented"``: the obstacle was never the
-multiple likelihood nodes (they share an observation coordinate and sum per child-wave
-row) but the absence of a *declared and implemented* prediction target.
-
-## The declared target
-
-**A new child in a replicate cohort**: same size, same group composition, same observed
-covariates, a child the model has not seen. That is the target these families' estimands
-are about — children are the sampling unit; the waves are a fixed balanced design rather
-than a sample of occasions — and it is the target the child-aggregated LOO unit already
-claims. The alternative (a new occasion for a known child) is a different question and
-would need a different holdout; :data:`PREDICTION_TARGETS` names both so a family that
-wants the other one has to say so.
-
-Declaring the cohort as a *replicate of the realised sample* is what dissolves
-``historical_joint``'s remaining obstacle. Its subject offsets are group-centred and its
-within-child deviations double-centred, both over the realised sample, so "draw one new
-child's latent from its population distribution" is not well defined in isolation. The
-redraw here is performed **by the model itself** at the realised sample size, so the
-sample-dependent centring is applied to the fresh draw exactly as it is applied to the
-fitted one. No closed form for a marginal population distribution is needed, and none is
-assumed.
-
-## How it is computed
-
-For each posterior draw :math:`\\theta^s` the child latents are re-drawn from their
-population distribution given :math:`\\theta^s`, and the child's integrated (marginal)
-likelihood is the Monte-Carlo average over those re-draws::
-
-    log p(y_i | theta^s) = log ( 1/M sum_m p(y_i | theta^s, u^(m)) )
-
-PSIS is then run on that **integrated** pointwise term, so both the importance weights
-and the Pareto-:math:`k` diagnostics belong to the declared new-child target rather than
-to a conditional one. The matching calibration diagnostic re-uses those same weights:
-the PIT is computed from predictive draws generated under the same fresh latents, so its
-holdout unit *is* the declared unit — which is what the conditional leave-one-cell-out
-PIT plots the joint reports also carry could never be (see
-``diagnostics.JOINT_LOO_PIT_UNIT_LABEL``).
-
-The re-draw is forced by **removing** the latent from the posterior handed to
-``pm.sample_posterior_predictive``. Naming a variable in ``var_names`` is not enough:
-PyMC treats a variable it finds in the trace as given, so a request that leaves it in
-place returns the fitted values unchanged — silently answering the conditional question
-this module exists to stop answering.
-
-## What is refused
-
-A family must declare which of its free random variables are child-level.
-:func:`verify_child_latents` then checks the declaration against the built model and
-**refuses** when a free random variable is indexed by a declared child dimension and was
-not declared: that omission is exactly the defect this module addresses, so it fails the
-run rather than quietly producing a conditional number under a new-child label. Where
-PSIS on the integrated term is unreliable (any Pareto-:math:`k` above ``good_k``) the
-ELPD is recorded but flagged ``reliable=False`` and the report withholds it — #626's
-"do not publish naive PSIS where Pareto-k is unacceptable", applied to the integrated
-term as well as the conditional one.
+Remove child latents from the posterior before asking PyMC to redraw them.
+The declaration must cover every free variable indexed by a child dimension.
+Publication requires finite, complete diagnostics, acceptable Pareto-k in the
+full and split batches, and stable split scores. These checks do not bound latent
+integration error. Known-child occasion prediction is named but not implemented.
 """
 
 from __future__ import annotations
@@ -134,11 +79,8 @@ _NO_THINNING = 1 << 62
 class NewChildEvidenceUnavailable(LookupError):
     """Expected absence of the inputs new-child validation needs.
 
-    Narrow on purpose, in the shape ``prior_artifacts.PriorEvidenceUnavailable``
-    established (#637 stage 1): a missing child map or an absent posterior group is a
-    fit that legitimately has nothing to validate, while a ``KeyError`` from a renamed
-    coordinate or a shape mismatch is a defect that must fail the run rather than
-    become a plausible-looking "unavailable" row.
+    Missing child maps or posterior groups can produce unavailable evidence.
+    Shape mismatches and other programming errors must fail the run.
     """
 
 
@@ -406,12 +348,8 @@ def verify_child_latents(model: pm.Model, plan: NewChildPlan) -> tuple[str, ...]
 def _thin_posterior(posterior: xr.Dataset, max_draws: int) -> xr.Dataset:
     """Thin the draw axis so ``chain x draw`` fits the diagnostic's budget.
 
-    Thinning a converged chain leaves an unbiased posterior sample; what it costs is
-    Monte-Carlo precision, and the whole computation is repeated ``n_latent_draws``
-    times, so the budget is real. The realised count is published beside the ELPD, and
-    it is load-bearing for the Pareto-k values rather than only for the ELPD: the
-    shape estimate is a tail quantity, so a heavily thinned run reports a noisier k
-    for the same fit.
+    Retaining fewer draws reduces Monte Carlo precision, including the tail-based
+    Pareto-k estimate. Record the retained count beside the predictive score.
     """
     total = int(posterior.sizes.get("chain", 1)) * int(posterior.sizes.get("draw", 1))
     if total <= max_draws:
@@ -522,13 +460,8 @@ def run_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> 
     maps, n_children = child_row_maps(ctx, nodes)
     latents = verify_child_latents(model, plan)
 
-    # Thinning buys nothing when there is no latent to integrate: the loop below runs
-    # once, so the full posterior costs a single log-likelihood pass. It also costs
-    # something real. The Pareto shape estimate is a tail quantity, so a thinned run
-    # reports a *different* k for what is, in that case, literally the same estimator
-    # as the fit's stored conditional PSIS-LOO — 0.769 against 0.701 for
-    # ``lrp-rli-itt-012``, two numbers for one quantity in one report. The identity
-    # this module claims for a latent-free design has to hold in the artefacts.
+    # Keep every draw without child latents: one likelihood pass then preserves
+    # agreement with the fit's existing child-level PSIS calculation.
     thinned = _thin_posterior(
         posterior,
         plan.max_posterior_draws if plan.latent_vars else _NO_THINNING,
@@ -566,14 +499,8 @@ def run_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> 
                 f"latent(s) {', '.join(missing)} were not re-drawn; the new-child "
                 "predictive would be conditional on their fitted values"
             )
-        # Only the FIRST pass's predictive draws are kept. Each posterior draw
-        # contributes one predictive draw to the PIT, and that draw already carries a
-        # latent sampled fresh for it, so it is a draw from the new-child predictive
-        # whether one batch was generated or sixty-four. Keeping every batch would
-        # change nothing statistically and cost chain x draw x rows x n_latent_draws
-        # floats — gigabytes for a multi-measure panel at reporting scale. The
-        # re-draws still matter for the log-likelihood integral, which is what they
-        # are generated for.
+        # Keep one predictive draw per posterior draw for PIT. Later latent draws
+        # refine the likelihood integral without multiplying stored predictive arrays.
         if index == 0:
             for node in nodes:
                 predictive[node].append(np.asarray(redrawn[node].transpose("chain", "draw", ...).values))
@@ -727,10 +654,9 @@ def _new_child_pit(
 ) -> pd.DataFrame:
     """Child-level PIT, one row per child and calibration group.
 
-    The holdout unit is the **child**: the importance weights come from the integrated
-    child term, and the predictive draws come from the same fresh latents, so a child's
-    own data informs neither. The test quantity is the child's total on one measure,
-    which is well defined because every row within a measure shares its denominator.
+    Integrated child likelihoods provide PSIS weights that approximate removing
+    the child's outcomes from the full-data posterior. Predictive draws use fresh
+    population effects. The total stays within one measure and denominator.
     """
     from arviz_stats import loo_pit as _loo_pit
 

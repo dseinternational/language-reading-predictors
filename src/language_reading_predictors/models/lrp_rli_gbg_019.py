@@ -7,14 +7,11 @@ LRPGBG19: Predictors of Early Repetition Battery total repetition gains (``erbto
 ``erbto`` is the ERB total score from the Early Repetition Battery
 (a repetition task indexing verbal / phonological short-term
 memory). It is a composite of ``erbword``, ``erbnw`` (in the
-candidate pool), but gain targets are near-noise (regression-to-
-the-mean dominates), so the level model carries the same-
-instrument check.
+candidate pool), so read the ranking alongside the level model's same-instrument check.
 
 The gain target spans min -16.0, max 15.0, median 2.00, mean 2.05,
 std 5.04, skew -0.25, with ~27% negative and ~7% zero observations
-(n = 147). Regression from the mean dominates gain targets across
-the suite.
+(n = 147).
 
 This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable total repetition

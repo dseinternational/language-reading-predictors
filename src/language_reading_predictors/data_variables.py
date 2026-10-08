@@ -70,17 +70,12 @@ class Variables:
     rather than stored, following the ``HEARING_C`` precedent, so the definition
     lives in one place and cannot drift from a stored column.
 
-    Both subtests are WPPSI-III perceptual-organisation tasks with near-equal
-    spread in this cohort (standard deviations 6.26 and 6.77), so the raw sum is
-    within 0.0002 of the correlation-equivalent average of the two standardised
-    scores; every consumer standardises it downstream in any case. The two
-    correlate at 0.664, so a single subtest is roughly a 0.66-reliable measure of
-    what they share and the sum is roughly 0.80-reliable — which is the whole
-    point of the composite. What they share is a **narrow visuospatial factor**,
-    not the latent general ability ``GA`` of the causal diagram: ``GA`` remains
-    unmeasured, and visuospatial processing is the relative strength in the Down
-    syndrome profile. Read a composite-adjusted result as a better-measured
-    adjustment for one domain, never as adjustment for general ability.
+    Both subtests assess visuospatial tasks and have similar spread in this
+    cohort. Consumers standardise their raw sum. Their correlation alone
+    does not establish either subtest's reliability or the composite's
+    reliability without measurement assumptions. The composite measures a
+    narrow domain, not the causal diagram's latent general ability ``GA``.
+    Read its adjustment as a domain-specific sensitivity; ``GA`` remains unmeasured.
     """
 
     APTGRAM = "aptgram"
@@ -108,7 +103,7 @@ class Variables:
     """
     Block 1 Expressive Vocabulary Taught. Tests were created to measure expressive 
     and receptive knowledge of words explicitly taught in each phase of the 
-    intervention. Six words of each type (nouns, adverbs, adjectives, prepositions) 
+    intervention. Six words of each type (nouns, verbs, adjectives, prepositions)
     were tested. In the expressive test, children were shown pictures that they were 
     asked to: name (nouns); say what the person was doing (verbs; e.g. 'what is the 
     man doing?' 'Stretching'); name after a prompt related to a comparison picture 
@@ -121,7 +116,7 @@ class Variables:
     """
     Block 1 Expressive Vocabulary Total. Tests were created to measure expressive 
     and receptive knowledge of words explicitly taught in each phase of the 
-    intervention. Six words of each type (nouns, adverbs, adjectives, prepositions) 
+    intervention. Six words of each type (nouns, verbs, adjectives, prepositions)
     were tested. In the expressive test, children were shown pictures that they were 
     asked to: name (nouns); say what the person was doing (verbs; e.g. 'what is the 
     man doing?' 'Stretching'); name after a prompt related to a comparison picture 
@@ -134,7 +129,7 @@ class Variables:
     """
     Block 1 Expressive Vocabulary Not Taught. Tests were created to measure expressive 
     and receptive knowledge of words explicitly taught in each phase of the 
-    intervention. Six words of each type (nouns, adverbs, adjectives, prepositions) 
+    intervention. Six words of each type (nouns, verbs, adjectives, prepositions)
     were tested. In the expressive test, children were shown pictures that they were 
     asked to: name (nouns); say what the person was doing (verbs; e.g. 'what is the 
     man doing?' 'Stretching'); name after a prompt related to a comparison picture 
@@ -171,7 +166,7 @@ class Variables:
     """
     Block 2 Expressive Vocabulary Taught. Tests were created to measure expressive 
     and receptive knowledge of words explicitly taught in each phase of the 
-    intervention. Six words of each type (nouns, adverbs, adjectives, prepositions) 
+    intervention. Six words of each type (nouns, verbs, adjectives, prepositions)
     were tested. In the expressive test, children were shown pictures that they were 
     asked to: name (nouns); say what the person was doing (verbs; e.g. 'what is the 
     man doing?' 'Stretching'); name after a prompt related to a comparison picture 
@@ -184,7 +179,7 @@ class Variables:
     """
     Block 2 Expressive Vocabulary Total. Tests were created to measure expressive 
     and receptive knowledge of words explicitly taught in each phase of the 
-    intervention. Six words of each type (nouns, adverbs, adjectives, prepositions) 
+    intervention. Six words of each type (nouns, verbs, adjectives, prepositions)
     were tested. In the expressive test, children were shown pictures that they were 
     asked to: name (nouns); say what the person was doing (verbs; e.g. 'what is the 
     man doing?' 'Stretching'); name after a prompt related to a comparison picture 
@@ -197,7 +192,7 @@ class Variables:
     """
     Block 2 Expressive Vocabulary Not Taught. Tests were created to measure expressive 
     and receptive knowledge of words explicitly taught in each phase of the 
-    intervention. Six words of each type (nouns, adverbs, adjectives, prepositions) 
+    intervention. Six words of each type (nouns, verbs, adjectives, prepositions)
     were tested. In the expressive test, children were shown pictures that they were 
     asked to: name (nouns); say what the person was doing (verbs; e.g. 'what is the 
     man doing?' 'Stretching'); name after a prompt related to a comparison picture 
@@ -1097,9 +1092,9 @@ class Variables:
 
     The groupings are finer than the semantic lists on :class:`Categories`
     (which mix composites with individual tests). They are designed for
-    construct-level aggregation of permutation importance during
-    feature-selection review — dominant *constructs* are more stable
-    across variants than dominant individual features.
+    construct-level aggregation of permutation importance. Related measures
+    can share predictive information, so grouped importance complements the
+    individual-feature rankings.
 
     Unknown features (including ``_GAIN`` / ``_NEXT`` suffixed variants)
     fall through to ``"other"``.
@@ -1145,28 +1140,16 @@ class Variables:
     assessment at t1) and replicated across every timepoint in the
     long-format data.
 
-    These features are time-invariant *within child*: each child
-    contributes the same value across their 3–4 rows. Under
-    ``GroupKFold`` grouping by ``subject_id`` there is no test-set
-    leakage, but during training the model still sees each child's
-    value repeated, which inflates effective training support and can
-    bias tree splits and permutation importance toward these features.
+    Each child contributes the same value across their rows. Grouping
+    cross-validation by ``subject_id`` prevents that child's rows from
+    appearing in both training and validation. Repeated rows still give
+    children with more observations more weight unless weights address it;
+    they do not provide independent measurements of a baseline feature.
 
-    Treat this list as a *flag*, not a hard exclusion. It exists so
-    that:
-
-    - feature-selection review can identify which predictors in a
-      final set are time-invariant and warrant an extra sensitivity
-      check (drop-and-retune);
-    - level-model reports can surface the time-invariance of a
-      predictor inline alongside its importance;
-    - downstream pipeline options (e.g. inverse-frequency subject
-      weighting) can consume a single canonical list rather than
-      re-deriving it per model.
-
-    The concern is structurally weaker for gain models (where
-    time-invariant features can only explain between-child *trajectory*
-    differences, not within-child change) than for level models.
+    This list flags time-invariant predictors for reports, sensitivity checks
+    and any subject-weighting option. It does not exclude them. In gain
+    models they can predict between-child differences in change, but cannot
+    describe a within-child change in the predictor itself.
     """
 
     NAMES: ClassVar[Mapping[str, str]] = {

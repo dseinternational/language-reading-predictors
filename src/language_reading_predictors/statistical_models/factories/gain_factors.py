@@ -83,7 +83,7 @@ def build_gain_factors_model(
             + gamma_ability * z(ability)           # observed GA handle (blocks)
             + sum_s gamma_s * logit(skill_pre_s)   # upstream DAG skills (adjusted assoc.)
             + sum interactions                     # focal, pre-specified
-            + u_child[i]                           # partial GA repair
+            + u_child[i]                           # repeated-child dependence
 
     ``OnIntervention`` is derived from the data: the immediate arm (``G == 1``) is
     on from period 1; the waitlist (``G == 0``) is off in period 1 only and on once
@@ -293,8 +293,8 @@ def build_gain_factors_model(
         # appear as that child's next baseline.
         pm.Data("loo_child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
-        # Own baseline is a precision term for the graded likelihood only; the off-floor
-        # (Bernoulli) path drops it (A4 — see below), so its data node is not built.
+        # The graded baseline node is unused by the Bernoulli path, which adds
+        # a binary off-floor baseline below.
         own_pre_d = (
             pm.Data("own_pre_logit", prepared.pre_logit[own], dims="obs_id")
             if likelihood != "bernoulli_offfloor"

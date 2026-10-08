@@ -147,7 +147,7 @@ digraph COPYPASTE {
   "NW_1" -> "NW_2" [color="#aeb4bd", penwidth=1.1];
   "PS_1" -> "PS_2" [color="#aeb4bd", penwidth=1.1];
   "WR_1" -> "WR_2" [color="#aeb4bd", penwidth=1.1];
-  // reverse / reciprocal (NEW — the review target)
+  // Lagged reverse and reciprocal hypotheses
   "WR_1" -> "TE_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];
   "WR_1" -> "TR_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];
   "WR_1" -> "PA_2" [color="#d6006e", style=dashed, penwidth=2.3, constraint=false];

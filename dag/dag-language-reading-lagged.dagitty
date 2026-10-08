@@ -8,18 +8,15 @@
 // alternative (Option B) considered and not adopted remains drawn in
 // dag/dag-language-reading-lagged.svg for the decision record.
 //
-// WHY: the contemporaneous graph cannot express maturation or the direction of
-// change over the four waves. Unrolling over time (a) makes the reciprocal edges
-// representable instead of confessed-away, (b) lets reading -> language coexist
-// with language -> reading without a cycle, (c) makes every gain-factor / LCSM /
-// mediation adjustment set literally readable off the graph (the parents at the
-// prior wave), and (d) supports the #264 resolution that baseline vocabulary is
-// an admissible mediation confounder, via explicit temporal precedence.
+// The two-slice template copies the within-wave cascade and adds carry-over
+// and reverse paths across adjacent assessments. This permits reciprocal skill
+// hypotheses without a directed cycle. Exposure/outcome roles and adjustment
+// sets depend on each analysis. Temporal precedence alone does not establish
+// that an adjustment set identifies a causal effect.
 //
-// CONVENTION: a two-slice TEMPLATE. Suffix _t = a wave, _t1 = the next wave; the
-// same structure repeats over each adjacent transition t1->t2, t2->t3, t3->t4.
-// Assessments are ~20 weeks apart (the 40-week programme spans two transitions).
-// (A full t1..t4 unroll is causally equivalent but ~4x the nodes and unreadable.)
+// Suffix _t denotes a wave and _t1 the next wave. Assessments are about 20 weeks
+// apart. Repeating this template over four waves requires the same assumptions
+// and an explicit account of treatment timing.
 //
 // DESIGN DECISIONS — Option A ADOPTED 2026-07-13 (PR #288 discussion). The
 //   lagged-DAG workstream was agreed 2026-07-10; the A-vs-B structure choice is

@@ -10,8 +10,7 @@ proportion of sounds correctly produced in a picture-naming task.
 
 The gain target spans min -12.1, max 23.8, median 1.18, mean 1.02,
 std 6.48, skew 0.30, with ~42% negative and ~5% zero observations
-(n = 152). Regression from the mean dominates gain targets across
-the suite.
+(n = 152).
 
 This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable initial-

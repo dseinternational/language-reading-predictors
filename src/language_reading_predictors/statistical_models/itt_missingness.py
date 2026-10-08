@@ -190,11 +190,7 @@ class ScreeningWordReadingData:
 def missingness_design_record(data: "ScreeningWordReadingData") -> dict[str, Any]:
     """Machine-checkable identity of the all-57 target design.
 
-    Fresh generation validates the target count, the likelihood rows and the
-    arm / missingness masks against the trial contract, but none of that reached
-    the persisted artefacts, so stored release evaluation could only check that
-    the trace carried variables of the right *names* (2026-08-22 ITT audit,
-    finding 8). This records the design itself: the dimensions, the arm split of
+    This records the dimensions, the arm split of
     the 57 randomised targets, how many are observed and in the original
     analysis, and a digest over the four target arrays that define the
     completion problem.
@@ -241,11 +237,7 @@ def _numeric(frame: pd.DataFrame, column: str) -> np.ndarray:
 
 
 def _validate_binary_codes(values: np.ndarray, *, name: str, allowed: set[int]) -> None:
-    # Integrality is checked *before* the cast (2026-08-22 ITT audit, finding 9).
-    # ``astype(int)`` truncates toward zero, so a corrupt 0.4 or 1.7 silently
-    # became a valid 0 or 1 and passed the exact-code comparison. The pinned
-    # archive checksum protects production, but this validator is what a future
-    # archive revision is checked against.
+    # Check integrality before casting so fractional codes cannot be truncated.
     if not np.isfinite(values).all():
         raise ValueError(f"{name} must be finite")
     if not np.all(values == np.rint(values)):
@@ -400,10 +392,7 @@ def load_randomised_w_archive(
     observed_mask = np.isfinite(post)
     if np.any((post[observed_mask] < 0) | (post[observed_mask] > WORD_READING_N)):
         raise ValueError(f"word_reading_t2 must lie in [0, {WORD_READING_N}]")
-    # Bounds alone left the later ``astype(np.int64)`` free to truncate a
-    # fractional count — 34.7 would be modelled as 34 with no complaint
-    # (2026-08-22 ITT audit, finding 9). The ordinary ITT loader already checks
-    # count integrality; this loader now matches it.
+    # Bounds do not ensure whole item counts; check before converting to integers.
     if not np.all(post[observed_mask] == np.rint(post[observed_mask])):
         raise ValueError("word_reading_t2 must contain whole item counts")
     observed_counts = {
@@ -507,7 +496,7 @@ def build_screening_w_model(
         # term whose slope prior carries the outcome level.  Its intercept is the
         # t2-W logit at the mean screening profile, so the shared zero-centred
         # ANCOVA intercept prior would put its median at 39.5/79 items.  Anchor it
-        # instead at the mean *pre-randomisation* screening-W logit: a conservative
+        # instead at the mean pre-randomisation screening-W logit: a
         # no-mean-change-on-proportion-correct reference that uses no t2 outcome.
         # The unit SD allows large learning, test-difficulty and timing departures
         # from that reference (about 1.4--23.8 items over the central 89% interval
@@ -1191,7 +1180,7 @@ def run_missingness_subfit(
     )
     trace_path = Path(ctx.output_dir) / MISSINGNESS_TRACE_FILENAME
     attach_missingness_prior_groups(result.trace, prior_samples)
-    # ``run_subfit`` persists before this family-owned prior draw exists. Rewrite
+    # ``run_subfit`` persists before the family-owned prior groups are attached. Rewrite
     # the same registered trace so its hash binds posterior, posterior-predictive,
     # prior and prior-predictive groups as one auditable object.
     result.trace.to_netcdf(trace_path)
@@ -1276,13 +1265,8 @@ def run_missingness_subfit(
             "screening_covariates": list(data.covariate_names),
             "covariate_scalers": data.covariate_scalers,
             "design": missingness_design_record(data),
-            # Every sampled coefficient, not only the screening block: ``tau`` and
-            # ``kappa`` were omitted, so the provenance record described a model
-            # without a treatment effect or a dispersion parameter (2026-08-22 ITT
-            # audit, finding 9). The release check's own convergence scan has
-            # always covered both. The three that come from the shared
-            # constructors are rendered from them rather than restated, so the
-            # record cannot drift from the model the factory builds.
+            # Record every sampled coefficient. Render shared constructors so
+            # their documented distributions follow the model defaults.
             "coefficient_priors": {
                 "alpha": ("Normal(mean all-57 pre-randomisation screening-W logit, 1.0)"),
                 "tau": str(_provenance_priors.tau_prior()),

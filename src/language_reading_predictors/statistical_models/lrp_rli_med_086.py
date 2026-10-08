@@ -20,7 +20,9 @@ graded own-baseline term stays out (the Normal(1,.) autoregressive prior does no
 transfer to a binary indicator, and a floored baseline logit is degenerate), but
 since #585 (finding 4) the baseline is **not dropped outright**: it enters as the
 **binary off-floor-at-baseline contrast** (``b_own_offfloor`` ~ Normal(0, 1)),
-matching the off-floor ITT/DiD/gain-factor convention exactly. That closes a
+matching the binary-baseline form used in the DiD and gain-factor
+prevalence models. The ITT off-floor transition model instead restricts to
+children at the floor at baseline. That closes a
 model/sample mismatch -- the loader was already excluding three children for a
 nonword baseline the likelihood never used, so the complete-case rule was stricter
 than the fitted model. The rule is now derived from the terms the legs actually
@@ -54,7 +56,7 @@ single-outcome rule missed this indirect route). **Baseline blending (B, at t1) 
 added** as proximal reinforcement on the PA-mediated backdoors plus precision (the
 med-066/075 precedent; B enters at its t1 logit as a covariate confounder, *not* the
 outcome own-baseline, so it does not conflict with the off-floor no-`b_W`
-convention). **No outcome own-baseline** (off-floor). The binding unverifiable
+convention). **Binary outcome own-baseline** (off-floor indicator). The binding unverifiable
 assumption is no unmeasured L -> NW confounding — latent general ability (GA) violates
 it, as for LRP59 — so read this as a model-based g-formula decomposition under stated
 (cross-world) assumptions, wide at n ~ 50, not an identified natural effect.
@@ -93,9 +95,9 @@ SPEC = ModelSpec(
         # L->NW confounders under the mediation criterion (signed off 2026-07-14):
         # HS (hs/hs_missing) blocks LS<-HS->PA->NW; SP (deapp_c) and RW (erbto) the
         # other mediator-parent routes; baseline blending B (bare symbol -> taken at
-        # t1 by the factory) reinforces the PA-mediated backdoors. No outcome
-        # own-baseline (off-floor drops b_W; the baseline-word-reading confounder
-        # has the collision-free outcome-leg coefficient b_conf_W).
+        # t1 by the factory) reinforces the PA-mediated backdoors. The outcome
+        # baseline enters as b_own_offfloor; the baseline-word-reading
+        # confounder has the distinct outcome-leg coefficient b_conf_W.
         "G",
         "A",
         "L_t1",

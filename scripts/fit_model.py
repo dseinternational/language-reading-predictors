@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""
-Fits the specified model to the latest data. Saves plots and data to the output directory.
-"""
+"""Fit selected gradient-boosting models and save their tables and figures."""
 
 import argparse
 import os

@@ -110,11 +110,8 @@ def _record(descriptor: PriorDescriptor) -> None:
 class PriorSpec:
     """A named prior: the ``preliz`` distribution plus what it means.
 
-    Returned by every constructor in this module in place of the bare ``preliz``
-    distribution, so that ``.to_pymc(name)`` can record a :class:`PriorDescriptor`
-    without a single call site changing. Every other attribute delegates to the
-    wrapped distribution, so ``plot_pdf`` and the rest of the ``preliz`` surface
-    are unaffected.
+    ``.to_pymc(name)`` records a :class:`PriorDescriptor`. Other attribute
+    lookups delegate to the wrapped distribution, including ``plot_pdf``.
     """
 
     __slots__ = ("distribution", "constructor", "role", "rationale", "panel")
@@ -148,9 +145,7 @@ class PriorSpec:
         differs from the constructor's own. That happens when a family reuses a
         constructor for a different quantity — the dose family's ``beta_arm_late``
         is built from the treatment-effect prior but is an adjusted association,
-        not the randomised effect. Those corrections previously lived in a second
-        per-family override table read at artefact-writing time, far from the
-        model code that knew the answer.
+        not the randomised effect.
         """
         variable = self.distribution.to_pymc(name, **kwargs)
         distribution = _dist_from_rv(variable) or _dist_from_spec(self)
@@ -242,11 +237,8 @@ def _role_of(constructor) -> str:
 def named_prior(key: str, *, role: str, panel: str | None = None):
     """Declare a constructor's key, scientific role and panel beside its body.
 
-    The role was previously held in a separate ``_ROLE_BY_CTOR`` table and reached
-    only through a name map; declaring it here means a constructor cannot exist
-    without one, and a variable built from it cannot be published under a role
-    nobody chose. ``panel`` defaults to ``key`` — the shared prior-PDF panel is
-    named after the constructor — and is ``""`` for a prior with no panel.
+    ``panel`` defaults to the constructor key. Use ``""`` for a prior without a
+    density panel. The constructor's first docstring line becomes its rationale.
     """
 
     def wrap(function: Callable[..., Continuous]) -> Callable[..., PriorSpec]:
@@ -502,11 +494,8 @@ def residual_correlation_prior_sd(n_outcomes: int, eta: float = JOINT_RESIDUAL_L
     ``1 / sqrt(2a + 1)`` — for the registered two-outcome companions at
     ``eta = 4`` that is exactly ``1 / 3``.
 
-    This is the yardstick the fitted block is measured against. A posterior SD
-    equal to it means the data moved the correlation nowhere and the "dependence
-    correction" a companion publishes is the prior's, not the data's — which is
-    what the three registered companions show at n = 53
-    (:func:`reporting.dependence_identification_summary`).
+    Compare this with the posterior SD to assess concentration. Equal SDs do not
+    establish that the posterior equals the prior; its location or shape may differ.
     """
     if n_outcomes < 2:
         raise ValueError(f"a correlation block needs at least two outcomes, got {n_outcomes}")
@@ -520,18 +509,11 @@ def residual_correlation_prior_sd(n_outcomes: int, eta: float = JOINT_RESIDUAL_L
 def kappa_prior(sigma: float = 50.0) -> PriorSpec:
     """Beta-binomial concentration kappa ~ HalfNormal(50).
 
-    (Parametrised by ``sigma`` so the dispersion prior can be anchored once
-    against the tests' normative raw-score SDs — an admissible external source,
-    #141's still-unused anchor — prior-critical-review 2026-07-07, recommendation
-    5. The default ``50`` is only *partly* permissive: it is generous for the
-    low-denominator outcomes, but on high-denominator outcomes (e.g. R / E at
-    ``n_trials`` up to 170) it concentrates ``kappa`` well below ``n``, so it
-    effectively **enforces a minimum over-dispersion** — the near-Binomial limit
-    (``kappa >> n``) is off the table. That is deliberate here (the review found
-    the prior-predictive over-dispersion to be location-driven, not
-    ``kappa``-driven, so raising the cap is lower priority), and the default is
-    unchanged pending the normative-SD calibration. The docstring's numeric value
-    is what ``_dist_from_doc`` extracts for the name-only table path.)
+    ``sigma`` controls the concentration scale. At high item ceilings, the
+    default puts little mass on the near-Binomial regime ``kappa >> n``. The
+    HalfNormal has unbounded support, so this is a strong preference for extra
+    dispersion rather than a hard lower bound. Recorded variables report the
+    fitted scale; name-only tables use the default in the first docstring line.
     """
     return pz.HalfNormal(sigma=sigma)
 
@@ -540,38 +522,15 @@ def kappa_prior(sigma: float = 50.0) -> PriorSpec:
 def inv_sqrt_kappa_prior(sigma: float = 0.25) -> PriorSpec:
     """Beta-binomial dispersion 1/sqrt(kappa) ~ HalfNormal(0.25).
 
-    The RLM historical families' replacement for a HalfNormal directly on the
-    concentration (2026-08-21 historical-families review, finding 8). The defect
-    was the prior's *shape*, not its scale. A HalfNormal on ``kappa`` cannot
-    reach the near-Binomial limit ``kappa >> n``, which for a bounded count is
-    the perfectly ordinary hypothesis "this measure shows no extra-Binomial
-    dispersion beyond the child random intercept". Under ``HalfNormal(50)`` the
-    prior probability that the Beta-Binomial variance is within 10% of the
-    Binomial variance is **0.000-0.001** at every RLM denominator (n = 18-90) —
-    the answer was excluded a priori. The fitted posteriors showed exactly what
-    that costs: in 20 of 27 group-by-measure cells the posterior standard
-    deviation was 90-99% of the prior's, and the posterior piled up against the
-    prior's ceiling (P(kappa > 100) = 0.046 under the prior, 0.37-0.78 in those
-    posteriors). ``kappa`` was carrying the prior, not the data.
+    RLM historical families place the prior on ``u = 1/sqrt(kappa)`` so values
+    near zero allow near-Binomial conditional variance. The zero-dispersion limit
+    is approached as ``u`` tends to zero; a continuous prior gives that exact
+    point no probability mass. The default retains a similar median variance
+    inflation to ``HalfNormal(50)`` on ``kappa`` while changing its tails. It is
+    therefore a different prior belief about dispersion. See the 2026-08-21
+    historical-families review, finding 8.
 
-    Reparameterising onto ``u = 1/sqrt(kappa)`` — the standard weakly-informative
-    scale for a dispersion parameter, on which the no-dispersion limit is simply
-    ``u = 0`` — fixes the shape. The default ``0.25`` is chosen to be
-    **calibration-preserving on the observable scale**: it reproduces the old
-    prior's median Beta-Binomial variance inflation at every RLM denominator to
-    within 3% (n=18: 1.47 against 1.49; n=32: 1.85 against 1.89; n=90: 3.45
-    against 3.56), with comparable upper limits. So it asserts no new belief
-    about *how much* dispersion there is; it only stops forbidding "none",
-    raising P(inflation < 1.1) from ~0.000 to 0.11-0.24 and P(kappa > 100) from
-    0.046 to 0.311. Every fitted kappa in the current suite (28 to 121) sits
-    within 0.4-0.75 prior standard deviations of the mode, so neither tail is
-    truncated.
-
-    ``kappa`` itself remains available as a Deterministic, so the reports,
-    diagnostics and prior-vs-posterior overlay still speak in the units the
-    family documents. Scoped to the RLM historical families; :func:`kappa_prior`
-    is unchanged for every other family, whose high-denominator RLI outcomes are
-    the case its own docstring reasons about.
+    Factories retain ``kappa`` as a deterministic for reports and diagnostics.
     """
     return pz.HalfNormal(sigma=sigma)
 
@@ -672,9 +631,8 @@ def sigma_mediator_prior() -> PriorSpec:
 
     Used by the LRP62 reading-route model, where the mediator is a continuous
     standardised code-based-route composite modelled as ``Normal(mu_M, sigma_M)``.
-    The composite-post is standardised (SD 1), so after conditioning on the
-    baseline composite and covariates the residual SD is below 1; HalfNormal(1.0)
-    is weakly-informative on that scale.
+    The composite-post has empirical SD 1. A HalfNormal(1.0) permits residual
+    SDs both below and above that value rather than imposing an upper bound.
     """
     return pz.HalfNormal(sigma=1.0)
 
@@ -683,12 +641,9 @@ def sigma_mediator_prior() -> PriorSpec:
 def eta_main_prior() -> PriorSpec:
     """GP amplitude (main effect) eta ~ HalfNormal(0.3).
 
-    Tightened from HalfNormal(1.0) after LRP52 showed the GP amplitudes had
-    posterior mass at zero, creating a Neal's funnel with the basis weights
-    that caused ~2.5% divergences at target_accept 0.95 and 0.98. With 50-60
-    children per ITT run and only 1 post-score per child, the data cannot
-    identify a 20-basis HSGP; a tighter prior keeps the flexibility available
-    while pushing the funnel neck away from zero.
+    The 0.3 scale regularises the GP contribution in small ITT samples. It does
+    not rule out amplitudes near zero or guarantee identifiable curves and clean
+    sampling. See the LRP52 prior review for the change from HalfNormal(1.0).
     """
     return pz.HalfNormal(sigma=0.3)
 
@@ -1036,11 +991,8 @@ def described_prior_row(
 ) -> dict[str, str]:
     """The published row for a recorded or explicitly declared external prior.
 
-    The single answer to "what does this prior mean here", used by both
-    :func:`priors_table` and :func:`used_prior_keys`. They resolved it separately
-    until #637, so a variable could be *described* from its recorded descriptor
-    while its prior-PDF **panel** was still chosen by the name map — the table
-    naming one density and the figure beside it plotting another.
+    Both :func:`priors_table` and :func:`used_prior_keys` use this declaration so
+    the table and density panel describe the same prior.
     """
     recorded = descriptors_for(model)
     role_overrides = role_overrides or {}
@@ -1094,14 +1046,9 @@ def _unrecorded_prior_row(
 ) -> dict[str, str]:
     """The row for a variable with no recorded descriptor.
 
-    There are only two ways to reach this. Either the variable is one this package
-    cannot annotate at its creation site — :data:`EXTERNAL_PRIORS` — or nobody has
-    said what its prior means, in which case the fit stops.
-
-    Failing here is the point (#637). What this replaces inferred a published role
-    and rationale from the variable's name, its name prefix, its name suffix and
-    its rendered distribution string, so an undeclared variable was silently given
-    a meaning, and renaming one could change what the report said it meant.
+    Accept an explicit legacy constructor override or an entry in
+    :data:`EXTERNAL_PRIORS`. Otherwise raise rather than inferring the scientific
+    role from the variable name.
     """
     base = rv.name.split("[")[0]
     key = ctor_overrides.get(base)

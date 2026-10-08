@@ -10,8 +10,7 @@ phonological short-term memory).
 
 The gain target spans min -9.0, max 12.0, median 1.00, mean 1.03,
 std 3.00, skew 0.35, with ~22% negative and ~22% zero observations
-(n = 148). Regression from the mean dominates gain targets across
-the suite.
+(n = 148).
 
 This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable word repetition

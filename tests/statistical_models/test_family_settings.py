@@ -3,16 +3,10 @@
 
 """Registry-wide typed-settings contract (#637 stage 2).
 
-108 registered specs across six families — 41 mechanism, 33 gain-factor, 18 DiD,
-10 aligned, 3 growth and 3 pooled-level — declared their family settings as a
-free-form ``ModelSpec.extra`` dict, translated at resolution time by
-``from_legacy_extra``. A key misspelt there was rejected by the family's allow
-list, but a key that existed and a key that mattered were indistinguishable in
-``config.json``, which recorded ``model_settings: null`` and the raw dict.
-
-Every registered model now declares its family's settings class, and ``extra`` is
-empty everywhere. These tests hold that over the whole registry rather than model
-by model, so a new model cannot reintroduce the legacy style.
+Every registered model must declare its family's typed settings and leave
+``ModelSpec.extra`` empty. The tests cover the whole registry so a new model
+cannot reintroduce a free-form declaration. Sampler acceptance targets belong
+in ``ModelSpec.target_accept``.
 """
 
 from __future__ import annotations
@@ -64,7 +58,6 @@ def test_an_unknown_kind_names_the_gap_rather_than_raising_bare_keyerror():
 
 
 def test_every_registered_model_declares_its_family_settings_class():
-    """The whole point of the migration, over the whole registry."""
     failures = [
         failure for spec in REGISTERED for failure in registered_settings_failures(spec)
     ]
@@ -72,13 +65,7 @@ def test_every_registered_model_declares_its_family_settings_class():
 
 
 def test_no_registered_model_keeps_scientific_keys_in_extra():
-    """``extra`` is empty everywhere — including the sampler knob.
-
-    18 typed specs in four families kept ``extra={"target_accept": ...}``, which
-    their resolvers tolerated through a ``_GLOBAL_KEYS`` exemption. That made
-    ``ModelSpec.target_accept``'s own docstring false: the legacy route was
-    reachable from a typed module after all.
-    """
+    """Typed declarations must leave ``extra`` empty, including sampler settings."""
     offenders = {spec.model_id: sorted(spec.extra) for spec in REGISTERED if spec.extra}
     assert offenders == {}, offenders
 

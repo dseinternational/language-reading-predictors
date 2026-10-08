@@ -24,7 +24,8 @@ a descendant of the ``IS`` collider and is **not** conditioned on (#269).
 
 As in LRP77, presence and intensity are separated (#587): sessions are centred and
 standardised over the on-intervention rows only, ``theta_treated`` carries the extensive
-margin (randomised when read in period 1, where arm and session count correlate at 0.970),
+margin (the period-1 indicator follows randomised assignment, but its coefficient
+conditions on attendance and is an adjusted association),
 arm enters only from period 2 as intervention order, and the exposure is split into
 between-child and within-child components. Every dose slope is an **adjusted association,
 not "dose drives gains"**. G is coded ``G = 2 - group`` (G=1 = immediate-intervention,
@@ -56,7 +57,7 @@ SPEC = ModelSpec(
     # Same period-varying dose geometry as LRP77, but far milder here: 1 divergence
     # at the reporting preset's 0.95, 0 at 0.97 (R-hat 1.001, min ESS 6,720). Kept
     # at the value actually validated rather than raised to the family's 0.99 — the
-    # default seed is fixed, so this reproduces the stored fit exactly. See
+    # reported diagnostics describe that fit; each new fit must pass the gate. See
     # notes/202608050649-reporting-refit-predictive-checks.md.
     target_accept=0.97,
 )

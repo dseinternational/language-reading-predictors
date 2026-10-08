@@ -123,7 +123,7 @@ def _representative_models(tmp_path) -> dict[str, object]:
         use_age_linear=True,
         use_own_baseline=False,
     ).model
-    # ITT with the age HSGP on — exercises the eta_main / ell suffix mapping.
+    # ITT with the age HSGP on also checks descriptors for its GP variables.
     models["itt_age_gp"] = build_itt_model(itt, outcome_symbol="R", cross_symbols=(), use_age_gp=True).model
 
     models["joint"] = build_joint_model(itt, use_cross_baselines=False, use_age_linear=True).model
@@ -468,11 +468,11 @@ def test_real_family_builds_record_their_correlation_cholesky_variables(built_mo
 
 
 def test_did_varying_delta_guards_and_rvs(tmp_path):
-    """Varying catch-up has guarded inputs and explicit waitlist-child nodes."""
+    """Varying t3 deviations have guarded inputs and explicit waitlist-child nodes."""
     p = _write_synthetic(tmp_path)
     levels = load_and_prepare(path=p, phase_mode="levels")
     dosep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",), covariates=("attend",))
-    # The exploratory waitlist catch-up deviation needs the child intercept.
+    # The exploratory waitlist t3 deviation needs the child intercept.
     with pytest.raises(ValueError):
         build_did_model(
             levels,
@@ -480,7 +480,7 @@ def test_did_varying_delta_guards_and_rvs(tmp_path):
             use_varying_delta=True,
             use_child_re=False,
         )
-    # Catch-up heterogeneity is not an intensive session-dose slope.
+    # A varying t3 deviation cannot be combined with the session-dose slope.
     with pytest.raises(ValueError):
         build_did_model(dosep, outcome_symbol="W", use_varying_delta=True, dose=True)
     built = build_did_model(levels, outcome_symbol="W", use_varying_delta=True)

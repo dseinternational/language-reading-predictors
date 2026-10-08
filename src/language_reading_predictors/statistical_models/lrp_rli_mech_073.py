@@ -25,17 +25,14 @@ collinear with the moderator main effect) and the age adjustment is realised by
 `gamma_mod·z(age)` alongside the `gamma_int·z(logit L)·z(age)` interaction being
 tested. Documented in the report.
 
-**Sharp prior expectation.** The two prior interaction models both showed an
-apparent interaction that was really a *between-child ability confound*, which
-collapsed once subject random effects + adjustment were in (LRP71 code-based×vocab
-null; LRP72 blending×letter-sound largely independent). Age is *even more* a
-between-child variable — most age variation is across children, not within a
-child's four waves — so LRP73 is the most confound-prone of the three. The honest
-expectation is that the age moderation may also be a confound. A third
-confound-driven null would make the interaction-phase conclusion robust:
-contributors to reading combine **additively**; the raw moderations are
-between-child ability confounds. The within-child check
-(`scripts/within_child_interaction_check.py`) is the key diagnostic; see the note.
+**Adjustment sensitivity.** Earlier interaction estimates changed after
+adjustment and the addition of child random effects. Such changes do not
+establish that latent ability caused the original pattern, and near-zero
+interactions do not prove that the skills combine additively. Much age
+variation is between children, so the age moderation can still reflect stable
+child differences. The within-child check
+(`scripts/within_child_interaction_check.py`) provides a complementary
+description; it does not identify a causal interaction.
 
 The no-interaction companion `lrp-rli-mech-173` (LRP73base) was **retired in #438**:
 its leave-one-out refits diverge at the default HSGP basis, so the nested PSIS-LOO test

@@ -11,16 +11,14 @@ one help on its own? The letter-sound mechanism enters as the HSGP curve ``f_mec
 in LRP58); receptive vocabulary enters as a standardised linear main effect
 ``gamma_mod * z(R)`` plus the interaction ``gamma_int * z(logit L) * z(R)``.
 
-**Reading ``gamma_int``.** It is the change in the letter-sound -> word-reading slope per
-+1 SD of receptive vocabulary (equivalently, by symmetry of the product, the change in
-the vocabulary slope per +1 SD of letter sounds). ``gamma_int > 0`` = **synergy**: the
-two skills reinforce each other, so word reading is highest when *both* are high (the
-"both above a threshold" pattern). ``gamma_int ~ 0`` = the two contribute roughly
-independently (additive; either being high helps). ``gamma_int < 0`` = they partly
-**substitute** (diminishing returns to having both). Note L and R are positively
-correlated in this cohort (r ~ 0.55), so the discordant high-one/low-other children are
-relatively few and the interaction is correspondingly weakly powered - read it as an
-exploratory description.
+**Reading ``gamma_int``.** It changes the letter-sound log-odds association
+per +1 SD of receptive vocabulary. A positive value makes that association
+larger as vocabulary rises; a negative value makes it smaller. A value near
+zero gives little evidence for the added product term. Its sign alone does not
+establish that either skill helps, that both must be high, or that a threshold
+exists. L and R are positively correlated in this cohort (r ~ 0.55), so few
+children have discordant skill levels and the interaction is imprecise. Read it
+as an exploratory adjusted association.
 
 Adjustment set = the LRP58/LRP71 L -> W set {G, A, W_pre, HS, IS, SP}; the moderator R
 enters additionally via its main effect + interaction. Conditioning on a vocabulary

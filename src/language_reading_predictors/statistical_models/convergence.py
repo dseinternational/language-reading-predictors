@@ -1,17 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""The automatic sampling-quality gate: what it checks, and how it reads.
+"""Read the automatic sampling-quality gate from stored diagnostics.
 
-R-hat <= 1.01, bulk and tail ESS >= 400, BFMI >= 0.3 and zero divergences. The
-verdict outranks every other publication consideration, so a great many modules
-read it: the release evaluator, the key-findings box, the report badge, the
-blending-pair and influence checks, and several family pipelines.
-
-It lives here rather than in ``key_findings`` or ``release`` because those two
-imported each other to reach it (#637 stage 3): ``release`` needed the gate reader
-from ``reporting`` while ``key_findings`` needed the release decision, and both
-edges were function-local imports written to hide the cycle.
+A clean pass requires R-hat <= 1.01, bulk and tail ESS >= 400, BFMI >= 0.3 and
+zero divergences. Report and release code share this reader without importing
+each other.
 """
 
 from __future__ import annotations

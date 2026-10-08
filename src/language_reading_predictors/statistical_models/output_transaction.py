@@ -128,21 +128,14 @@ class OutputTransaction:
         if not self.staging_dir.is_dir():
             raise FileNotFoundError(f"staging output directory does not exist: {self.staging_dir}")
 
-        # The two renames, the backup-first ordering and the restore-on-failure
-        # attempt are the shared helper's (#662). This class keeps what the
-        # library deliberately leaves to the caller: the staging directory and
-        # its mode, the exclusion contract, completeness (only ``publish`` is
-        # called, and only after the report files exist), the private backup
-        # *name*, and backup retention — the helper deletes nothing.
+        # The shared helper backs up the publication and restores it on failure.
+        # This class owns staging, backup names and cleanup after promotion.
         promotion = promote_directory(
             self.staging_dir,
             self.final_dir,
             backup=self.final_dir.parent / f".{self.final_dir.name}.backup-{uuid.uuid4().hex}",
-            # This process is the single writer of these paths: the staging
-            # directory is a private mkdtemp and the final path is one model's
-            # own output directory. A null context is what the helper documents
-            # for exactly that case; nothing here coordinates other processes,
-            # exactly as before.
+            # Callers must ensure a single writer for the final model directory;
+            # private staging paths do not coordinate concurrent publications.
             lock=nullcontext(),
         )
 

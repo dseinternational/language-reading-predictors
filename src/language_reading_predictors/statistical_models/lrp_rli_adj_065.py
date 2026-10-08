@@ -1,88 +1,33 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRP65 - Adjusted model: independent baseline predictors of word-reading gain.
+"""LRP65 - adjusted baseline predictors of word-reading gain.
 
-The descriptive layer (responder/non-responder comparison, decode-predictor test,
-and the LightGBM discovery model LRP01) converged on the same carry signal for
-word-reading gain: baseline letter-sound knowledge, language/vocabulary and
-blending, with younger children gaining more. Non-verbal mental age (block
-design), SES and behaviour did *not* add independent signal in those passes.
+One row per child relates word reading at t4 to word reading at t1 and
+standardised t1 predictors. The Beta-Binomial regression includes letter sounds,
+blending, an equal-weight language composite (R, E and F), age and the declared
+trait covariates. It has no child random intercept. A pooled transition model
+would answer a different question and would combine within-child and
+between-child information unless those components were explicitly separated.
 
-LRP65 is the Bayesian "interpretable estimand" follow-up: the candidate predictors
-are a correlated general-ability cluster (vocab-blocks rho ~ 0.63; vocab-letter
-sounds ~ 0.4-0.5), so "independent effect" is ambiguous and a naive joint
-regression is multicollinear. We therefore (1) specify the DAG first, to fix the
-estimand and the adjustment set, and (2) fit a mutually-adjusted regression with
-regularising priors.
+Every slope is an adjusted association. Correlated skills and regularising
+priors affect how the model allocates their shared information. A small adjusted
+coefficient describes limited additional signal conditional on the other
+measures; it does not establish that the skill is unrelated to progress. Latent
+general ability is drawn in the explanatory DAG but is not estimated or
+controlled by this regression.
 
-Estimand (between-child association)
-------------------------------------
-For each baseline skill, the **mutually-adjusted between-child association** with
-subsequent word-reading gain - i.e. its partial association with the full-study
-gain ``W_post | W_pre`` (pre = T1), holding the other measured T1 baselines
-constant, *across children*.
+Hearing, speech production and phonological memory enter with missingness
+indicators; constant indicators are dropped. SES enters a separate sensitivity
+fit on the SES-complete subset. Those handling choices and the small sample
+qualify the fitted population and interpretation.
 
-This is an association, NOT a causal effect: n ~ 51, observational contrasts
-between children. The corresponding randomised-arm result is the available-case modified
-ITT estimate in ``lrp-rli-itt-010`` (which supersedes LRP52); the randomised gain-side
-coefficient lives in ``lrp-rli-gf-001``. LRP65 is about *which starting skills go with
-more gain*.
-
-Estimand <-> design (the decision the DAG gate settles)
--------------------------------------------------------
-A between-child estimand must be matched by a between-child design. Pooling all
-phase transitions (t1->t2, t2->t3, t3->t4) and adding a child random intercept
-does NOT estimate it: the random intercept absorbs stable between-child
-differences and pulls the coefficients toward the *within-child* association
-("when a child's level is higher at the start of a phase, do they gain more that
-phase"). That is a different question and can disagree.
-
-So the headline design is genuinely between-child: **one row per child**,
-predictors are each child's **T1** baselines, outcome is the full-study gain
-``W_t4 | W_t1`` (Beta-Binomial on the EWRSWR count), and there is **no** child
-random intercept. The pooled cross-phase variant (all phases, child random
-intercept) is not implemented here (the adjusted-model factory rejects pooled
-data); it would answer the within+between question and need the estimand
-reworded. Settle between-child T1 vs pooled cross-phase
-(and the gain window) at the DAG review, with Frank.
-
-DAG-derived adjustment set
---------------------------
-Latent general ability ``g`` drives the correlated baselines (letter sounds,
-language, blending, non-verbal MA, baseline word reading). Mutual adjustment among
-indicators of ``g`` redistributes their shared variance: a near-zero adjusted
-coefficient for non-verbal MA therefore means "no signal beyond the shared ability
-already captured by language + letter sounds", NOT "non-verbal MA is unrelated to
-gain". ``g`` is drawn to make this explicit; it is NOT estimated (decision: the
-fitted model is a regression, not a latent-factor SEM).
-
-- Predictors of interest (T1, standardised): letter sounds (L), a language
-  composite (equal-weight ROWPVT + EOWPVT + CELF), blending (B), age.
-- Baseline conditioning: ``W_pre`` (T1 word reading) enters linearly via
-  ``gamma_own`` - the "gain" framing, shared with the mechanism models.
-- Tested covariates (entered to *demonstrate* whether they carry independent
-  signal, not assumed non-independent): non-verbal MA (block design, T1),
-  behaviour (T1), and — added under the revised 2026-07-10 DAG
-  (``dag/dag-language-reading.dagitty``) — the three upstream traits it now places
-  above the baseline-skill cluster: hearing status (HS = ``hs``, derived from
-  ``hearing_c``), speech
-  production (SP = ``deapp_c``) and phonological memory (RW = ``erbto``), each
-  entered by the missing-indicator method so no child is dropped for a missing
-  trait (#247). A ``_missing`` indicator that is constant on the fitted rows is
-  dropped by the loader and carries no coefficient. SES has notable missingness, so
-  it enters a separate sensitivity fit on complete cases rather than the headline
-  model.
-
-Report each predictor's adjusted coefficient alongside its bivariate (total)
-association, so the shared-variance shift is visible. Prediction to test (NOT the
-assumed result): letter sounds + the language composite retain credible signal;
-non-verbal MA / SES / behaviour / hearing / speech / phonological memory shrink
-toward zero. Wide intervals at n ~ 51 are the honest result. Note the revised DAG
-routes each upstream trait's effect on gain mostly *through* the baseline-skill
-cluster already conditioned on, so a near-zero adjusted coefficient means "no
-signal beyond the measured skills", not "unrelated to gain"; the residual
-time-lagged confounding is deferred to the wave-unrolled DAG (#250).
+The report compares mutually adjusted slopes with baseline-conditioned
+single-predictor slopes and refits under the declared wider slope priors. These
+are sensitivity comparisons, not a decomposition of shared variance or a test
+that identifies causal edges. Read the causal contrast from the available-case
+modified ITT model ``lrp-rli-itt-010`` under its stated assumptions; its question
+differs from this model's baseline-skill associations.
 """
 
 from __future__ import annotations
@@ -139,9 +84,9 @@ _EDGE_LIST: list[tuple[str, str]] = [
     ("sp", "blend"),
     ("rw", "lang"),
     ("rw", "blend"),
-    # Edges under test - the model decides whether these are non-zero once the
-    # language + letter-sound signal is in. (Follow-up span is uniform - all
-    # children have four waves - so time-between-waves is not a node.)
+    # Dashed edges mark the proposed gain associations. The regression does
+    # not test whether the causal edges exist. The four-wave design alone
+    # does not establish equal elapsed assessment intervals.
     ("nvma", "wgain"),
     ("behav", "wgain"),
     ("ses", "wgain"),
@@ -282,9 +227,8 @@ def get_spec() -> "ModelSpec":
             # checks the which-predictors-clear-zero conclusion is stable.
             # Reconciled 0.5 -> 0.3 to match the shared association scale
             # (gamma_cross) — prior-critical-review 2026-07-07, recommendation 3.
-            # The sweep now brackets from the looser side, so the null-predictor
-            # conclusion is shown stable even when the prior is loosened back
-            # toward (and past) the old default.
+            # The sweep checks sensitivity to wider priors, including the old
+            # default. Agreement must be assessed from the resulting fits.
             predictor_slope_sigma=0.3,
             prior_sensitivity_sigmas=(0.5, 0.7),
         ),

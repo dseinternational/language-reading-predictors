@@ -50,14 +50,10 @@ _console = Console()
 
 
 def _subdirs(root: Path) -> list[Path]:
-    """Published fit directories, excluding in-flight output transactions.
+    """List fit directories, excluding hidden output transactions.
 
-    ``StatisticalFitContext.reset_output_dir`` stages each run in a *hidden* sibling
-    (``.<id>-<config>.staging-XXXX``) and promotes it only on success, so a dotted
-    directory is either a run in progress or an abandoned one. The model-id prefix
-    filter in ``resolve_targets`` already excludes those names incidentally; keeping
-    the rule here makes it a property of the helper rather than of its caller.
-    """
+    Hidden staging directories may belong to active or interrupted fits and must not
+    receive regenerated artefacts."""
     if not root.is_dir():
         return []
     return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))

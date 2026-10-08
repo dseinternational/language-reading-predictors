@@ -3,16 +3,9 @@
 
 """Typed settings and run plan for historical-cohort growth models.
 
-The registered ``kind="historical_growth"`` models fit one bounded Byrne
-reading-language-memory measure at a time over a complete-case core window and
-an optional available-case extension.  This module replaces the family's
-free-form ``ModelSpec.extra`` boundary with immutable settings and a validated
-plan resolved before an output transaction is opened or study data are loaded
-(#394 pillar 4).
-
-The migration is behaviour-preserving: selected rows, the Beta-Binomial
-likelihood, priors, fitted equation, diagnostic variables, PSIS-LOO policy and
-published tables remain unchanged for all nine registered models.
+Each fit models one bounded Byrne measure over a complete-case core window and
+an optional available-case extension. Resolve the plan before loading data or
+opening an output transaction.
 """
 
 from __future__ import annotations
@@ -107,13 +100,8 @@ def check_declared_waves(
 ) -> None:
     """Reject a wave a measure was never administered at, before any data I/O.
 
-    The study catalogue records ``available_waves`` per measure, and the
-    ``concurrent`` and ``growth`` resolvers already check declarations against
-    it. Neither historical family did (2026-08-21 review, finding 10). A core
-    wave a measure lacks empties the complete-case panel and fails late and
-    loudly; an *extension* wave it lacks fails silently — the loader simply
-    appends no rows, and the report then shows a wave of zero ``n`` that reads
-    as total attrition rather than as a declaration error.
+    Check both core and extension declarations against ``available_waves``.
+    An unadministered extension must not be reported as a wave lost to attrition.
     """
     for symbol in measures:
         measure = catalogue.get(symbol)
@@ -140,10 +128,7 @@ def check_extension_after_core(
 ) -> None:
     """Reject an "extension" wave that precedes the complete-case core window.
 
-    The family's own plan text, its ``window`` labels and the reports' prose all
-    describe the extension as a later, attrition-selected follow-up tail; a
-    declared extension wave *before* the core would make every one of them wrong
-    (2026-08-21 review, finding 10).
+    Extension labels describe later follow-up, so a preceding wave is invalid.
     """
     if not extension_waves or not waves:
         return

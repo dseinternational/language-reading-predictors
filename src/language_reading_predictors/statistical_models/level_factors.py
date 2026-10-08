@@ -1,51 +1,19 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Typed settings and a resolved run plan for the level-factor family (#389 finding 6).
+"""Typed settings and resolved plans for per-wave level-factor models.
 
-Mirrors the ITT / gain-factor run-plan pattern (:mod:`itt`, :mod:`gain_factors`) for
-the level-factor (``kind="level_factors"``) models. A model module declares its
-settings; the plan is resolved and **validated before any data are loaded or an
-output directory is reset**, then a single object drives data preparation, factory
-construction and the ``config.json`` / ``model_recipe.md`` audit trail. This removes
-the untyped ``spec.extra`` boundary (where a misspelled key silently defaulted) and
-records the resolved design, estimand, causal status, analysis population and
-missing-data assumption alongside every fit -- the level family previously persisted
-null ``family`` / ``design`` / ``estimand_type`` / ``causal_status`` metadata while
-its report published an unqualified cause-and-effect statement (#389 finding 4).
+Scores depend on arm, ability, optional arm-by-ability interaction and a child
+intercept. The default arm vector separates the adjusted t1 balance quantity
+from later arm-gap changes. A comparator fits free per-wave gaps. The t2
+contrast compares treated and untreated arms; later contrasts compare assigned
+early-start and delayed-start schedules. Available-case and model assumptions
+qualify causal interpretation. Ability and interaction terms are associations.
 
-The level design is a per-wave levels model: each wave's score is regressed on the
-randomised group (entered as a per-timepoint vector when ``group_by_time``), the
-ability covariate (optionally wave-varying) and, when ``group_ability``, a
-group x ability effect-modification term, with a non-centred child random intercept.
-Under the default ``arm_gap_reference="t1"`` parameterisation (#552) the arm-by-time
-vector is **centred on the timepoint-1 arm gap**: ``arm_gap_t1`` is the
-covariate-adjusted pre-randomisation balance quantity and ``d_grp_time[t]`` the
-change in the arm gap from t1 to each later wave, with the per-wave levels view
-``b_grp_time = (arm_gap_t1, arm_gap_t1 + d_grp_time)`` retained as a Deterministic.
-The randomised treated-versus-untreated quantity is the **t2 change**
-``d_grp_time[t2]``, a
-difference-in-differences of adjusted levels, read as an items- or
-risk-difference average marginal effect at the t2 rows. ``arm_gap_reference="free"``
-keeps the former parameterisation (a free per-timepoint vector whose t2 element
-``b_grp_time[1]`` is the focal raw gap) as an explicit comparator. Either way only
-the t2 change is a treated-versus-untreated effect: the t3/t4 changes are also
-identified by the original randomisation -- contrasts of the early-start versus
-delayed-start treatment schedule, both arms having been taught -- but they are not
-treated-versus-untreated effects and carry no mechanistic reading (duration,
-carryover, maturation and ceilings are inseparable), so they are reported as
-randomised schedule contrasts; every ability / interaction term is a
-latent-ability-confounded **adjusted association**, never a causal effect (#631).
-
-The natural-scale target -- open through #389 finding 1 and #584 finding 1 -- was
-settled on 2026-08-23 (``notes/202608231800-level-factors-584-decisions.md``): the
-card is the **arm-free standardised** marginal effect, the average over the fitted
-t2 rows, each evaluated at its own arm-free profile, of adding the focal contrast
-alone. The standardisation population is the fitted t2 children, the random-effect
-convention is each child's own posterior intercept, and the time-invariant
-``group x ability`` increment is held at centred ability and reported separately.
-:meth:`LevelFactorsRunPlan.natural_scale_estimand` states it in the stored
-``config.json`` so no reader has to infer it from the reporting code.
+Natural-scale cards average the focal t2 contrast over fitted t2 children at
+their arm-free profiles, with each child's fitted intercept. The arm-by-ability
+increment is held at centred ability and reported separately. Settings validate
+before output or data operations; the plan records the estimand and population.
 """
 
 from __future__ import annotations
@@ -141,8 +109,7 @@ class LevelFactorsModelSettings:
 
     ``ability_covariate`` has no default because there is no coherent one: every
     registered model sets it, and the default ``group_ability=True`` requires it, so
-    the settings object is deliberately not constructible with no arguments at all
-    (:func:`resolve_level_factors_run_plan` rejects that pairing).
+    :func:`resolve_level_factors_run_plan` rejects a fit with that pairing.
     """
 
     ability_covariate: str | None = None
@@ -160,7 +127,7 @@ class LevelFactorsModelSettings:
     #: Dispersion parameterisation (#584 decision 4). The default puts the prior on
     #: the **dispersion scale** ``1/sqrt(kappa)``, where "no extra-Binomial
     #: dispersion beyond the child random intercept" is simply zero and therefore
-    #: reachable; ``"halfnormal_concentration"`` is the pre-decision prior, retained
+    #: approached; ``"halfnormal_concentration"`` is the pre-decision prior, retained
     #: as the comparator and for the sensitivity sweep. Inert on an off-floor fit,
     #: which has no score mean and so no concentration -- the resolved plan records
     #: ``None`` there rather than a setting that does nothing.
@@ -168,11 +135,8 @@ class LevelFactorsModelSettings:
     #: Scale override for whichever dispersion prior is in force (the sweep axis).
     #: ``None`` keeps the registered default for the declared family.
     kappa_prior_sigma: float | None = None
-    #: Child random-intercept SD prior (#584 decision 4). A levels model has **no
-    #: own-baseline term**, so this intercept carries the entire between-child
-    #: spread in level, where a gain model conditions that spread away -- and the
-    #: gain-model scale of 0.5 asserts a middle-95% child range of 0.18 to 0.45 on a
-    #: mid-difficulty measure, narrower than the tests were built to resolve.
+    #: Child-intercept SD prior. Without an own-baseline term, a level model can
+    #: need more residual between-child variation than a baseline-adjusted model.
     sigma_child_prior_sigma: float = 1.0
     #: The waves this fit analyses (#584 decision 3). The default is the whole
     #: four-wave panel, the model of record. ``("t1", "t2")`` is the **randomised
@@ -221,12 +185,7 @@ class LevelFactorsModelSettings:
                 "score_mean_link applies to the graded Beta-Binomial mean; the "
                 f"{self.likelihood!r} branch has no score mean to map"
             )
-        # Adjustment-set hygiene (#584 lower-severity 4). A repeated adjuster used
-        # to survive resolution and fail only later inside PyMC, when the factory
-        # tried to create a second ``gamma_<c>`` with the same name; an indicator
-        # declared without its base term used to fit a missingness flag with no
-        # covariate for it to flag, which is not the two-term missing-indicator
-        # idiom the reports describe.
+        # Reject duplicate terms and missingness flags without their covariates.
         duplicates = sorted({c for c in self.adjust_for if self.adjust_for.count(c) > 1})
         if duplicates:
             raise ValueError(
@@ -446,13 +405,9 @@ class LevelFactorsRunPlan:
     def two_wave_window(self) -> bool:
         """True when the fit is restricted to the randomised t1 -> t2 window.
 
-        The distinguishing property of this comparator is not that it is smaller:
-        it is that **no post-crossover observation informs the reported contrast**.
-        In the four-wave model of record the t3/t4 likelihood reaches the t2 change
-        through the shared ``arm_gap_t1``, the child intercept, the dispersion and
-        the time-invariant group x ability term (posterior correlations between
-        ``arm_gap_t1`` and ``d_grp_time[t2]`` run from -0.07 to -0.44 across the
-        stored suite). Here there is nothing for it to reach through."""
+        Post-crossover observations cannot inform this fit through shared balance,
+        child-intercept, dispersion or arm-by-ability terms.
+        """
         return self.waves == ("t1", "t2")
 
     @property
@@ -930,9 +885,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
             "optional group x ability term, and a non-centred child random intercept "
             f"for the repeated observations.{link_clause}{window_clause}"
         )
-    # The natural-scale target was open through #389 finding 1 and #584 finding 1;
-    # it was settled on 2026-08-23 (notes/202608231800-level-factors-584-decisions.md)
-    # and the plan now states it rather than flagging a review.
+    # Record the natural-scale target agreed in the level-factor decisions note.
     review_clause = (
         " The card is the arm-free standardised marginal effect: every fitted t2 "
         "row is evaluated at its own arm-free profile -- the complete group "

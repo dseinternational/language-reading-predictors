@@ -1,21 +1,22 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Deterministic statistical validation of the DiD arm-by-wave estimands.
+"""Closed-form and sampling checks for the DiD arm-by-wave estimands.
 
 The production model uses a Beta-Binomial likelihood, whose binomial limit has the
 same arm-by-wave mean structure tested here. A saturated binomial model has a closed
 form maximum-likelihood estimate in every arm-wave cell, so these tests can exercise
-identification and misspecification without slow or potentially flaky NUTS sampling.
+identification and misspecification without posterior sampling. The marked tests
+also check recovery through the production model and sampler.
 
 The tests deliberately distinguish three quantities:
 
-* ``tau_t2``: the immediate-minus-waitlist arm gap at t2, identified by the original
-  randomisation;
+* ``tau_t2``: the immediate-minus-waitlist arm gap at t2, with a causal reading under
+  the stated model, selection and missing-data assumptions;
 * ``arm_gap_t3``: the arm gap after both arms have received intervention but have
   different histories;
-* ``delta_crossover = tau_t2 - arm_gap_t3``: the change in the arm gap, which mixes
-  catch-up with carryover, cumulative exposure, block and maturation differences.
+* ``delta_crossover = tau_t2 - arm_gap_t3``: the change between randomised schedule
+  contrasts, which does not identify catch-up, carryover or maturation mechanisms.
 """
 
 from __future__ import annotations
@@ -92,7 +93,7 @@ def _simulate_counts(
 
 
 def _fit_saturated_arm_wave(counts: np.ndarray, *, n_trials: int = 30) -> dict[str, np.ndarray | float]:
-    """Closed-form saturated-binomial MLE and derived arm-wave contrasts.
+    """Half-count-corrected saturated-binomial estimates and arm-wave contrasts.
 
     The half-count correction is negligible at this sample size but prevents an
     infinite logit if a future stress scenario creates an all-zero cell.
@@ -128,7 +129,7 @@ def test_arm_by_wave_recovers_t2_gap_without_forcing_t3_gap() -> None:
 
 
 def test_history_effects_move_catchup_without_moving_randomised_t2() -> None:
-    """Carryover, cumulative exposure and block effects belong to the t3 association.
+    """Treatment-history scenarios change the t3 gap and its change from t2.
 
     The exact same simulated t1/t2 observations are reused in every scenario. Only t3
     is regenerated, so any change in ``delta_crossover`` cannot be attributed to a
@@ -161,7 +162,7 @@ def test_history_effects_move_catchup_without_moving_randomised_t2() -> None:
 
 
 def test_heterogeneous_maturation_is_absorbed_by_post_crossover_gap() -> None:
-    """A realised imbalance in latent maturation changes catch-up, not ``tau_t2``.
+    """A realised maturation imbalance changes the t3 gap, not ``tau_t2``.
 
     Both scenarios contain the same overall 50:50 mixture of faster and slower
     maturers and exactly the same t1/t2 data. In the imbalanced scenario, more fast

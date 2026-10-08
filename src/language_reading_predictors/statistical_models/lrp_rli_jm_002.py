@@ -42,8 +42,9 @@ the gap between the joint contrast and the paired-marginal sensitivity is not
 attributable to cross-outcome covariance alone. The dependence block is a **bivariate child
 random intercept** with an LKJ correlation, so ``rho_outcome`` is a between-child
 covariance ("children who run high on word reading also run high on decoding"). The
-Beta-Binomial ``kappa`` is retained for within-child overdispersion: the two sit at
-different levels and are separately identified.
+Beta-Binomial ``kappa`` is retained for within-child overdispersion: the two are modelled at
+different levels. Their separation still depends on the data and model
+assumptions.
 
 Because the covariance here is between children rather than within a wave, this model
 reports ``rho_outcome`` and ``delta_ls_decoding`` and **no** conditional slope ratio -

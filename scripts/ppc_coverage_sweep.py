@@ -1,27 +1,21 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pool posterior-predictive coverage (``ppc_summary.csv``) across fitted models.
+"""Pool posterior-predictive coverage tables across fitted outcomes and families.
 
-Motivation (notes/202607261405-binomial-exchangeability-item-difficulty-review.md):
-heterogeneous item difficulty makes a bounded count *conditionally* underdispersed
-relative to the Binomial (a Poisson-binomial has at-or-below-binomial variance given
-ability), which the Beta-Binomial cannot express — its variance floor is the Binomial.
-The observable symptom is predictive OVERcoverage: 50 % / 90 % prediction bands
-covering more than 50 % / 90 % of observations. This script pools the per-fit
-``ppc_summary.csv`` coverage rows by outcome symbol and family so the suite-level
-pattern is visible at a glance, without any refitting.
+Heterogeneous item probabilities can reduce conditional count variance below the
+Binomial variance at the same mean. The Beta-Binomial cannot express that form of
+underdispersion. Predictive overcoverage is one possible symptom, but does not
+identify its cause. Central intervals for discrete counts can also exceed their
+nominal probability even under a correct model. Observed coverage on fitted data
+need not exceed the nominal level in every sample.
 
-Small-denominator caveat: central intervals of a discrete count distribution
-overcover mechanically (a "50 %" interval on a 10-item score covers at least 50 %),
-so compare measures of similar length with each other rather than reading any single
-row against an absolute nominal level.
+Read the pooled table with the individual fits and measures' score lengths. The
+script reads existing ``ppc_summary.csv`` files and does not refit models.
 
-Usage:
-    python scripts/ppc_coverage_sweep.py
-    python scripts/ppc_coverage_sweep.py --models-dir /path/to/output/statistical_models/models
-    python scripts/ppc_coverage_sweep.py --config reporting --out output/statistical_models/comparison/ppc_coverage.csv
-"""
+Run::
+
+    python scripts/ppc_coverage_sweep.py --config reporting"""
 
 from __future__ import annotations
 

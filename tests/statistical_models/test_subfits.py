@@ -256,7 +256,7 @@ def test_string_subject_identifiers_are_hashed_by_their_text():
 
 
 def test_a_missing_prepared_frame_degrades_to_nulls_rather_than_failing():
-    """Provenance is never worth losing a fit over."""
+    """A model without prepared data records absent counts and identity keys."""
     built = SimpleNamespace(model=_built().model)
     data = describe_fitted_data(built)
     assert (data.n_children, data.n_obs) == (None, None)

@@ -22,8 +22,8 @@ randomised-arm result is an available-case modified ITT estimate in the ITT suit
 Construct predictor set: the non-floored measure baselines OTHER than the outcome
 (word reading ``W``, receptive/expressive vocabulary ``R``/``E``, blending ``B``, basic
 concepts ``F``, receptive grammar ``T``) plus age and the RLI-blocks / behaviour
-covariates. Floored / post-only measures (``P``, ``N``) and the block-1 taught/not-taught
-vocabulary (unconfirmed denominators) are left out. Weakly-informative priors, not
+covariates. Floored measures (``P``, ``N``) and the block-1 taught/not-taught
+vocabulary (excluded from this pilot predictor set) are left out. Weakly-informative priors, not
 tuned. n ~ 54; intervals are wide.
 """
 

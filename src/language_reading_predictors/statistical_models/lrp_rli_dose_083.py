@@ -26,7 +26,8 @@ a descendant of the ``IS`` collider and is **not** conditioned on (#269).
 
 As in LRP77, presence and intensity are separated (#587): sessions are centred and
 standardised over the on-intervention rows only, ``theta_treated`` carries the extensive
-margin (randomised when read in period 1, where arm and session count correlate at 0.970),
+margin (the period-1 indicator follows randomised assignment, but its coefficient
+conditions on attendance and is an adjusted association),
 arm enters only from period 2 as intervention order, and the exposure is split into
 between-child and within-child components. Every dose slope is an **adjusted association,
 not "dose drives gains"**. G is coded ``G = 2 - group`` (G=1 = immediate-intervention,

@@ -10,12 +10,13 @@ linear precision covariate, on top of the own baseline and linear age the unifor
 LRPITT spec already carries.
 
 Block design is a child trait measured *before* randomisation, so - like SES - it
-cannot confound the available-case modified ITT estimate; randomisation balances it across arms in
-expectation. This adjustment is a precision / chance-imbalance robustness check, not
+is balanced across arms in expectation before available-case selection.
+The selected sample still requires the missingness assumptions in ``METHODS.md``. This adjustment is a precision / chance-imbalance robustness check, not
 confounding control (the immediate-intervention arm started ~0.27 SD higher in block
 design, and ability is prognostic of the outcomes - most strongly for vocabulary).
-Holding age in makes the block-design term read as ability *for age* - the general
-latent ability construct (raw block design conflates ability with maturation).
+With age held fixed, the block-design term describes the observed score at a
+given age. This proxy adjustment does not identify or control latent general
+ability.
 
 Block design is complete for all 54 children, so no rows drop: LRPITT19 vs LRPITT03
 is a same-sample adjusted-vs-unadjusted contrast and no matched comparator is needed.

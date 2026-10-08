@@ -1,23 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Apply the signed-off findings-first order to statistical-report templates.
+"""Validate and apply the statistical-report include order.
 
-The contract is the **#373** order, not the original #352 one. #352 (issue 321)
-established the findings-first scaffolding — `_gate_badge`, `_key_findings`,
-`_reading_guide` and the collapsed `_technical` block — and put the family-result
-include ahead of the prior sections. Four days later #373 ("box-cull, BARG
-reproducibility, and priors-before-results reorder") deliberately moved the
-result partial back below `_priors` and `_prior_predictive`, which is where every
-template in the repository has it. This module encoded the superseded #352 order
-until #607, and so rejected every real template it was pointed at.
-
-The rewrite is intentionally conservative: it recognises only the shared
-statistical-report include contract, validates every candidate before writing
-anything, and lists every non-conforming template in one failure. Model-specific
-prose is left untouched; the recognised family-result include keeps its position
-below the prior blocks and moves ahead of the collapsed technical block.
-"""
+Keep the header, setup, gate badge, findings and collapsed reading guide above
+model-specific prose. Place priors and prior prediction before family results,
+then the collapsed technical section and footer. Validate every candidate before
+writing any template. Preserve model-specific prose and reject mixed layouts or
+unexpected content within managed include blocks."""
 
 from __future__ import annotations
 

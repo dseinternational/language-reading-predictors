@@ -1,33 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Shared sampling / diagnostics helpers for the statistical models.
+"""Shared sampling and diagnostics for the statistical models.
 
-Each LRP model runs the same diagnostic suite:
+Family pipelines select the appropriate checks. These helpers sample priors and
+posteriors, calculate log densities and supported LOO summaries, assess sampling
+convergence, and write diagnostic tables and figures under ``context.output_dir``.
+Saved traces retain prior and predictive groups for report generation.
 
-1. Prior predictive check (1000 draws). The prior + prior-predictive groups are
-   persisted onto ``trace.nc`` (issue #125 step 0b) so the report can show
-   prior-predictive checks and prior-vs-posterior overlays without recomputation.
-2. Sampling via NUTS (nutpie backend).
-3. Summary diagnostics (R-hat, ESS over the scalar parameters; a separate
-   summary for deterministics / HSGP basis weights), trace / energy / posterior
-   plots, and a ``diagnostics_summary.json`` pass/fail convergence verdict
-   (divergences, BFMI, R-hat, ESS) that drives the findings-first badge and the
-   full banner inside the collapsed Technical checks section.
-4. LOO-PSIS via ArviZ (pointwise, so Pareto-k bands are available) and a
-   ``log_prior`` group for power-scaling prior sensitivity.
-5. Posterior predictive draws, plus the extended diagnostics (Pareto-k, rank,
-   ESS-evolution, LOO-PIT).
-
-Everything is written to ``context.output_dir`` and the trace persisted as
-``trace.nc`` (NetCDF, an ``xarray`` DataTree).
-
-ArviZ note: this is the ArviZ 1.x split stack (``arviz`` / ``arviz_plots`` /
-``arviz_stats``). Legacy ``az.plot_ppc`` / ``plot_posterior`` do not exist; plots
-go through ``arviz_plots`` and return a ``PlotCollection`` saved via ``.savefig``.
-Every plot / extra-diagnostic call is guarded so a backend or API hiccup degrades
-to a warning rather than aborting the fit — the numeric summaries are the
-substantive output.
+Plots use ``arviz_plots`` and guarded ``PlotCollection`` writes. A plotting failure
+warns here; the publication gate decides whether missing artefacts prevent release.
 """
 
 from __future__ import annotations
@@ -111,9 +93,8 @@ def run_prior_predictive(
     is sampled over *all* free RVs, deterministics, and observed nodes of the
     model. This makes the persisted ``prior`` group rich enough for prior-vs-
     posterior overlays and the prior pushforward (it carries the effect term and
-    ``eta``), and the ``prior_predictive`` group carries the outcome node — at no
-    extra cost beyond the draws already taken. Falls back to a minimal
-    observed + ``eta`` set if the full draw fails.
+    ``eta``), and the ``prior_predictive`` group carries the outcome node.
+    Falls back to an observed-node plus ``eta`` set if the full draw fails.
     """
     model = context.model
     if var_names is None:
@@ -198,7 +179,8 @@ def sample_posterior(context: StatisticalFitContext) -> None:
 
 #: Name of the child-aggregated log-likelihood that
 #: :func:`compute_log_likelihood_and_loo` writes next to the row-level ``y_post``
-#: so PSIS-LOO can leave one whole child out. It is a *re-expression* of ``y_post``
+#: for child-unit PSIS-LOO. This sum does not integrate child latent variables
+#: for new-child prediction. It is a *re-expression* of ``y_post``
 #: (each draw's row contributions summed within child), not a second likelihood:
 #: anything that sums the ``log_likelihood`` group — power scaling above all —
 #: must skip it, or the likelihood is counted twice (2026-08-22 adjusted-family
@@ -228,14 +210,11 @@ def psense_likelihood_var_names(trace) -> list[str] | None:
 
 
 def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
-    """Aggregate a marked repeated-row likelihood to the child unit.
+    """Sum each draw's marked repeated-row likelihood contributions within child.
 
-    The joint ITT likelihood stores one cell per observed child-outcome pair.
-    Leaving cells out would condition prediction of one outcome on the same
-    child's remaining outcomes and would not answer leave-one-child-out
-    generalisation. The stacked Byrne transition model has the same issue across
-    annual rows and explicitly persists ``loo_child_idx``. This helper recognises
-    either map and sums each draw's likelihood contributions within child.
+    The joint cell map or explicit ``loo_child_idx`` identifies the child as the
+    holdout unit. Aggregation alone does not integrate child latent variables;
+    families that declare new-child prediction need their separate validation path.
     """
     constant = getattr(trace, "constant_data", None)
     log_likelihood = getattr(trace, "log_likelihood", None)
@@ -371,10 +350,9 @@ def compute_log_likelihood_and_prior(context: StatisticalFitContext, *, strict: 
     ``strict`` (default True): re-raise a ``compute_log_likelihood`` failure — the
     contract the LOO path relies on. The psense-only callers pass ``strict=False`` so a
     model ``compute_log_likelihood`` refuses degrades to a warning and simply gets no
-    psense, rather than crashing the fit over a secondary diagnostic. The RLM
-    joint-growth family's ``compute_loo=False`` is a separate matter — one likelihood
-    node per measure makes single-target pointwise PSIS-LOO undefined. ``log_prior`` is
-    always guarded.
+    psense. The publication gate decides whether its absence prevents release.
+    The RLM joint-growth family validates its declared new-child target separately
+    through grouped K-fold refits. ``log_prior`` is always guarded.
     """
     context.trace = attach_log_densities(context.trace, context.model, strict=strict)
 
@@ -492,9 +470,8 @@ def summary_diagnostics(
     # above is the substantive output.
     import arviz_plots as azp
 
-    # Plots use a draw-thinned view (visually identical, but the full reporting
-    # trace can be very slow / hang for these routines); diagnostics.csv above
-    # used the full trace.
+    # Limit plotting cost with a thinned view. Numeric diagnostics above use
+    # the full trace; thinning can change visible detail.
     tr = thin_for_plots(context.trace)
 
     _save_pc(
@@ -546,15 +523,11 @@ def _save_pc(out: str, make, name: str, title: str | None = None) -> None:
 
 
 def thin_for_plots(trace, max_draws: int = 1000):
-    """Return a draw-thinned view of the trace for plotting at scale.
+    """Return a draw-thinned trace view to limit plotting cost.
 
-    Several ``arviz_plots`` routines — ``plot_rank`` in particular — are
-    pathologically slow (effectively hang) on a reporting-config trace
-    (6000 draws × 6 chains = 36k draws), while running fine at dev scale (~1k).
-    The numeric summaries always use the full trace; the diagnostic *plots* are
-    visually identical on a thinned view, so thin the draw dimension so that
-    chain × draw ≲ ``max_draws`` before plotting. Guarded — returns the original
-    trace if anything about the structure is unexpected.
+    Thin across the draw dimension to keep roughly ``max_draws`` samples over all
+    chains. Numeric summaries use the full trace; this view can lose visible detail.
+    Return the original trace if its structure does not support thinning.
     """
     try:
         post = trace.posterior
@@ -568,15 +541,11 @@ def thin_for_plots(trace, max_draws: int = 1000):
 
 
 def thin_posterior_only(trace, max_draws: int = 1000):
-    """Thin *only* the posterior group; leave the other groups (notably the small
-    1-chain prior) at full resolution.
+    """Thin the posterior for plotting while keeping other groups intact.
 
-    :func:`thin_for_plots` applies its stride to the whole DataTree, so at
-    reporting scale (posterior 6×6000 → stride 36) it also decimates the 1×1000
-    ``prior`` group to ~28 jagged draws — which then misrepresents the
-    prior-vs-posterior overlay ("how far the data moved each parameter from its
-    prior"). Only the posterior is large enough to need thinning for plotting, so
-    thin that alone and keep every other group intact (issue #270 item 1).
+    Thinning the whole tree at reporting scale would reduce the smaller prior group
+    to a few dozen draws and make its density overlay jagged. If thinning fails,
+    return the original tree rather than thinning the prior as a fallback.
     """
     try:
         post = trace.posterior.to_dataset()
@@ -619,24 +588,13 @@ def _summarise_deterministics(context: StatisticalFitContext, scalar_var_names: 
 
 
 def _gate_var_names(context: StatisticalFitContext, curated: list[str] | None) -> list[str] | None:
-    """Full-coverage variable set for the convergence gate (issue #274 item 2).
+    """Return free variables and curated posterior terms for the convergence gate.
 
-    The per-family ``var_names`` lists passed by the pipeline are hand-curated
-    *headline scalars* — right for the human-readable ``diagnostics.csv`` and the
-    prior-overlay, but they silently omit the parameters where hierarchical models
-    at n ~ tens actually fail: the non-centred per-child intercept vector
-    (``u_child_raw``), the HSGP amplitude / lengthscale / basis-weight RVs, and the
-    joint model's LKJ block. So the gate scanned only the scalars it already
-    trusted.
-
-    Gate R-hat / ESS over the model's **free RVs** instead — which include exactly
-    those, and *exclude* the per-observation deterministics (``eta`` / ``theta`` /
-    ``f_mech``) that ``var_names=None`` would drag in and that would bloat and slow
-    the scan — unioned with the curated headline terms so the causal
-    *deterministics* (``tau``, ``delta``, the AMEs) stay covered as well. Names are
-    filtered to those actually present in the posterior so a headline term a given
-    fit does not instantiate cannot make ``az.summary`` raise. Falls back to the
-    curated list if the model is unavailable.
+    Curated report lists can omit child intercepts, GP parameters and correlation
+    blocks. Include all free random variables, then add curated deterministics,
+    filtering to names present in the posterior. Quantities calculated after sampling
+    need their own diagnostic checks. Fall back to the curated list if the model is
+    unavailable.
     """
     if context.model is None:
         return curated
@@ -709,34 +667,12 @@ def write_diagnostics_summary(
     *,
     var_names: list[str] | None = None,
 ) -> dict:
-    """Emit ``diagnostics_summary.json`` — the report's pass/fail convergence gate.
+    """Write the report's sampling-convergence gate to ``diagnostics_summary.json``.
 
-    Thin wrapper over :func:`dse_research_utils.statistics.diagnostics.write_diagnostics_summary`
-    so the convergence gate (and its JSON schema) is defined once across DSE
-    projects. The shared implementation (>= v0.7.0) evaluates the gate on
-    *unrounded* R-hat / ESS — ``round_to="none"``, the string; ``round_to=None``
-    would fall through to ``rcParams["stats.round_to"]`` (2 sig figs) so a
-    borderline 1.01004 would round to 1.0100 and slip through the ``<= 1.01`` gate
-    (dseinternational/research#65) — and treats a non-finite per-chain BFMI as a
-    failure rather than letting it pass order-dependently. Written unconditionally
-    for every family (incl. mediation, which has no LOO) so the report's banner
-    always renders.
-
-    Since v0.12.0 the shared writer also fails closed on a gated parameter whose
-    R-hat / ESS could not be assessed, recording a ``diagnostics_assessable``
-    check and the offending names in ``unassessable_parameters``. That pass used
-    to live here (``_fail_on_unassessable``, added after the 2026-08-22 ITT audit)
-    because the shared writer's NaN-skipping reductions left a constant or
-    unsampled parameter out of both the extrema and the failing lists; it is now
-    upstream, so every consuming project gets it. The release gate still picks it
-    up unchanged, because :func:`reporting.convergence_gate_failures` fails closed
-    on any non-``True`` check it does not recognise.
-
-    The R-hat / ESS scan runs over :func:`_gate_var_names` (the model's free RVs +
-    the curated headline terms), **not** the ``var_names`` alone, so the per-child
-    random-intercept vector and the GP / LKJ hyperparameters are gated (issue
-    #274 item 2). The curated ``var_names`` still drive the human-readable
-    ``diagnostics.csv`` (via :func:`summary_diagnostics`) and the prior-overlay.
+    The shared writer uses unrounded R-hat and ESS, and fails on non-finite BFMI or
+    unassessable gated parameters. Scan :func:`_gate_var_names`, including all free
+    random variables; the smaller curated list still drives the report table and
+    prior overlay. Write the verdict for every family, including those without LOO.
     """
     from language_reading_predictors.statistical_models.structural_constants import (
         record_structural_constraints,
@@ -760,23 +696,13 @@ def write_diagnostics_summary(
 
 
 def reclassify_structural_constants(summary: dict, posterior, *, output_dir=None, tables=None) -> dict:
-    """Downgrade exactly-constant coordinates from gate failures to a record.
+    """Reclassify distribution-verified constant coordinates in the gate summary.
 
-    See :func:`split_structurally_constant`. Applied after the shared writer so
-    the upstream check stays intact for genuine assessability failures; when the
-    verdict changes, the on-disk ``diagnostics_summary.json`` is rewritten to
-    match what this function returns, and the reclassified names are kept under
-    ``structurally_constant_parameters`` so the report can still disclose them.
-
-    The rewrite is ``diagnostics.amend_diagnostics_summary`` (#662): the same
-    read-modify-rewrite, but atomic, sanitised the way the fit's own writer
-    sanitises, and — because it takes the fit's table cache — no longer leaving
-    ``tables["diagnostics_summary"]`` holding the *pre*-reclassification verdict
-    while the file on disk carries the amended one. Which names are structural,
-    and therefore whether the verdict changes at all, is decided here.
-
-    ``output_dir=None`` amends the payload in memory only, for callers that have
-    no fit directory to rewrite.
+    See :func:`split_structurally_constant` for the evidence needed to establish a
+    structural constraint. Keep genuine assessability failures. Amend the payload,
+    on-disk JSON and table cache together, recording the reclassified names under
+    ``structurally_constant_parameters``. With ``output_dir=None``, amend only the
+    in-memory payload.
     """
     unassessable = list(summary.get("unassessable_parameters") or [])
     if not unassessable:
@@ -895,14 +821,8 @@ def gate_derived_estimands(
         )
     else:
         rprint(f"  Derived estimands within Monte-Carlo tolerance ({len(records)} checked).")
-    # The read-modify-rewrite is ``diagnostics.amend_diagnostics_summary`` (#662).
-    # It merges the new check into ``checks`` rather than replacing them,
-    # recomputes ``passed`` from the merged set — the same verdict this used to
-    # reach by forcing ``passed=False`` on failure — writes the file atomically,
-    # and keeps ``context.tables`` agreeing with it. It also sanitises the
-    # per-quantity detail rows: a missing ESS or MCSE used to be serialised as a
-    # bare ``NaN`` token, which is not valid JSON and which the shared readers
-    # reject, and is now recorded as ``null``.
+    # Merge checks, update the file and table cache together, and encode missing
+    # diagnostics as JSON null rather than invalid NaN tokens.
     return amend_diagnostics_summary(
         context.output_dir,
         {
@@ -919,19 +839,12 @@ def gate_derived_estimands(
 
 
 def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None) -> dict:
-    """Lightweight convergence check for a *sub-fit* trace (issue: ungated sub-fits).
+    """Assess sampling convergence for a secondary or sensitivity trace.
 
-    The headline gate (:func:`write_diagnostics_summary` → ``diagnostics_summary.json``)
-    only covers the primary trace. Secondary / sensitivity / bivariate sub-fits (the
-    floor-rule graded secondary, the t3 temporal-ordering sensitivity, the adjusted
-    family's bivariate + prior-sweep + SES refits) publish CSVs from their own
-    standalone traces with no gate — a silently non-converged sub-fit would be
-    reported without any flag. This computes the same signals as the main gate
-    (unrounded max R-hat, min bulk/tail ESS, total divergences and minimum per-chain
-    BFMI) and returns a small dict whose ``converged`` value is ``True`` when the gate
-    passes, ``False`` when it fails, and ``None`` when the diagnostic calculation
-    itself cannot be completed. It is a *flag*, not a hard stop: sensitivity sub-fits
-    should still be reported, but failed or unchecked fits must be marked.
+    Use the primary gate's unrounded R-hat, bulk/tail ESS, divergences and per-chain
+    BFMI checks. Return ``converged=True`` for a pass, ``False`` for a failure, or
+    ``None`` when the calculation cannot be completed. Callers decide whether a
+    failed or unchecked sub-fit requires withholding its results.
     """
     result = {
         "converged": None,
@@ -1068,8 +981,8 @@ def run_extended_diagnostics(
             title="Pareto-k (LOO influence; flag k > 0.7)",
         )
 
-    # Draw-based plots use a thinned view (full trace hangs plot_rank at reporting
-    # scale; thinning is visually identical and reproduces the fast dev path).
+    # Thin draw-based plots to limit cost. Visible detail can change; numeric
+    # diagnostics and the ESS-evolution panel retain the full trace.
     tr = thin_for_plots(context.trace)
 
     if causal_term is not None and causal_term in context.trace.posterior:
@@ -1342,10 +1255,9 @@ def psense_artifacts(
     already in hand, **not** a refit, so any fit whose trace carries the
     ``log_prior`` and ``log_likelihood`` groups can be measured after the fact.
 
-    Returns the summary frame, or ``None`` when psense could not be computed (a
-    missing group, an API mismatch). The caller decides whether that is fatal: at
-    fit time it is a warning, because psense is recommended-but-secondary at this
-    n; a regeneration run reports it as a skip with its reason.
+    Return the summary frame, or ``None`` when computation fails, with a warning.
+    The publication gate decides whether missing sensitivity evidence prevents
+    release; a regeneration run records the skip and its reason.
     """
     summary_path = os.path.join(out, f"{stem}_summary.csv")
     df = None
@@ -1406,13 +1318,11 @@ def run_psense(
     *,
     var_names: list[str],
 ) -> None:
-    """Power-scaling prior/likelihood sensitivity (issue #125 Area 1, secondary).
+    """Write power-scaling prior/likelihood sensitivity for named posterior terms.
 
-    Writes ``psense_summary.csv`` and ``psense.png`` for the named parameters
-    (usually the causal term). Requires the ``log_prior`` and ``log_likelihood``
-    groups added by :func:`compute_log_likelihood_and_loo`. Guarded — a missing
-    group or an API mismatch degrades to a warning (psense is recommended-but-
-    secondary at this n). Kallioinen et al. 2024.
+    Requires ``log_prior`` and ``log_likelihood`` groups. Computation or plotting
+    failures warn here; the publication gate decides whether the required evidence
+    is complete. See Kallioinen et al. 2024.
     """
     context.tables.pop("psense_summary", None)
     df = psense_artifacts(context.trace, context.output_dir, var_names)
@@ -1439,23 +1349,11 @@ def sample_posterior_predictive(
 
 
 def _attach_prior_groups(context: StatisticalFitContext) -> None:
-    """Graft the prior + prior_predictive groups onto the trace before saving.
+    """Attach saved prior and prior-predictive groups before persisting the trace.
 
-    ``run_prior_predictive`` stores 1000 prior draws on ``context.prior_samples``;
-    previously they were discarded (issue #125 step 0b). Copy the ``prior`` and
-    ``prior_predictive`` subtrees onto ``context.trace`` (an ``xarray`` DataTree)
-    so ``trace.nc`` carries them for prior-predictive checks and prior-vs-
-    posterior overlays. Guarded — a merge failure must not lose the trace.
-
-    An **empty** existing group is replaced rather than kept. Under
-    ``--reuse-trace`` the saved DataTree is loaded whole, so a trace that was
-    written with a restricted ``var_names`` carries a ``prior`` node with no
-    variables in it — and a plain "already present" test then blocks the freshly
-    drawn one from ever landing. That is how the three RLI measurement fits kept
-    shipping without a prior-vs-posterior overlay even after the restriction that
-    caused it was removed (#381): the re-emit drew the full prior and then
-    declined to attach it. A populated group is still never overwritten, so a
-    genuine reuse keeps the draws it was reusing.
+    Replace an absent or empty group with ``context.prior_samples``. Keep a populated
+    group intact so trace reuse preserves its draws. A merge failure warns without
+    discarding the posterior trace.
     """
     if context.prior_samples is None or context.trace is None:
         return

@@ -24,21 +24,11 @@ from language_reading_predictors.statistical_models.release.base import (
 def _blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """Robustness-stage failures for the mandatory phoneme-blending link pair.
 
-    Three families now carry a version of the policy, dispatched from here: the ITT
-    archive-grade pair, the level pair (#584 decision 2) and the DiD pair (#576
-    finding 2). They differ in evidence *strength*, never in bindingness.
-
-    The registered policy is that neither ``lrp-rli-itt-008`` nor
-    ``lrp-rli-itt-108`` may release without the validated trace-backed paired
-    bundle, but until 2026-08-20 that was enforced only in the key-findings
-    builder and the copied report partial — ``release_decision.json``, the
-    artefact whose stated purpose is to combine exactly these policies, said
-    ``publishable: true`` for an unpaired B fit (ITT code review, finding 1,
-    ``notes/202608201205-itt-code-review-findings.md``). The requirement is
-    derived from the module constant (so a stale stored plan cannot bypass it,
-    mirroring the itt-010 missingness gate) *and* from the stored plan's
-    ``link_sensitivity_required_for_release`` (so a future B-outcome ITT fit
-    outside the registered pair fails closed rather than releasing unpaired).
+    ITT requires its trace-backed paired archive. Seven other families use
+    stored-artefact pair checks. Both tiers are binding. Derive the requirement
+    from registered policy as well as the stored plan so an old plan cannot
+    bypass it, and an unregistered B family cannot publish without a pairing
+    policy or a recorded exemption.
     """
     kind = str(config.get("kind") or "")
     family_gate = _BLENDING_PAIR_GATES.get(kind)

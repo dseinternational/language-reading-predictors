@@ -2,68 +2,23 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Backfill the #586 / #602 mechanism artefacts over stored fits, without resampling.
+"""Regenerate mechanism tables, prior panels and report templates from saved fits.
 
-The #586 batch changes four things a stored ``reporting`` fit already has the
-information to answer, none of which needs a new posterior:
+Rebuild the registered model without sampling and check its stored design before
+writing. Refresh the declared natural-scale contrast, expected-items and logit
+curves, steepest-interval diagnostics, exposure support, concentration summary
+and effective adjustment record. Delegate findings and release re-evaluation to
+``regenerate_key_findings.py``.
 
-* ``priors_table.csv`` and the prior density panels — the mechanism lengthscale was
-  panelled from the shared ``InverseGamma(3, 1)`` constructor and captioned with a
-  hard-coded ``InverseGamma(5, 5)`` rationale, whatever the model fitted (finding 3);
-* ``readiness_threshold.csv`` — the located steepest interval now carries its scale,
-  its boundary and stability diagnostics and a ``knee_well_defined`` verdict, so a
-  report can stop calling every net rise a knee (finding 1);
-* ``exposure_support.csv`` — fitted exposure support by period and arm, so structural
-  non-overlap is visible rather than inferred (finding 2);
-* ``config.json``'s ``effective_adjustment`` — the moderation terms that carry
-  coefficients but were never named in the fitted record (finding 9).
+A row-count match alone does not prove that a specification is unchanged. The
+reuse checks and ``NEEDS_REFIT`` list provide additional checks. Known incompatible
+fits are skipped and cause a non-zero exit; post-processing cannot make their
+posterior current.
 
-#602 adds the family's single declared natural-scale estimand, which is likewise pure
-post-processing of a stored posterior:
+Run::
 
-* ``mechanism_summary.csv`` — now two labelled rows, the headline interquartile
-  contrast standardised over the fitted rows and the observed-range contrast as an
-  explicit secondary, each carrying a machine-readable ``estimand``;
-* ``mechanism_curve_items.csv`` and its figure — the same standardised quantity across
-  the observed exposure range, so the worked-example points lie on the curve;
-* ``mechanism_curve.csv`` — the logit-scale view, standardised over the same rows and
-  deduplicated to one row per distinct exposure value;
-* ``readiness_threshold.csv`` — gains ``items_*`` columns locating the steepest
-  interval of the *expected-items* curve under the same reference population;
-* ``dispersion_summary.csv`` — the fitted concentration against its prior and the
-  implied variance-inflation factor (#605);
-* ``config.json``'s ``extra.mechanism_items`` — the reference points the report
-  partial renders its caption from.
-
-The observed-range row reproduces each fit's previously-published headline exactly
-(verified over the stored mech-058/097/101 traces), so the regeneration adds the
-headline rather than silently restating the old number as a new estimand.
-
-``key_findings.json`` is regenerated afterwards (it reads the CSVs above), by
-delegating to ``regenerate_key_findings.py`` rather than duplicating its gate
-interlock.
-
-**What this script deliberately cannot fix.** A model whose *fitted rows or
-specification* moved has a stored posterior sampled on a different analysis frame, so
-no amount of post-processing makes it current: it is reported as ``needs refit`` and
-skipped, and the run exits non-zero so a sweep cannot look clean while leaving it
-stale. Four models were in that state for #586 — mech-063, mech-163 (the
-``pre_required`` contract), mech-158 (matched to mech-058) and mech-191 (restricted to
-on-intervention periods). All four were refit in the 2026-08-26 full-registry batch,
-so ``NEEDS_REFIT`` is now empty; the rebuilt-row-count check below catches the general
-case without anyone having to remember to maintain a list.
-
-The model is rebuilt from its spec **without sampling** so the prior writers have a
-PyMC graph to read, and the rebuilt frame's row count is checked against the stored
-``config.json`` before anything is written — a mismatch means the analysis frame has
-moved under the trace, which is exactly the ``needs refit`` case.
-
-Targets mirror ``regenerate_psense.py``:
-
-    regenerate_mechanism_artefacts.py all
-    regenerate_mechanism_artefacts.py lrp-rli-mech-058
-    regenerate_mechanism_artefacts.py lrp-rli-mech-058-reporting
-"""
+    python scripts/regenerate_mechanism_artefacts.py all
+    python scripts/regenerate_mechanism_artefacts.py lrp-rli-mech-058-reporting"""
 
 from __future__ import annotations
 
@@ -98,18 +53,9 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import (
 
 _console = Console()
 
-#: Model ids whose stored posterior is known to predate a change to their own fitted
-#: rows or specification, mapped to the reason. Entries here are refused before the
-#: rebuild, ahead of the row-count check, because a hand-known specification change
-#: (a different HSGP basis, say) need not move the row count at all.
-#:
-#: Empty is the correct steady state. It held the four #586 models until the
-#: 2026-08-26 full-registry batch refit them — mech-063/163 now fit 155 rows,
-#: mech-158 128 rows over 44 children and mech-191 128 over 52, each at the batch
-#: commit — and leaving them listed afterwards made the script report four false
-#: "needs refit" rows and exit non-zero over fits that were current (2026-08-27,
-#: closing #586). Add an entry only while a known change is unfitted, and remove it
-#: with the refit.
+# Known incompatible fits are refused even when their row counts still match.
+# Add a model while a changed specification awaits refitting; remove it after
+# the refit. General stored-design checks also apply below.
 NEEDS_REFIT: dict[str, str] = {}
 
 
@@ -177,18 +123,11 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
         frozen = MechanismDesign.from_dict(raw_design) if raw_design is not None else None
         built = _mechanism.build_mechanism_for_plan(plan, frozen_design=frozen)
         trace = az.from_netcdf(fit_dir / "trace.nc")
-    # The *fitted* frame, i.e. after the factory keep-mask — the same object the
-    # pipeline sees, because ``stages.attach_built`` replaces ``ctx.prepared`` with
-    # ``built.prepared``. Using ``plan.prepared`` here would feed the writers the
-    # pre-mask frame (157 rows against the trace's 156 for mech-058) and either raise
-    # or, worse, silently misalign the exposure vector against the posterior.
+    # Use the factory's retained rows so exposures align with the saved posterior.
     prepared = built.prepared
     run_plan = plan.run_plan
 
-    # The rebuilt frame must be the one the stored posterior was sampled on. Compare
-    # against the *fitted* counts — the factory keep-mask drops rows the loader kept,
-    # so ``prepared.n_obs`` is systematically the larger number and comparing it
-    # would flag every model.
+    # Compare fitted counts after the factory's row mask, not loader counts.
     fitted_obs = len(built.model.coords["obs_id"])
     fitted_children = len(built.model.coords["child"])
     stored_obs, stored_children = stored.get("n_obs"), stored.get("n_children")
@@ -296,14 +235,9 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
 
 
 def _sync_report_template(fit_dir: Path, model_id: str) -> bool:
-    """Re-copy the report template and shared partials beside a stored fit.
+    """Refresh the report template and copied partials beside a stored fit.
 
-    Each fit directory carries its own ``_partials`` snapshot from fit time, so a
-    backfill that rewrites the CSVs but leaves the partials stale renders the new
-    numbers through the old prose — or, worse, publishes a section a current partial
-    would have withheld. Refreshing them here keeps the regeneration honest, and is
-    the same copy ``publication.copy_report_template`` performs at fit time.
-    """
+    Use current readers and release checks when rendering regenerated tables."""
     import shutil
 
     template = _paths.DOCS_DIR / "models" / model_id / "index.qmd"

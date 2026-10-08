@@ -480,12 +480,11 @@ def test_indicator_prior_check_uses_one_as_the_reference_sd_ratio():
     assert ok["sd_ratio"].between(0.9, 1.2).all()
     assert set(ok["verdict"]) == {"well scaled"}
 
-    # A prior far wider than the standardised data is wasteful, not invalidating.
+    # A much wider prior predictive distribution is labelled "very loose".
     wide = indicator_prior_check(_cfa_trace(4.0), nodes=["Z_obs"])
     assert set(wide["verdict"]) == {"very loose"}
 
-    # A prior narrower than the data is the failure that matters: it cannot
-    # generate what was observed.
+    # The narrow prior predictive distribution covers too few observations.
     tight = indicator_prior_check(_cfa_trace(0.4), nodes=["Z_obs"])
     assert set(tight["verdict"]) == {"too tight"}
     assert (tight["coverage_90"] < 0.9).all()

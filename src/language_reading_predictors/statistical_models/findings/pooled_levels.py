@@ -18,10 +18,9 @@ from language_reading_predictors.statistical_models.findings.common import (
 def _kf_build_pooled_levels(output_dir: str | Path, config: Mapping) -> list[dict[str, str]]:
     """Key findings for the wave-pooled level family.
 
-    The headline is the *decomposition*, not a single slope: a between-child
-    coefficient beside a within-child one, because the whole reason the family
-    exists is that a random-intercept model with one exposure coefficient returns
-    an uninterpretable blend of the two.
+    Report separate between-child and within-child coefficients when fitted.
+    A random-intercept model with one exposure coefficient combines those
+    associations and does not distinguish them.
     """
     table = _kf_csv(output_dir, "pooled_levels_summary.csv")
     if table is None:

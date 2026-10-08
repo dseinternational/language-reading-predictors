@@ -11,13 +11,13 @@ string that cannot be sight-read), so a strong ``L -> N`` slope is the signature
 that letter-sound knowledge is being *used for decoding* rather than merely
 travelling alongside reading through other routes.
 
-Paired with the matched linear ``L -> W`` slope (LRP101) it forms the
-**convergent-discriminant contrast** Delta = beta(L->N) - beta(L->W): letter sounds
-should feed the pure-decoding channel (N) at least as strongly as the mixed word
-channel (W, which can be sight-read). A pure general-ability-confounding account
-gives no reason for L to predict N *more* than W, so Delta >= 0 is the decoding-use
-signature (Campbell & Fiske 1959 convergent/discriminant logic; not an
-identification claim).
+Paired with the matched linear ``L -> W`` slope (LRP101), this model gives
+Delta = beta(L->N) - beta(L->W), a descriptive contrast between decoding and
+word-reading associations. Its interpretation depends on the instruments,
+score links, measurement error and differing relations with latent ability.
+Delta >= 0 can be consistent with the proposed decoding account, but cannot
+by itself exclude a shared-ability explanation or identify use of a particular
+reading route.
 
 Design (mirrors LRP72, moderator removed):
 

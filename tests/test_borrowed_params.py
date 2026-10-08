@@ -1,24 +1,19 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Guard that the retired borrowed-parameter groups stay retired (#169).
+"""Compare the hyperparameters of former source and borrower models (#169).
 
-Several exploratory GB models used to carry hyperparameters copied from a more
-developed sibling "pending a target-specific tune". Issue #169 retuned every GB
-model on its own full predictor set, so each of these models now has
-target-specific parameters and no longer borrows. This test records the former
-source -> borrowers relationships and asserts they are genuinely *broken* — i.e.
-each former borrower's params now differ from its old source — so a future edit
-cannot silently reintroduce borrowing without this guard failing.
+These exploratory GB models were retuned after they had used parameters copied
+from another model. The test requires each former borrower's parameters to
+differ from its former source. Parameter differences alone do not verify the
+tuning history.
 """
 
 import pytest
 
 from language_reading_predictors.models.registry import MODELS
 
-# Former (source, [borrowers]) borrowing relationships, retired by the #169
-# target-specific retune. Borrowers must now DIFFER from the source. Canonical
-# registry keys since #168 Phase 2 (MODELS is keyed on the CLI id).
+# Former (source, [borrowers]) relationships, keyed by canonical CLI model ID.
 FORMER_BORROWED_PARAM_GROUPS = [
     ("lrp-rli-gbg-002", ["lrp-rli-gbg-001", "lrp-rli-gbg-003", "lrp-rli-gbg-004"]),
     ("lrp-rli-gbg-009", ["lrp-rli-gbg-011"]),

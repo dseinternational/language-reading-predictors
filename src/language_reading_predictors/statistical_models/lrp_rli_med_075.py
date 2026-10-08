@@ -30,11 +30,11 @@ What to read (and what not to):
 - **Robust headline** - the **joint indirect effect through the ``{L, B}`` block**
   (``NIE_joint``): both mediators respond to treatment *including the ``L -> B``
   coupling*, so this is the total code-route mediation. Compare it to LRP66's joint
-  ``{L, B}`` NIE - close agreement confirms adding the chain edge does not change how
-  much flows through the block, only how it is apportioned.
+  ``{L, B}`` NIE - agreement supports stability of the model-based joint summary across
+  these two specifications; it does not identify a causal chain.
 - **The ``L -> B`` coupling ``aB_L``** (a fitted coefficient, an *association*):
-  a clearly-positive value is the direct evidence that B is downstream of L - the
-  point of the sequential reframing.
+  a positive value describes a conditional same-wave association. The
+  direction L -> B is assumed by the model, not identified by its sign.
 - **Per-path ``NIE_L`` / ``NIE_B``**: reported but **exploratory and
   convention-dependent**. In the chained draw the second mediator moves with its own
   exposure *and* with the L it is conditioned on, so the L-vs-B apportionment depends
@@ -63,7 +63,7 @@ SPEC = ModelSpec(
         "letter sounds (L) -> phoneme blending (B) -> reading?"
     ),
     outcome_symbol="W",
-    mechanism_symbol=None,  # two mediators; named in extra["mediators"]
+    mechanism_symbol=None,  # The two mediator symbols are declared in model_settings.mediators.
     adjustment=[
         "G",
         "A",

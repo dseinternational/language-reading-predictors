@@ -1,17 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT13b - SES-adjusted available-case modified ITT estimate for letter-sound knowledge (L).
+"""LRPITT13b - SES-adjusted available-case modified ITT estimate for letter sounds.
 
-Letter-sound companion to LRPITT13: the same SES-adjusted uniform spec, re-targeted
-to the other headline outcome with a credible effect. LRPITT14b is its matched
-unadjusted comparator. Sign convention: positive tau => intervention helps.
+The letter-sound companion to LRPITT13 uses the same SES precision covariates.
+LRPITT14b is the unadjusted comparator on the same SES-complete rows. Positive
+``tau`` favours the immediate-intervention arm.
 
-As in LRPITT13, the SES adjusters (parental education, age first exposed to books)
-are **precision covariates** — pre-randomisation, balanced across arms in
-expectation, so they cannot confound the available-case modified ITT estimate and only sharpen tau
-(the same causal status as ``blocks``/``area``). Prior-table role ``precision``
-(#384 review).
+The covariates precede randomisation, but selection into the SES-complete,
+observed-outcome subset still requires the available-case assumptions in
+``METHODS.md``. Adjustment need not improve precision. Their prior-table role
+remains ``precision``.
 """
 
 from language_reading_predictors.statistical_models.context import (

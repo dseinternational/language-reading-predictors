@@ -3,19 +3,8 @@
 
 """Pure summary computations for the Byrne correlated-domain-factor model (mm-001).
 
-The measurement-headline tables of
-:func:`pipelines.corr_factor.fit_rlm_corr_factor` — the
-loadings / correlations / communalities table and the domain-factor correlation
-matrix (mean matrix + per-pair posterior summary) — computed as pure functions of
-the posterior. Extracted from the fit orchestration (#394 pillar 6, "separate
-computation from presentation", mirroring :mod:`lcf_summaries`) so the numeric
-summaries are testable without an output directory, Quarto template or Matplotlib
-session; the fit function keeps the CSV persistence, console table and plots.
-
-Each function takes the posterior group (``trace.posterior``) and returns a
-``pandas.DataFrame`` with exactly the columns the fit previously wrote, so the
-published ``loadings_summary.csv`` / ``factor_correlation.csv`` /
-``factor_correlation_summary.csv`` are byte-for-byte unchanged.
+Each function takes ``trace.posterior`` and returns a loading, communality or
+factor-correlation table. The pipeline owns persistence and plots.
 """
 
 from __future__ import annotations

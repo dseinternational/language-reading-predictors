@@ -3,10 +3,8 @@
 
 """Figure-saving helpers for the statistical models.
 
-The implementations are shared with the gradient-boosting system and live in
-:mod:`language_reading_predictors.figure_io`; they are re-exported here so the
-statistical_models call sites keep a local import path. See that module for the
-report figure-artifact policy (issue #208: PNG + SVG sibling (<~2 MB) + data CSV).
+Re-exports from :mod:`language_reading_predictors.figure_io` preserve the local
+import path. That module defines the shared figure and data-file policy.
 """
 
 from __future__ import annotations

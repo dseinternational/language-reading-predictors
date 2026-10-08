@@ -7,11 +7,10 @@ x = nonword reading (``nonword``) level at time 1 (the fixed baseline).
 y = word reading (``ewrswr``) total gain = level at the child's last available
     wave minus level at time 1. One point per child.
 
-Standalone by design: this script loads ``data/rli_data_long.csv`` directly and
-hardcodes its own columns and labels and resolves its output path through
-``language_reading_predictors.paths`` so scratch-output runs stay
-consistent. Duplication across the descriptive plot scripts is intentional --
-do not refactor shared logic into a helper.
+Each descriptive script keeps its own plot settings for standalone use. It
+reads ``data/rli_data_long.csv`` and resolves output through the shared paths
+module. This repetition is deliberate; shared helpers would need to preserve
+each script's standalone use.
 
 Run::
 
@@ -28,7 +27,7 @@ import pandas as pd
 from language_reading_predictors import figure_io
 from language_reading_predictors import paths as _paths
 
-# --- Per-figure configuration (the only lines that differ between scripts) ---
+# Per-figure settings
 X_COL = "nonword"  # predictor measure (level column)
 Y_COL = "ewrswr"  # outcome measure (level column)
 X_LABEL = "baseline nonword reading"

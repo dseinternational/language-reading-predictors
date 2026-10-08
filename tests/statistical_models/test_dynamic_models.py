@@ -3,11 +3,9 @@
 
 """Smoke tests for the longitudinal dynamic models (LRP67 LCSM + lagged suite).
 
-These check the wave-panel loader and that each factory *builds* and can draw a
-small prior predictive sample — including the #250 generalisations (multi-target
-couplings, arm x window intercepts, adjuster covariate block). Full
-posterior-sampling correctness is validated by the end-to-end fits in
-``scripts/fit_statistical_model.py``.
+These check the wave-panel loader, model construction and small prior-predictive
+draws, including multi-target couplings, arm x window intercepts and adjustment
+covariates. They do not test posterior sampling or parameter recovery.
 """
 
 from __future__ import annotations

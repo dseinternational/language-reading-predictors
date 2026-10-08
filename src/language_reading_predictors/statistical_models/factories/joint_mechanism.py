@@ -40,13 +40,12 @@ def _add_decoding_contrast_deterministics(
 
     ``delta_ls_decoding = beta_mech[contrast[0]] - beta_mech[contrast[1]]`` (default
     ``N - W``) is the decoding-specificity difference. Because both slopes come from
-    one posterior, its interval carries the true cross-outcome covariance rather than
+    one posterior, its interval carries the fitted cross-outcome covariance rather than
     the paired-draws convolution that ``mech-096`` / ``mech-101`` can only bound.
 
     ``rho_outcome`` — the off-diagonal of the dependence block — is registered
-    whenever one exists. It is the quantity that makes the block auditable: a
-    correlation whose interval sits on zero says the joint fit is buying nothing over
-    two separate fits, and the report must be able to show that either way.
+    whenever one exists. Report its uncertainty to assess the dependence block.
+    An interval containing zero does not establish that dependence is absent.
 
     With ``conditional_slope`` the **conditional** slope is registered too. Writing
     the focal outcome ``f`` (default
@@ -217,9 +216,8 @@ def build_joint_mechanism_model(
 
     # Shared exposure: standardised letter-sound post logit, identical for both legs,
     # so the two slopes sit on one commensurate logit-per-SD-of-exposure scale. Rows
-    # with a missing exposure are DROPPED rather than mean-imputed — imputing the
-    # focal exposure shrinks its realised variance and biases both slopes toward zero,
-    # which would corrupt the very contrast the model exists to estimate.
+    # with a missing exposure are dropped. Mean imputation could bias the slopes
+    # and their contrast; the direction of that bias is not guaranteed.
     exposure_ok = ~np.isnan(prepared.post_counts[mechanism_symbol])
     # A row observing neither outcome contributes no likelihood cell.
     any_outcome = np.zeros(prepared.n_obs, dtype=bool)

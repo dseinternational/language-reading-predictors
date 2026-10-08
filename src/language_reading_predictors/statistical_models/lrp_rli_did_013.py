@@ -3,10 +3,10 @@
 
 """LRPDID13 - exploratory heterogeneity in waitlist catch-up (word reading, W).
 
-This arm-by-wave model adds a waitlist-child random deviation to the t3 catch-up
-association. ``delta_crossover_i = delta_crossover + v_delta_i`` varies only the
+This arm-by-wave model adds a waitlist-child random deviation to the t3 level.
+The term ``delta_crossover_i = delta_crossover + v_delta_i`` varies only the
 waitlist arm's post-crossover t3 level; it is not a random treatment-effect slope.
-``sigma_delta`` therefore describes heterogeneity in observed waitlist catch-up,
+``sigma_delta`` therefore describes heterogeneity in the waitlist t3 level,
 which may combine response, maturation, history and measurement variation.
 
 The fixed ``tau_t2`` remains the clean randomised t2 arm contrast. The heterogeneity

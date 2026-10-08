@@ -44,20 +44,12 @@ from language_reading_predictors.statistical_models.output_transaction import (
 
 @dataclass
 class ModelSpec:
-    """Description of a single model run - lives on the context.
+    """Scientific specification and report metadata for one model.
 
-    ``model_id`` is ``"lrp-rli-itt-007"`` etc. ``kind`` is one of the model families in
-    ``definitions.KINDS`` — the headline estimands ``"itt"``, ``"joint"``,
-    ``"mechanism"``, ``"mediation"``, ``"did"`` (waitlist-crossover),
-    ``"gain_factors"`` / ``"level_factors"`` (DAG-focused factor families) and
-    ``"aligned"`` (onset-aligned per-protocol single gain), plus the association /
-    cross-check / reproduction families ``"adjusted"``, ``"corr_factor"``,
-    ``"dose_response"``, ``"lcsm"``, ``"mediation_multi"``, ``"horseshoe"``,
-    ``"growth"``, ``"historical_growth"``, ``"historical_joint"``, ``"survival"``,
-    ``"block_exposure"``, ``"concurrent"`` and ``"long_corr_factor"``. ``title``
-    is the long human-readable title shown on the report. ``model_settings`` is the
-    typed family boundary for migrated families; ``extra`` remains the strict legacy
-    translation boundary for those families and the migration boundary for the rest.
+    ``model_id`` names the registered model; ``kind`` selects a family from
+    ``definitions.KINDS``. ``model_settings`` holds its immutable typed settings.
+    ``extra`` supports legacy specifications and must be empty for registered
+    typed models.
     """
 
     model_id: str
@@ -72,22 +64,13 @@ class ModelSpec:
     target_accept: float | None = None
     """Model-specific NUTS ``target_accept`` default, or ``None`` for the preset.
 
-    A first-class field because it is a *sampler* knob, not part of any scientific
-    recipe, and because the legacy ``extra["target_accept"]`` route is unreachable
-    from a typed module: families that have migrated reject any non-empty ``extra``
-    beside ``model_settings``, so the documented "model-specific default" tier of
-    the precedence could only ever be used by an unmigrated spec (2026-08-20 ITT
-    code review finding 5; 2026-08-22 ITT audit, finding 9). Read through
-    :func:`spec_target_accept`, which still honours the legacy key.
+    This sampling option sits outside the scientific settings. Read it through
+    :func:`spec_target_accept`, which also accepts the legacy ``extra`` key.
     """
     model_settings: object | None = None
     """Typed, immutable settings for a family that has completed this migration."""
     extra: dict[str, Any] = field(default_factory=dict)
 
-    # --- Dataset / estimand metadata (#165) -------------------------------
-    # Optional and behaviour-preserving: the existing intervention models leave
-    # these at their defaults, so their config.json only gains new keys. They let
-    # reports state which study a model is fit on and whether it is causal.
     study_id: str = "rli"
     """Dataset / cohort this model is fit on (default the RLI intervention study)."""
     family: str | None = None
@@ -132,13 +115,9 @@ class ModelSpec:
     def banner(self) -> str:
         return f"{self.model_id.upper()}: {self.title}"
 
-    # --- Canonical model-ID scheme (#168) ---------------------------------
-    # Since Phase 2 ``model_id`` is the *canonical* id (``lrp-rli-itt-010``); this
-    # accessor also still parses a legacy id (``lrpitt10`` + ``kind``/``study_id``)
-    # so the canonical/legacy/family metadata is correct whichever form a spec
-    # uses. An id the resolver cannot parse yields ``None`` rather than breaking a fit.
     @property
     def _canonical(self):
+        """Parse canonical or legacy IDs; return None for an unrecognised ID."""
         from language_reading_predictors import model_ids as _mids
 
         try:
@@ -201,9 +180,9 @@ class StatisticalFitContext:
     loo: az.ELPDData | None = None
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
     artifacts: ArtifactLog = field(default_factory=ArtifactLog)
-    """Per-fit artefact record consumed by the manifest at finalisation (#394)."""
+    """Per-fit artefact record consumed by the manifest at finalisation."""
     subfits: SubfitLog = field(default_factory=SubfitLog)
-    """Per-fit record of every secondary / sensitivity sub-fit (#394 design point 5)."""
+    """Per-fit record of secondary and sensitivity sub-fits."""
     resolved_plan: ResolvedRunPlan | None = None
     """Validated family run plan resolved before data loading."""
     effective_plan: ResolvedRunPlan | None = None
@@ -211,13 +190,7 @@ class StatisticalFitContext:
     output_transaction: OutputTransaction | None = None
     """Hidden staging directory promoted only after every fit stage succeeds."""
     lifecycle_stages: list[str] = field(default_factory=list)
-    """Stages :meth:`SharedFitStages.run_primary_fit` actually ran, in order.
-
-    The lifecycle's own record of itself (#637 stage 4). Before this, the only way
-    to check that a family ran power scaling once, in the declared slot, was to
-    read its source — and six families ran it *outside* the runner entirely, so
-    there was nothing to read but a convention.
-    """
+    """Stages executed by ``stages.run_primary_fit``, in order."""
 
     @property
     def output_dir(self) -> str:
@@ -263,13 +236,8 @@ def spec_target_accept(spec: ModelSpec) -> float | None:
     scientific model recipe. Keeping its sole read here makes that distinction
     explicit for fit pipelines and standalone audit runners alike.
 
-    Prefers the first-class :attr:`ModelSpec.target_accept` and falls back to the
-    legacy ``extra["target_accept"]``, so unmigrated specs keep working while a
-    typed module can finally declare it — until this field existed the documented
-    "model-specific default" tier was reachable only from a legacy spec, because
-    a migrated family rejects any non-empty ``extra`` beside ``model_settings``.
-    Declaring both and disagreeing is a contradiction rather than a precedence
-    question, so it is rejected.
+    Prefer :attr:`ModelSpec.target_accept`, with the legacy
+    ``extra["target_accept"]`` as fallback. Reject conflicting declarations.
     """
     typed = getattr(spec, "target_accept", None)
     legacy = spec.extra.get("target_accept")
@@ -293,25 +261,7 @@ def _resolve_target_accept(
     sampling: _sampling.SamplingConfiguration,
     run_options: StatisticalRunOptions,
 ) -> _sampling.SamplingConfiguration:
-    """Resolve NUTS ``target_accept`` with explicit precedence, for **every** family.
-
-    Precedence is **CLI override > model-specific default > config preset**.
-
-    Some models (the horseshoe's global-local funnel, the small-n correlated-factor
-    CFA, the HSGP mechanism surfaces) need a higher ``target_accept`` than their tier
-    preset gives, and declare it in ``spec.extra``. That must not silently outrank an
-    explicit ``--target-accept`` from the command line: an earlier
-    ``max(preset_or_cli, spec_value)`` meant a deliberate ``--target-accept 0.95`` was
-    replaced by a spec's 0.999, so a diagnostic reproduction or an ablation silently
-    did not run at the requested setting.
-
-    This lives in the shared context factory rather than in per-family fit functions.
-    It was previously applied by ``pipeline._apply_spec_target_accept``, which only six
-    of the family entry points called — so a ``spec.extra["target_accept"]`` added to
-    any other family (dose-response, DiD, ITT, …) would have been accepted by the spec
-    and then silently ignored at sampling time. Resolving it here means a declaration
-    is honoured wherever it is made.
-    """
+    """Use the CLI override, then the model default, then the sampling preset."""
     target_accept = spec_target_accept(spec)
     if run_options.target_accept is not None:
         if target_accept is not None:

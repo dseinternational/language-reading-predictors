@@ -175,9 +175,9 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     )
 
     # The RLI factor loadings live under ``lambda_load`` (the Byrne model uses
-    # ``loading``); the residual sigma is free, so lambda is a coefficient on the
-    # unit-variance factor, not in general a correlation — the standardised loading /
-    # indicator-factor correlation reported alongside is sqrt(communality).
+    # ``loading``). The indicator-factor correlation is sqrt(communality).
+    # Under the legacy free-scale priors this differs from the loading itself;
+    # under the default unit-variance constraint they agree.
     load_df = _cf_summaries.loadings_communalities_table(post, domains, lo_q=lo_q, loading_var="lambda_load")
     save_table(ctx, "loadings_summary", load_df)
     print_table(

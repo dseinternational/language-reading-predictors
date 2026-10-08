@@ -104,9 +104,7 @@ def _pairwise_table(
         sa = scores_a.loc[common].to_numpy(dtype=float)
         sb = scores_b.loc[common].to_numpy(dtype=float)
 
-        # Filter to fold pairs where both metrics are finite. ``ttest_rel``
-        # with ``nan_policy="omit"`` drops NaNs per-vector and breaks
-        # pairing when only one side is missing.
+        # Use complete finite pairs for both the difference and the win count.
         valid = np.isfinite(sa) & np.isfinite(sb)
         sa = sa[valid]
         sb = sb[valid]

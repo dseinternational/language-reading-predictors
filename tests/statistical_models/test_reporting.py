@@ -1584,7 +1584,7 @@ def test_level_t2_marginal_effect_is_the_arm_free_standardised_functional():
     could not pass by numerical coincidence."""
     n_chain, n_draw, n_obs = 1, 4, 8
     # Deliberately large chance imbalance and a modest treatment change, with the
-    # rows sitting well away from p = 0.5 where expit is most nonlinear.
+    # rows sitting well away from p = 0.5, where expit has its largest slope.
     arm_gap = np.full((n_chain, n_draw), 2.0)
     d_grp = np.tile(np.array([0.5, 0.2, 0.1]), (n_chain, n_draw, 1))
     b_grp = np.concatenate([arm_gap[..., None], arm_gap[..., None] + d_grp], axis=-1)

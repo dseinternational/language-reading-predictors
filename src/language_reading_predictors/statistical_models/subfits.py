@@ -1,44 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""One runner for every secondary and sensitivity sub-fit (#394 design point 5).
+"""Sampling, convergence, persistence and provenance for secondary fits.
 
-A *sub-fit* is any posterior this suite samples besides the primary one: the
-floor-rule graded and hurdle cross-checks, the mediation temporal-ordering
-sensitivity, the adjusted family's bivariate refits, prior-slope sweep and SES
-complete-case refit, and the concurrent / joint-mechanism non-anchor waves. They
-publish numbers into the report exactly as the primary fit does, but they bypass
-``diagnostics_summary.json`` — the convergence gate covers ``ctx.trace`` only.
+A sub-fit is a posterior sampled besides the primary one, including sensitivity
+fits, secondary waves and cross-validation folds. Its convergence record is
+separate from the primary trace's ``diagnostics_summary.json``.
 
-Before this module the eleven sub-fit call sites split three ways. Eight went
-through ``diagnostics.sample_subfit``, which sampled and returned a convergence
-verdict the caller then had to remember to publish. Three — the two floor-rule
-secondaries and the mediation t3 sensitivity — spelled out their own
-``pm.sample`` call, so a sampling argument could drift between them unnoticed.
-None of them recorded what data the sub-fit was actually fitted to, or at what
-sampling settings; and a convergence check that could not be *computed* returned
-``converged=None``, which lands in a published CSV as an empty cell —
-indistinguishable from a column that was never populated at all.
-
-:func:`run_subfit` is now the only way to sample a sub-fit. It returns a typed
-:class:`SubfitResult` carrying the trace, the convergence verdict verbatim, the
-fitted-data identity, the sampling settings actually used, the persisted trace
-filename and a structured failure classification, and it appends a row to
-``subfit_provenance.csv`` on every call. The families keep their scientific loops
-explicit — which wave, which predictor, which prior width is being fitted stays
-in the family module — and delegate only the sampling, convergence, persistence
-and provenance mechanics. The log keeps trace-free copies, so recording a
-sub-fit's provenance does not keep its posterior alive for the rest of the run.
-
-The provenance table is rewritten by each call rather than assembled at
-finalisation on purpose: a record of what a run did is worth least if it is the
-first casualty of the failure it exists to document.
-
-Deliberately absent: sub-fit PSIS-LOO. The typed result the issue sketches lists
-it as optional, and no sub-fit in the suite computes one — a sensitivity refit is
-read against the primary's estimate, not ranked against it by predictive
-performance. Wiring it speculatively would add an untested branch; when a family
-needs it, it belongs in :func:`run_subfit` beside the posterior-predictive step.
+:func:`run_subfit` returns a :class:`SubfitResult` and updates
+``subfit_provenance.csv`` after each call. Families choose the scientific refits;
+this runner records fitted-data identity, sampling settings, convergence, trace
+files and failures. Logs retain trace-free copies to limit memory use. Predictive
+scoring, including K-fold scoring, belongs to callers.
 """
 
 from __future__ import annotations
@@ -109,14 +82,9 @@ class SubfitData:
     timepoint. ``n_children`` / ``n_obs`` come from the prepared frame the factory
     returned — the post-drop frame, not what was requested.
 
-    ``digest`` hashes the **row keys** (subject identifiers, and the phase or wave
-    key where the frame carries one) alongside the observed arrays, their dtypes
-    and their shapes. Hashing the observations alone would not identify the rows:
-    on a floored outcome, two different subsets of children can share an identical
-    ordered score vector — heavily-floored measures make that likely, not exotic —
-    and the digests would then agree while the fitted children differed.
-    ``identity_keys`` names what actually went into the hash, so the digest is
-    self-describing rather than a number whose meaning has to be inferred.
+    ``digest`` hashes row keys and observed arrays, including shapes and dtypes.
+    Row keys distinguish children whose observed score vectors are identical.
+    ``identity_keys`` records which keys the hash covers.
     """
 
     n_children: int | None
@@ -151,11 +119,9 @@ class SubfitResult:
     """Exactly the parameters the convergence verdict scanned, in scan order.
 
     ``convergence_scope`` says *how* the scan was chosen; this says what it actually
-    covered. A published deterministic — a ratio above all — can mix far worse than
-    every free variable it is built from, so "which parameters did that verdict
-    include" has to be answerable from the provenance row rather than inferred
-    (2026-08-23 joint-mechanism follow-up review, finding 1). Empty when the scan was
-    unrestricted (``convergence_scope="all"``).
+    covered. Reported deterministics may have worse mixing than their component
+    free variables. Empty when the scan was unrestricted
+    (``convergence_scope="all"``).
     """
     posterior_predictive: tuple[str, ...] = ()
     trace_file: str | None = None
@@ -211,12 +177,8 @@ class SubfitResult:
 class SubfitLog:
     """Per-fit provenance record, in the order the family ran the sub-fits.
 
-    The log holds **trace-free** copies. A family runs its sub-fits in a loop and
-    lets each trace go once the summary is computed — the concurrent family alone
-    runs twenty-seven at reporting tier, several carrying a per-child random-effect
-    vector over 36,000 draws — so a log that kept every ``InferenceData`` alive for
-    the lifetime of the fit context would multiply peak memory for no gain. The
-    caller still receives the full :class:`SubfitResult` from :func:`run_subfit`.
+    The log holds trace-free copies so completed fits do not accumulate in memory.
+    The caller receives the full :class:`SubfitResult` from :func:`run_subfit`.
     """
 
     results: list[SubfitResult] = field(default_factory=list)
@@ -557,10 +519,8 @@ def run_subfit(
     scanned: list[str] = []
     if convergence_scope == "free_rvs":
         scanned = [rv.name for rv in built.model.free_RVs]
-        # Reported deterministics are not implied by their arguments: a ratio of two
-        # well-mixed slopes can have far worse R-hat and ESS than either. A family
-        # that publishes one names it here so the verdict beside it covers it
-        # (2026-08-23 joint-mechanism follow-up review, finding 1).
+        # Scan reported deterministics too; their component variables' mixing
+        # does not guarantee the same R-hat or ESS for the derived quantity.
         scanned += [name for name in (extra_var_names or ()) if name not in scanned and name in built.model.named_vars]
     elif extra_var_names:
         raise ValueError(

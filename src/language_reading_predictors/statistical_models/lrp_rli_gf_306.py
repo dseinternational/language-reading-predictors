@@ -16,8 +16,8 @@ inverse-logit mean does not know that: it permits expected scores anywhere in
 have posterior-mean expected proportions below one third, 10.7 % of the row-by-draw
 posterior mass sits below chance, and the worst single row puts 99.8 % of its mass
 there (`notes/202608251100-gain-blending-guessing-floor-596.md`). This companion
-constrains the mean to ``1/3 + 2/3 * expit(eta)``, so the model cannot predict
-below-chance performance.
+constrains the mean to ``1/3 + 2/3 * expit(eta)``, so the expected score proportion is at least one third. Individual observed or
+predicted counts can still fall below that mean floor.
 
 Because the two links can disagree about the size of the effect — in the one pair
 fitted under both, the ITT items estimate halved and its 89 % interval crossed zero

@@ -3,29 +3,17 @@
 
 """Typed settings and a resolved run plan for joint-mechanism models.
 
-The family has two deliberately different designs: per-wave bivariate levels
-fits with an observation-row residual correlation, and a phase-stacked ANCOVA
-with a bivariate child intercept.  This module replaces the free-form
-``ModelSpec.extra`` boundary for both designs and resolves their data, factory,
-diagnostic and reporting contracts before a fit context is created or RLI data
-are loaded (#394 pillar 4).
+The levels design fits each wave with a bivariate observation-row residual.
+The transition design fits phase-stacked ANCOVA with a bivariate child intercept.
+Both report the dependence block's ``rho_outcome``. Only levels reports a
+conditional slope and its ratio to the marginal slope, since conditioning on
+the other outcome operates within a row.
 
-The migration does not change the fitted equations or scientific warrant.  The
-letter-sound slopes, decoding-specificity contrast and conditional-slope ratio
-remain adjusted associations rather than causal mechanism effects.
-
-Both designs report ``rho_outcome``: it is the off-diagonal of whichever
-dependence block the design carries. Only the *levels* design also reports the
-conditional slope and its ratio to the marginal slope, because partialling the
-held-fixed outcome is a same-row operation and the transition design's block
-sits between children (2026-08-23 follow-up review, documentation gap 4).
-
-The 2026-08-23 follow-up review (#591) also settled three interpretation
-contracts this module now encodes in the generated recipe: the contrast is a
-measurement-scale-dependent association rather than a decoding-mechanism test;
-the transition design's estimand is an ANCOVA post-level association, not a
-within-child change effect; and the matched comparators are related estimands
-whose difference from the joint fit is not attributable to dependence alone.
+Slopes and contrasts are adjusted associations. The contrast depends on the
+measurement scale; it does not identify a decoding mechanism. Transition slopes
+describe post-levels conditional on baselines, not within-child change effects.
+Differences from matched comparators reflect more than dependence assumptions.
+The resolved plan validates both designs before context or data operations.
 """
 
 from __future__ import annotations
@@ -114,18 +102,17 @@ class JointMechanismModelSettings:
     adjust_for: tuple[str, ...] = ()
     predictor_slope_sigma: float | None = None
     prediction_target: str = PREDICTION_TARGET_NEW_CHILD
-    """Out-of-sample target the fit's cross-validation answers (#626).
+    """Population represented by the held-out child.
 
     Both designs carry a child-level dependence block, so the child-aggregated
     PSIS-LOO alone is conditional on the held-out child's own residual; the declared
     target is what the matching validation integrates that residual out for."""
     kfold_folds: int = 5
-    """Folds in the grouped child-level K-fold that backs up the integrated estimator.
+    """Number of child-grouped refits for new-child K-fold validation.
 
-    Both designs need it. Integrating the child's dependence block out leaves
-    importance ratios this family cannot smooth — the levels design worst, since its
-    residual *is* the child effect — so the ELPD was withheld on both registered fits
-    until the refit route existed. Each fold is a refit, so this is the cost knob."""
+    This provides an alternative when integrated importance-sampling scores fail
+    validation. Each fold requires a fit.
+    """
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
@@ -272,10 +259,7 @@ class JointMechanismRunPlan:
         else:
             kwargs["covariates"] = self.pre_covariates
             kwargs["post_covariates"] = self.post_covariates
-            # Only the two outcome baselines are model terms; the default
-            # ``pre_required`` would also demand the mechanism's period-start
-            # score, which the model never uses — an undeclared row filter
-            # (2026-08-21 joint-mechanism review).
+            # Require the two outcome baselines, not the unused mechanism baseline.
             kwargs["pre_required"] = self.outcome_symbols
         return kwargs
 
@@ -367,7 +351,7 @@ class JointMechanismRunPlan:
         )
 
     def _loo_sentence(self) -> str:
-        """The recipe's LOO sentence, honest about the levels design's saturation."""
+        """Describe the plan's conditional PSIS-LOO setting."""
         if self.compute_loo:
             return f"The observation node is `{self.observation_node}` and PSIS-LOO uses the `{self.loo_unit}` unit."
         return (
@@ -441,20 +425,11 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         likelihood: Literal["binomial", "beta_binomial"] = "binomial"
         dependence: Literal["lkj_residual_within_wave", "lkj_child_intercept"] = "lkj_residual_within_wave"
         min_wave_rows = 10
-        # A wave needs enough rows on *each* outcome, and enough jointly observed
-        # pairs, before its residual correlation and conditional slope mean
-        # anything: the earlier rule only counted rows with the exposure and *at
-        # least one* outcome, so a wave observing one outcome twice could in
-        # principle be fitted and publish a prior-dominated rho (2026-08-23
-        # follow-up review, robustness gap 1). Prespecified, not data-adaptive.
+        # Prespecified support rules require each outcome and jointly observed pairs.
         min_wave_outcome_rows = 10
         min_wave_overlap_rows = 10
-        # One bivariate latent residual per child over at most two observed cells:
-        # PSIS-LOO is conditional on a saturated per-child latent (the fitted
-        # reporting run showed p_loo > n and 48/53 Pareto-k above 0.7), so it is
-        # not computed at all rather than published as a check that cannot work
-        # (2026-08-21 joint-mechanism review, finding 2). The same saturation is
-        # why the pipeline publishes the new-child *marginal* predictive check.
+        # Conditional PSIS-LOO is unreliable with one bivariate residual per child
+        # and at most two observed cells. New-child validation integrates it out.
         compute_loo = False
         comparators = ("lrp-rli-ca-010", "lrp-rli-ca-011")
         comparator_equivalence = (
@@ -509,9 +484,8 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         min_wave_rows = None
         min_wave_outcome_rows = None
         min_wave_overlap_rows = None
-        # Genuine leave-one-child-out: the factory registers ``loo_child_idx``
-        # (cells -> child), so the shared aggregation sums each child's cells
-        # across all three transitions before importance sampling.
+        # Aggregate all transitions by child for conditional PSIS-LOO. New-child
+        # validation must also integrate the child's latent intercept.
         compute_loo = True
         comparators = ("lrp-rli-mech-096", "lrp-rli-mech-101")
         comparator_equivalence = (

@@ -3,14 +3,9 @@
 
 """Guard against pipeline prior-scale fallbacks drifting from the factories.
 
-The pipeline sources each prior-scale ``spec.extra.get(key, ...)`` fallback from
-the factory signature via ``factories.default_of`` (issue #209 review), so the
-factory is the single source of truth. This test locks the reconciled factory
-defaults themselves (prior-critical-review 2026-07-07, recommendations 2-3): with
-``default_of`` feeding the pipeline, locking the factory defaults makes the
-"fallback lags the factory" drift Copilot caught structurally impossible to
-reintroduce silently. Change a value here only alongside a deliberate,
-documented prior recalibration.
+Resolved plans take omitted prior scales from factory signatures through
+``factories.default_of``. These tests pin those defaults and the shared
+constructors. Change a value only with a documented prior recalibration.
 """
 
 from language_reading_predictors.statistical_models.factories import adjusted as _adjusted_factory
@@ -61,8 +56,8 @@ RECONCILED_FACTORY_DEFAULTS = [
     # Structural-slope prior reconciled 0.5 -> 0.3 to match the shared
     # predictor_slope_prior default (review finding B4, 2026-07-13).
     (_corr_factor_factory.build_correlated_factor_model, "predictor_slope_sigma", 0.3),
-    # #382 item 1: unset by default — only the LRPMM102 sensitivity companion
-    # widens the focal beta_factor / beta_G pair to the N(0, 1) mechanism scale.
+    # Only the focal-slope companion widens beta_factor to Normal(0, 1).
+    # The beta_G adjustment term keeps its association prior.
     (_corr_factor_factory.build_correlated_factor_model, "focal_slope_sigma", None),
     # #383 follow-up: the longitudinal CFA takes the pooled-budget communality
     # parameterisation — communality ~ Beta(2, 2) with lambda / sigma derived so

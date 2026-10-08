@@ -15,14 +15,8 @@ Descriptive joint group-by-wave growth for the historical cohort: each measure k
 # | echo: false
 from IPython.display import Markdown, display
 
-# Section order follows the fit's own declared estimand (2026-08-23 joint audit,
-# lower-priority reporting correction). ``jc-002``'s headline IS the within-child
-# correlation — that is why the model exists and what its Key Findings box leads
-# with — but this partial used to print the between-child matrix first and then
-# label the within-child result a "companion headline", so the Results section
-# contradicted the box. When the within-child summary is present it leads, and the
-# between-child matrix follows as the secondary view; ``jc-001`` writes no
-# within-child summary and is unchanged.
+# Lead with within-child correlations when present, matching the declared
+# headline. Show between-child correlations as a separate secondary quantity.
 within = _csv("within_measure_correlation_summary.csv")
 _between_intro = (
     "The posterior correlation matrix of the per-child stable offsets — do "

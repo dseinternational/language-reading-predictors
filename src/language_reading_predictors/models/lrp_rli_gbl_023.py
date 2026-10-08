@@ -6,10 +6,10 @@ LRPGBL23: Predictors of DEAP composite articulation level (``deapp_c``).
 
 ``deapp_c`` is the DEAP picture-naming composite from the
 Diagnostic Evaluation of Articulation and Phonology (Dodd et al.,
-2006) — the proportion of sounds correctly produced in a picture-
-naming task. It is a composite — ``deappin``, ``deappvo``,
+2006). It sums the percentage scores for initial consonants, vowels and
+final consonants in a picture-naming task. ``deappin``, ``deappvo``,
 ``deappfi`` are its components and remain in the candidate pool,
-so a high naive R² is mechanical (see the same-skill-excluded
+so their inclusion can inflate R² (see the same-skill-excluded
 ranking view, ``ranking_excluding_same_skill.csv``).
 
 The target spans min 141.2, max 284.6, median 234.56, mean 225.33,

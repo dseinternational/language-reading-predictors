@@ -1,26 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Byrne cohort: is non-verbal ability (basmat) associated with receptive vocabulary (bpvs)? (issue #186, Q4 Phase 3).
+"""Describe the Byrne cohort's ability-vocabulary associations.
 
-**Descriptive association only.** The formal analogue of the RLI Q4 read-out — a
-bounded-count, covariate-adjusted Bayesian model — is deliberately deferred, because
-in the Byrne data:
-
-1. block design's counterpart ``basmat`` is measured only from **wave 3**, so it is
-   not a baseline (there is no t1 non-verbal measure to condition on);
-2. the ``bpvs`` / ``basmat`` instrument **ceilings are unconfirmed** (only
-   ``basread`` = 87 is registered — issue #164, decision 3), so a Beta-Binomial
-   denominator cannot be set responsibly;
-3. the historical-growth family is a **descriptive group-by-wave** model with no
-   covariate-adjusted seam (unlike the ITT ``adjust_for`` path).
-
-So this reports a **scale-free rank association** that needs none of the above: it
-answers "does non-verbal ability track receptive vocabulary in the Byrne cohort?",
-which is a *marginal* association (block design and vocabulary both load on latent
-general ability), not an adjusted/incremental effect. The primary result is the
-**wave-3 cross-section** (one row per child, the largest ``basmat`` wave); waves 4–5
-are smaller robustness rows.
+Reports unadjusted and age-adjusted rank associations between ``basmat`` and
+``bpvs`` at waves 3 to 5, plus a wave-3 linear regression adjusted for age and
+reading group. These are descriptive associations, not causal effects. ``basmat``
+is unavailable at waves 1 and 2, so it cannot serve as a study-start baseline.
+The calculations do not require bounded-score likelihoods or test ceilings.
 
 Usage::
 
@@ -84,7 +71,7 @@ def wave_summary(df: pd.DataFrame, wave: int) -> dict[str, object]:
 
 
 def adjusted_ols_t3(df: pd.DataFrame) -> dict[str, float]:
-    """Age + reading-group-adjusted standardized OLS coefficient of basmat on bpvs at t3."""
+    """Standardised basmat coefficient for bpvs at t3, adjusted for age and reading group."""
     import statsmodels.formula.api as smf
 
     w = df[

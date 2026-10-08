@@ -3,9 +3,8 @@
 
 """Unit tests for :mod:`ml_utils`.
 
-Covers the cross-validation score formatting (regression test for the bug
-where ``abs()`` of the fold mean turned a negative R² into a deceptively
-positive score) and the Gaussian-process kernel helpers.
+Covers cross-validation score formatting and Gaussian-process kernels.
+Negative R² values must retain their sign.
 """
 
 from __future__ import annotations
@@ -28,7 +27,6 @@ def _by_metric(rows):
 
 
 def test_negative_r2_reported_with_true_sign():
-    # The whole point: a worse-than-mean model (negative R²) must stay negative.
     rows = _by_metric(
         cross_validation_score_rows({"test_r2": np.array([-0.5, -0.3, -0.25])})
     )

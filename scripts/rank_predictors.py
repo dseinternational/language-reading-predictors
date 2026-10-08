@@ -1,49 +1,25 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Rank predictors on the full set (issue #116, Phase 1).
+"""Rank and group a registered model's predictors using LightGBM.
 
-Produces an ordered, **cluster-first**, stability-annotated candidate list for an
-outcome by fitting one LightGBM on the *full* ``DEFAULT_GAIN`` / ``DEFAULT_LEVEL``
-set (no pruning), reusing the existing ``EstimatorPipeline`` stages. This is the
-ranking counterpart to the selection pipeline: it does not prune to a subset, it
-ranks and groups every candidate and reports the uncertainty.
+Use the registered predictor set, which applies the model's inclusions,
+exclusions and target removal. Rank distance-correlation clusters by grouped
+out-of-fold permutation importance and retain per-feature scores within each
+cluster. Record fold counts, repeat counts and cut-height sensitivity.
 
-Design decisions baked in:
+Curated same-skill annotations identify concurrent restatements of an outcome.
+An additional view excludes those siblings. Rankings describe predictive use
+under the fitted model; they do not identify causal effects or guarantee stable
+ordering in another sample.
 
-* **Cluster level is the primary unit.** Correlated predictors are clustered on the
-  distance-correlation matrix and ranked *as groups* by joint (grouped) out-of-fold
-  permutation importance — see ``cluster_ranking.csv``. Per-feature scores
-  (``predictor_ranking.csv``) are within-cluster detail. The reason: per-feature
-  permutation z is highly sensitive to ``cv_splits`` (in the pilot, ``LRP-RLI-GBL-006`` `b1exto`
-  z ran 1.9 → 1.5 → 0.33 at cv = 5 / 10 / 51), whereas the cluster-level ordering is
-  stable. Read clusters first.
-* **The cross-validation config is pinned and recorded.** ``--cv-splits`` and
-  ``--perm-repeats`` default to the model's own registered values (the reporting
-  protocol), so the ranking is consistent with how the project evaluates everything
-  else rather than using an ad-hoc number. The config used is written to
-  ``ranking_meta.json``. ``--quick`` drops to a fast dev tier.
-* **Same-skill contamination is a curated annotation, not a prune.** ``SAME_SKILL_SIBLINGS``
-  flags predictors that are concurrent restatements of the *outcome* (a predictor↔outcome
-  problem clustering cannot catch). The flag rides along in every artefact, and an
-  "excluding same-skill" ranking view is emitted for outcomes that have a sibling.
+Outputs go to ``output/ranking/<model>/``. The script drives pipeline stages
+directly and removes its temporary model directories after success or failure.
+Use ``scripts/predictability_readout.py --from-ranking`` to read the results.
 
-Reuses ``EstimatorPipeline`` stages directly (not ``fit()``, which gates
-clustering/SHAP/stability behind run tiers and ends with a Quarto ``report()`` that
-no ad-hoc model id has). ``GroupKFold`` by ``subject_id``, seed 47.
+Run::
 
-Usage::
-
-    python scripts/rank_predictors.py --model lrp-rli-gbl-006          # reporting-fidelity
-    python scripts/rank_predictors.py --model lrp-rli-gbg-012 --quick   # fast dev tier
-    python scripts/rank_predictors.py --model lrp-rli-gbg-005 --cv-splits 10 --cutoff 0.4
-
-Artefacts land in ``output/ranking/<model>/`` (gitignored): ``cluster_ranking.csv``
-(primary), ``predictor_ranking.csv``, ``cluster_cutoff_sensitivity.csv``,
-``ranking_excluding_same_skill.csv`` (outcomes with a
-sibling), ``ranking_meta.json``, ``distance_corr_dendrogram.png`` and
-``shap_summary.png`` (beeswarm). The downstream consumer of this ranking is
-``scripts/predictability_readout.py --from-ranking``.
-"""
+    python scripts/rank_predictors.py --model lrp-rli-gbl-006
+    python scripts/rank_predictors.py --model lrp-rli-gbg-012 --quick"""
 
 from __future__ import annotations
 
@@ -115,19 +91,11 @@ def _fmt(x, spec: str = "{:.3f}") -> str:
 
 # ── config construction ────────────────────────────────────────────────────────
 def make_config(model_id: str, *, kind: str):
-    """Return an ad-hoc ``ModelConfig``.
+    """Copy the registered predictor set into a temporary model configuration.
 
-    kind="full"    -> the registered model's own predictor set (no pruning)
-    kind="noskill" -> that set, minus curated same-skill siblings
-
-    The registered ``ModelConfig.predictor_vars`` is the source of truth: it was
-    resolved by ``ModelDefinition._build_predictors`` honouring the model's own
-    ``exclude`` / ``include`` (and target removal). We MUST reuse it rather than
-    rebuild from the raw ``DEFAULT_*`` pool — the raw pool discards each model's
-    ``exclude`` list and so reintroduces target leakage (e.g. LRP-RLI-GBL-001 targets
-    ``b1retau`` and excludes ``b1reto = b1retau + b1rent``, an exact superset of
-    the target). The target itself is already absent from the registered set.
-    """
+    ``kind="noskill"`` also removes curated same-skill siblings. Do not rebuild from
+    ``DEFAULT_*`` because that would lose model-specific exclusions, including
+    variables that contain the target score."""
     base = MODELS[model_id]
     target = base.target_var
     siblings = SAME_SKILL_SIBLINGS.get(target, [])
@@ -198,17 +166,11 @@ def run_stages(cfg, run, *, cluster_cutoff=0.4, do_cluster=True, do_shap=True, d
 
 # ── cluster-level (grouped) permutation importance ─────────────────────────────
 def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
-    """Joint/grouped pooled out-of-fold permutation importance, one block per cluster.
+    """Compute grouped permutation importance with pooled out-of-fold RMSE.
 
-    Thin wrapper over :func:`_pooled_perm_deltas`
-    (``language_reading_predictors.models.permutation.pooled_permutation_deltas``,
-    the pure, unit-tested core) that pulls the per-fold estimators, held-out
-    indices, design matrix and subject groups off the pipeline. Per repeat, one
-    subject-block permutation over ALL rows permutes the whole cluster jointly,
-    and the delta is the rise in the pooled out-of-fold RMSE — so
-    child-constant predictors are genuinely permuted rather than mechanically
-    zeroed under the near-leave-one-subject-out folds (#631 finding 1).
-    """
+    Use one child-block permutation across all rows for each repeat and apply it
+    jointly to each cluster. This lets child-constant predictors change even when a
+    test fold contains only one child."""
     ctx = pipe.context
     cfg = ctx.config
     cv = ctx.cv_results

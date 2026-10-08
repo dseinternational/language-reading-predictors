@@ -12,12 +12,12 @@ group nuisance term - "at wave t, among children alike on age and the other skil
 +n letter sounds is associated with +m words read".
 
 **Estimand and its limits.** Every coefficient is an *adjusted association*, never a
-causal effect. The family exists precisely to describe the conditional joint
-distribution of the skill levels at each wave; conditioning on contemporaneous
+causal effect. The family exists precisely to describe conditional
+associations among the skill levels at each wave; conditioning on contemporaneous
 (post-treatment) skill levels is therefore intentional and licensed here, unlike in
 the level-factors family, which excludes cross-skill terms to protect the causal
-reading of its group x time contrast. All children are on the intervention from t2,
-so these are associations *within a treated system*.
+reading of its group x time contrast. After the t2 assessment both arms receive intervention; treatment histories
+still differ across arms and waves.
 
 Read with three standing caveats (in the report): (1) the Table-2 fallacy - each
 mutually-adjusted coefficient answers a *different* conditional question, and the set
@@ -32,7 +32,7 @@ sensitivity-to-conditioning comparison, not a decomposition of shared variance.
 
 Design decisions (issue #312, recommendations adopted): four separate
 cross-sectional fits reported side by side (not one stacked model with a child random
-intercept, which would tilt the coefficients toward a within-child quantity); group
+intercept, which would combine within-child and between-child information); group
 included only as a non-interpretable nuisance term to absorb arm composition;
 predictors entered as standardised same-wave logits; floored measures (P, N) excluded
 as predictors. Word reading is the focal outcome for this first model; letter sounds,

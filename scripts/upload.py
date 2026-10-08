@@ -31,14 +31,9 @@ _console = Console()
 
 
 def _subdirs(root: Path) -> list[Path]:
-    """Published fit directories, excluding in-flight output transactions.
+    """List output directories, excluding hidden transactions and backup copies.
 
-    ``StatisticalFitContext.reset_output_dir`` stages each run in a *hidden* sibling
-    (``.<id>-<config>.staging-XXXX``) and promotes it only on success, so a dotted
-    directory is either a run in progress or an abandoned one. Uploading one would
-    publish the half-written artefacts of a fit that was never accepted, under a
-    label no report or comparison refers to.
-    """
+    Hidden staging directories may contain incomplete fits and must not be uploaded."""
     if not root.is_dir():
         return []
     return sorted(

@@ -21,8 +21,7 @@ from language_reading_predictors.statistical_models.posteriors import (
 #: (#586 finding 1). ``_KNEE_MIN_INCREASING`` is the pre-existing net-rise share;
 #: ``_KNEE_MIN_CURVATURE`` is the shared evidence ladder's "moderate" rung (10:1
 #: odds, ``dse_research_utils.statistics.evidence``), applied to the local slope
-#: contrast so a straight line — which sits near 0.5 whatever its net rise — can
-#: never qualify.
+#: contrast to require evidence of a bend, beyond evidence of a net rise.
 _KNEE_MIN_INCREASING: float = 0.9
 
 
@@ -69,11 +68,10 @@ def _readiness_knee(
 
     - ``increasing_frac`` > ``_KNEE_MIN_INCREASING`` — the curve rises at all;
     - ``not boundary_pinned`` — the modal steepest interval is interior, so the
-      location is identified rather than censored by the end of the observed range;
+      location is not pinned to the end of the observed range;
     - ``prob_slope_above_gt_below`` >= ``_KNEE_MIN_CURVATURE`` — the mean slope above
-      the located interval genuinely exceeds the mean slope below it. For a straight
-      line this probability sits near 0.5 whatever ``increasing_frac`` says, which is
-      what separates a bend from a constant rise.
+      the located interval exceeds the mean slope below it. A positive net rise
+      alone does not establish such a bend.
 
     ``steepest_interval_share`` is the share of increasing draws whose ``argmax``
     falls in the modal interval — selection stability, low when the intervals are
@@ -178,9 +176,8 @@ def _readiness_knee(
     else:
         modal_interval, interval_share, boundary_pinned = -1, float("nan"), True
 
-    # Local slope contrast: does the curve genuinely bend? For a straight line the
-    # above/below means coincide and this sits near 0.5 however strongly the curve
-    # rises, which is precisely the case ``increasing_frac`` cannot detect.
+    # Check evidence for a larger slope above the location. A constant positive
+    # slope passes the net-rise check but has no curvature contrast.
     contrast = slope_above - slope_below
     contrast = contrast[np.isfinite(contrast) & increasing]
     prob_curvature = float(np.mean(contrast > 0)) if contrast.size else float("nan")
@@ -255,7 +252,7 @@ def readiness_threshold(
     A located interval is **not** by itself a threshold. ``knee_well_defined``
     combines the net-rise share with a boundary check (an ``argmax`` on the first or
     last interval is censored by the end of the observed range) and a local
-    slope-contrast probability (near 0.5 for a straight line). Read
+    slope-contrast probability. Read
     ``increasing_frac``, ``boundary_pinned``, ``steepest_interval_share`` and
     ``prob_slope_above_gt_below`` alongside the location; only call it a knee when
     ``knee_well_defined`` is true.

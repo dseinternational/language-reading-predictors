@@ -1,23 +1,11 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Which typed settings class each model family declares (#637 stage 2).
+"""Validate registered models' typed family settings.
 
-The typed-settings migration is complete: every registered ``SPEC`` declares its
-family's settings dataclass through :attr:`ModelSpec.model_settings`, and none
-carries a scientific key in ``ModelSpec.extra``. This module is what keeps it that
-way — one map from ``ModelSpec.kind`` to the class that kind requires, and one
-validator over the whole registry.
-
-The map is deliberately narrow. It answers "which settings class does this family
-take", not "how is this family fitted": the family entry points live in
-``pipelines/``, the resolvers in each family module, and the ``FamilyDescriptor``
-that #637 stage 4 proposes would draw those together. Keeping this to settings
-means the registry check below cannot be blocked on that larger design.
-
-``extra`` is not retired. The ``from_legacy_extra`` adapters remain, because a
-stored ``config.json`` written before its family migrated records its declaration
-that way and must stay readable; they simply have no registered caller.
+Each ``SPEC`` must declare an instance of its family's settings dataclass and
+leave ``extra`` empty. Legacy ``from_legacy_extra`` adapters remain for archived
+configurations. ``family_registry`` also describes resolvers and pipelines.
 """
 
 from __future__ import annotations
@@ -133,18 +121,7 @@ def settings_class_for(kind: str) -> type:
 
 
 def registered_settings_failures(spec: ModelSpec) -> list[str]:
-    """Why ``spec`` does not meet the typed-settings contract; empty if it does.
-
-    Three requirements, each of which a registered model failed before this stage:
-
-    1. ``model_settings`` is declared. 108 specs across six families declared
-       their settings as a free-form ``extra`` dict instead.
-    2. It is an instance of the family's settings class — not a dataclass from a
-       neighbouring family, and not the class object itself.
-    3. ``extra`` is empty. It held ``target_accept`` on 18 typed specs, which is
-       a sampler knob rather than a scientific setting and now has its own
-       first-class :attr:`ModelSpec.target_accept` field.
-    """
+    """Return failures of the settings-instance and empty-``extra`` requirements."""
 
     failures: list[str] = []
     try:

@@ -25,8 +25,8 @@ prior alone.
 
 Same reading rules as LRPBX03: block 2 has no t1 baseline and no randomised
 contrast, so ``delta`` is an **adjusted association** whichever prior it takes;
-the not-taught comparators are expected near zero, and a null here is the
-design behaving, not a power failure.
+a near-zero result is consistent with specificity, but cannot by itself
+distinguish specificity from limited precision.
 """
 
 from language_reading_predictors.data_variables import Variables as V

@@ -237,10 +237,9 @@ if tau_summary is not None:
             "\n\n_Items-scale figures for this outcome are approximate — the test "
             "ceiling (`n_trials`) is unconfirmed._"
         )
-    # Monte-Carlo precision of the DERIVED probability-scale AME. The convergence
-    # gate scans the model parameters; this reports the sampling precision of the
-    # post-processed estimand itself (guarded — appears once the fit carries the
-    # columns). Bulk-ESS governs the median; Tail-ESS the 89% interval limits.
+    # Report ESS for the derived probability-scale AME as well as model parameters.
+    # Bulk and tail ESS summarise sampling efficiency; neither directly gives the
+    # Monte Carlo error of the median or these particular interval endpoints.
     if "tau_prob_ess_tail" in tau_summary.columns and np.isfinite(
         _t.get("tau_prob_ess_tail", float("nan"))
     ):

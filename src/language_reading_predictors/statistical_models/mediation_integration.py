@@ -59,22 +59,17 @@ def normal_cells(
     *,
     ci_prob: float = REPORTING_CI_PROB,
 ) -> np.ndarray:
-    """Adapt quadrature until every draw's averaged counterfactual cell agrees.
+    """Refine quadrature until cells or reported effect summaries stabilise.
 
-    The comparison measures numerical integration error independently of posterior
-    sampling. It is a convergence check, not a mathematical error bound. A failed
+    The comparison checks stability across integration resolutions independently
+    of posterior sampling. It is not a mathematical error bound. A failed
     check stops the decomposition rather than publishing unqualified intervals.
     Effect quantiles must change by no more than 0.1% of the reported interval's
     half-width (with a floating-point floor), and P(effect > 0) by at most 0.001.
 
-    Those two criteria decide it, because they are the published quantities.
-    :data:`NORMAL_INTEGRATION_TOLERANCE` is a *sufficient* fast path, not a third
-    requirement: it is an absolute bound taken as a maximum over every draw, so
-    requiring it as well let one tail draw with a large mediator slope x residual
-    SD veto an otherwise converged integral and abort a completed fit (2026-09-05
-    review; ``expit`` has poles at pi / (slope * sigma), so the Gauss-Hermite rate
-    degrades with that product while the reported intervals have long stopped
-    moving).
+    A maximum cell change below :data:`NORMAL_INTEGRATION_TOLERANCE` is an
+    alternative sufficient check. It is not required when both reported-summary
+    criteria pass; a few tail draws can converge more slowly than those summaries.
     """
     previous = None
     for order in NORMAL_INTEGRATION_ORDERS:

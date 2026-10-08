@@ -1,46 +1,24 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""
-Predictability readout for a fitted gain model.
+"""Summarise cross-validation performance and predictor direction for a gain model.
 
-Turns a model's existing cross-validation artifacts into a plain answer to
-"how predictable is the outcome, and from what" — *without* fitting a new
-model. For each model id it:
+Read the saved metrics, out-of-fold predictions, permutation importance and SHAP
+direction tables. Refit grouped cross-validation models to check the mean
+baseline and compare the full predictor set with a set without period-related
+predictors. A ranking CSV can supply a different predictor set.
 
-1. Reads ``metrics.json`` for the headline out-of-sample skill. The key
-   number is ``cv_pooled_r2`` — the pooled out-of-fold
-   :math:`1 - \\mathrm{SS_{res}}/\\mathrm{SS_{tot}}` where ``SS_tot`` uses
-   each fold's *training mean*. That is exactly the skill over a
-   predict-the-mean baseline, i.e. the fraction of individual variation
-   explained out of sample.
-2. Runs an explicit ``DummyRegressor(strategy="mean")`` through the same
-   ``GroupKFold`` splits as a transparency cross-check. By construction the
-   dummy's pooled R² is ≈ 0; its pooled RMSE is the denominator the model's
-   skill is measured against. This makes the "vs predict-the-mean" baseline
-   visible as its own row rather than implied.
-3. Reads ``oof_predictions.csv`` and writes ``calibration.png`` —
-   CV-predicted gain (x) versus observed gain (y) with the y=x line — so
-   over/under-prediction across the range is visible.
-4. Reads ``permutation_importance.csv`` and ``shap_direction_diagnostics.csv``
-   and prints a top-predictor table that pairs *how much* a predictor
-   contributes (permutation importance) with *which direction* it runs and
-   *how consistently* (SHAP-feature Spearman sign + monotonicity flag), per
-   the project's interpretation rule (see CLAUDE.md, "Interpreting model
-   results").
+Pooled R-squared is the proportional reduction in squared prediction error
+against each fold's training-mean prediction. It is not a causal measure of
+explained variation. These scores use internal cross-validation; predictor or
+hyperparameter choices made using the same data can affect their interpretation.
 
-Artifacts are written back into ``output/models/{model_id}/``:
-``calibration.png`` and ``predictability_readout.json`` (machine-readable
-summary), plus a markdown block printed to stdout for pasting into notes.
+Write ``calibration.png`` and ``predictability_readout.json`` beside the fit and
+print a Markdown readout. The original fitted model is not replaced.
 
-Usage
------
+Run::
 
-::
-
-    python scripts/predictability_readout.py
-    python scripts/predictability_readout.py lrp-rli-gbg-012 --top-n 6
-"""
+    python scripts/predictability_readout.py lrp-rli-gbg-012 --top-n 6"""
 
 from __future__ import annotations
 
@@ -167,17 +145,12 @@ def _dummy_baseline(model_id: str, cv_splits: int) -> dict[str, float]:
 
 
 def _oof_skill(out_dir: Path, predictors: list[str]) -> dict[str, float]:
-    """Out-of-fold pooled skill of the *fitted model* on a given predictor set.
+    """Refit grouped cross-validation models with the requested predictors.
 
-    Re-runs the same ``GroupKFold`` machinery as ``base_pipeline`` (same
-    splits, target, hyperparameters, seed and outlier threshold read from
-    the saved ``config.json``) but on an arbitrary ``predictors`` list. With
-    the model's full predictor set it reproduces ``metrics.json``'s
-    ``cv_pooled_r2``; with a reduced set (e.g. concurrent features dropped)
-    it gives that set's honest out-of-sample skill — without touching the
-    registered model. The mean-baseline RMSE (per-fold training mean = a
-    ``DummyRegressor(strategy="mean")``) is the denominator of the reduction.
-    """
+    Use the saved target, parameters, seed and row-filter settings. A reduced set
+    measures predictive performance under those same choices, without replacing the
+    registered fit. Internal cross-validation does not account for model selection
+    on the same data."""
     from lightgbm import LGBMRegressor
 
     cfg = json.loads((out_dir / "config.json").read_text())
@@ -245,8 +218,8 @@ def _calibration_plot(model_id: str, out_dir: Path, pooled_r2: float | None) -> 
     ax.plot(lims, lims, color="black", linestyle="--", linewidth=1, label="y = x (perfect)")
     ax.scatter(y_pred, y_true, s=28, alpha=0.7, edgecolor="C0", facecolor="none")
 
-    # Least-squares trend of observed on predicted — a flatter-than-y=x slope
-    # is the regression-to-the-mean shrinkage typical of a low-signal target.
+    # A slope below one indicates that prediction differences are too large
+    # relative to observed differences in this sample. It does not identify why.
     if np.ptp(y_pred) > 0:
         slope, intercept = np.polyfit(y_pred, y_true, 1)
         xs = np.array(lims)

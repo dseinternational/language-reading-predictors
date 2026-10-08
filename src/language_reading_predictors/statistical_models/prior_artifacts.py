@@ -72,8 +72,7 @@ def growth_contrast_pushforward_rows(
                 reason=str(exc),
             )
         ]
-    # Narrow by design (#637 stage 1): past the availability check a failure in
-    # ``growth_summary`` is a defect in the summary, not absent prior evidence.
+    # Catch only absent prior evidence; summary errors must fail the run.
     prior_growth = _hist.growth_summary(source, panel, measure, fitted_var=fitted_var, group="prior")
     contrasts = prior_growth[prior_growth["quantity"].astype(str).str.startswith("total_growth")]
     rows: list[dict[str, object]] = []
@@ -103,13 +102,10 @@ def growth_contrast_pushforward_rows(
 
 
 def write_indicator_prior_check(ctx: StatisticalFitContext, nodes: Sequence[str]) -> None:
-    """Write ``indicator_prior_check.csv`` for a measurement family (#381).
+    """Write a measurement family's check on the standardised indicator scale.
 
-    The CFA families have no outcome-scale estimand to push a prior through —
-    they report loadings, communalities and factor correlations — so #381 asks
-    them for this instead, on the scale they do observe: the standardised
-    indicator matrix. Without it these families were exempt from the coverage
-    guarantee by construction rather than by argument.
+    Measurement families report loadings and correlations rather than an
+    outcome-scale contrast, so this check uses their observed indicators.
     """
     try:
         df = _predictive.indicator_prior_check(ctx.trace, nodes=list(nodes), ci_prob=ctx.reporting.ci_prob)
@@ -225,13 +221,7 @@ def at_mean_pushforward_rows(
 
 
 def write_prior_pushforward(ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]) -> None:
-    """Write ``prior_pushforward.csv`` — including when the check is unavailable (#381).
-
-    The meta-finding behind #381 is that a *missing* artefact reads as a clean
-    one: a family that never emitted the estimand-scale prior check looked, in the
-    rendered report, exactly like one whose prior was checked and found harmless.
-    So every family that reaches this point writes the file, and a row whose
-    ``status`` is ``unavailable`` carries the reason instead of being dropped.
+    """Write prior checks, retaining unavailable rows and their reasons.
     """
     df = pd.DataFrame(list(rows))
     save_table(ctx, "prior_pushforward", df)
@@ -269,13 +259,7 @@ def horseshoe_pushforward_rows(
 
 
 def pushforward_outcome_label(ctx: StatisticalFitContext, outcome: str) -> str:
-    """Reader-facing name for the pushforward's outcome, falling back to the symbol.
-
-    The rows are read by a science reader, not by whoever picked the symbols, so
-    ``W`` and ``basread`` should render as their measure labels. The study's own
-    measure table is the source: RLI symbols resolve through ``measures.MEASURES``
-    and the Byrne-cohort ones through their dataset's table, so neither study's
-    labels are hard-coded here.
+    """Resolve an outcome label from its study's table, or fall back to its symbol.
     """
     from language_reading_predictors.statistical_models import datasets as _datasets
     from language_reading_predictors.statistical_models.measures import MEASURES

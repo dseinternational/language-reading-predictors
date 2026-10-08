@@ -14,8 +14,8 @@ answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial
 inverse-logit mean does not know that, and the ca-007 posterior uses the room it
 leaves: 4 of its 54 primary-wave rows have posterior-mean expected proportions below
 one third and 9.7 % of the row-by-draw posterior mass sits below chance. This
-companion constrains the mean to ``1/3 + 2/3 * expit(eta)``, so the model cannot
-predict below-chance performance.
+companion constrains the mean to ``1/3 + 2/3 * expit(eta)``, so the expected score proportion is at least one third. Individual observed or
+predicted counts can still fall below that mean floor.
 
 **Nothing about the causal labelling changes**, and that is exactly why the pairing
 still binds. Every coefficient here is an *adjusted association*, never a causal

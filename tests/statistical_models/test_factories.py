@@ -3,9 +3,10 @@
 
 """Smoke tests for the model factories on synthetic data.
 
-These tests only check that each factory *builds* and can draw a small prior
-predictive sample. Full posterior-sampling correctness is validated by the
-end-to-end fits in ``scripts/fit_statistical_model.py``.
+These tests check model construction, prior-predictive draws and selected
+identities of the fitted design and summaries. The marked sampling tests also
+check recovery on synthetic data; successful fits do not establish correctness
+for every model or dataset.
 """
 
 from __future__ import annotations
@@ -2151,7 +2152,7 @@ def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
 
 
 def test_did_factory_varying_crossover_is_waitlist_t3_only(tmp_path):
-    """DID-013 varies catch-up only across waitlist children at t3."""
+    """DID-013 adds a child-specific t3 deviation for waitlist children only."""
     p = _write_synthetic(tmp_path, n_children=20)
     prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(prep, outcome_symbol="W", use_varying_delta=True)
@@ -3331,13 +3332,13 @@ def _itt_kappa_draws(family: str, sigma: float | None, *, draws: int = 200_000):
     ],
 )
 def test_only_the_dispersion_scale_prior_reaches_the_near_binomial_limit(family, sigma, reaches_near_binomial):
-    """The registered prior enforces a floor on over-dispersion.
+    """Concentration priors put negligible mass near the Binomial limit.
 
     Beta-Binomial variance is ``(n + kappa) / (1 + kappa)`` times Binomial, so at
-    ``n_trials = 170`` coming within 10% of Binomial needs ``kappa > 1689``. A
-    HalfNormal on the concentration gives that effectively no mass — and neither
-    does the widest cell of the registered ``kappa_sigma`` sweep, which is why
-    that sweep cannot test the hypothesis (2026-08-22 ITT audit, finding 5).
+    ``n_trials = 170`` a multiplier no larger than 1.1 needs ``kappa >= 1689``.
+    The registered HalfNormal concentration prior and its widest sweep cell
+    strongly favour extra variation but impose no strict lower bound on it.
+    The dispersion-scale alternative gives appreciable mass near that limit.
     """
     import numpy as np
 

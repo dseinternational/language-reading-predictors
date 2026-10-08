@@ -1,37 +1,20 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Cross-model comparison report for the statistical models.
+"""Compare stored statistical fits and write tables and figures.
 
-Run after the models have been fitted (``python
-scripts/fit_statistical_model.py all``). Produces, under
-``output/statistical_models/comparison/``:
+Outputs go to ``output/statistical_models/comparison/``. The comparisons cover
+assigned-arm contrasts, adjusted mechanism associations, predictive performance
+and mediation decompositions. They describe sensitivity to model choices within
+the same study, not independent replication or a pooled treatment estimate.
 
-- ``itt_vs_joint_tau.csv`` — per-outcome tau from the LRPITT single-outcome
-  fits alongside tau_k from the LRPITT12 joint (consistency check), on the shared
-  ordinary-logit outcomes W, R, E and L. Response-link-sensitive phoneme blending
-  (B) is excluded; read its mandatory LRPITT08/LRPITT08B paired sensitivity instead.
-- ``triangulation_consistency.csv`` — per-outcome cross-*design* consistency of the
-  randomised on-intervention effect on each family's **canonical items-scale AME**
-  (#391 finding 5): the single-outcome available-case modified ITT t2 AME, the waitlist-crossover t2 arm-gap
-  items pushforward and the gain-factor period-1 marginal, with explicit
-  ``scale``/``population`` columns; whether the analyses agree in direction and
-  their intervals overlap. The raw logit coefficients survive only as clearly
-  labelled ``*_logit_*`` appendix columns — the non-collapsible logit makes a
-  conditional-vs-marginal magnitude comparison apples-to-oranges. A consistency
-  check, never a pooled estimate — the analyses share the same trial data (issue #230
-  §6). B is excluded because its mandatory response-link pair is the relevant
-  sensitivity comparison.
-- ``tau_forest.png`` — forest plot of the LRPITT12 joint taus, overlaid with
-  the LRPITT single-outcome taus on those shared outcomes. B is excluded because
-  its conclusion must be assessed across the ordinary-logit and guessing-floor links.
-- ``mechanism_forest.png`` — forest plot of the marginal slope of each
-  mechanism GP (LRP56 R->W, LRP57 E->W, LRP58 L->W). Slopes are computed
-  from each model's actual posterior ``f_mech`` samples on its own
-  ``logit(mech_post)`` grid (not a shared dummy grid).
+The ITT/joint overlay excludes heavily floored outcomes and phoneme blending.
+Read their own off-floor or paired-link reports. Predictive differences require
+matching observations and reliable leave-one-out scores.
 
-Requires ``trace.nc`` and ``tau_summary.csv`` under
-``output/statistical_models/models/{model_id}-{config}/`` for each model.
+Run after fitting the models::
+
+    uv run python scripts/compare_statistical_models.py --config reporting
 """
 
 from __future__ import annotations
@@ -177,10 +160,8 @@ DID_DOSE_LOO_IDS: list[str] = ["lrp-rli-did-007", "lrp-rli-did-107"]
 # identical observed cells and likelihood.
 LCSM_REVERSE_LOO_IDS: list[str] = ["lrp-rli-lcsm-081", "lrp-rli-lcsm-181"]
 
-# Mediation family (#84 + the 2026-07 expansion): every g-formula route to word
-# reading, compared on the shared response (words-out-of-test-length) scale. The
-# mediation fits carry no PSIS-LOO (the g-formula is not a pointwise-likelihood
-# model), so this is a decomposition-summary comparison, not a nested-LOO test.
+# Compare mediation decompositions on the word-score scale. These fits do not
+# publish PSIS-LOO, so this table does not compare predictive performance.
 # ``(model_id, human label, indirect-effect row)`` — the row is the model's
 # headline indirect effect (NIE for single mediators, NIE_joint for the two-mediator
 # blocks, IIE for the interventional analogue).
@@ -298,12 +279,8 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
 # Cross-design triangulation (#230 §6)
 # ---------------------------------------------------------------------------
 
-# Per shared graded outcome, the three analyses on the same logit scale:
-# single-outcome available-case modified ITT tau, waitlist-crossover randomised t2 arm contrast, and gain-factor
-# on-intervention beta_trt. These are not statistically independent designs: they
-# reuse the same trial data, and the DiD additionally imposes crossover/history
-# assumptions. The registry-derived catalogue avoids silently omitting newly completed
-# suites (the previous hand-written list missed TR, TE and F).
+# Compare canonical score-scale contrasts for shared graded outcomes. The
+# designs reuse trial data, so they are sensitivity checks rather than replications.
 _TRIANGULATION_OUTCOME_ORDER: tuple[str, ...] = (
     "W",
     "R",
@@ -453,16 +430,11 @@ def _did_effect(model_id: str, config: str) -> dict | None:
 
 
 def _gain_factor_effect(model_id: str, config: str) -> dict | None:
-    """Gain-factor canonical estimand from ``treatment_marginal.csv``, or None.
+    """Read the period-1 score-scale contrast from ``treatment_marginal.csv``.
 
-    #391 finding 5: the triangulation consumes the same canonical artefact the
-    model report headlines — the **period-1 items-scale average marginal
-    effect** (``trt_items_*``; since the finding 3 respecification the headline
-    is interaction-free, so its direction coincides with ``beta_trt``
-    draw-by-draw) — never the raw conditional coefficient. ``beta_trt`` from
-    ``factor_summary.csv`` is retained only as the appendix block; an old
-    artefact with no ``treatment_marginal.csv`` is logit-only and cannot enter
-    the AME-scale verdict.
+    The registered headline models have no treatment interactions, so each draw's
+    contrast has the sign of ``beta_trt``. Keep the conditional coefficient as an
+    appendix field. Legacy fits without a marginal table supply logit fields only.
     """
     run_dir = _run_dir(model_id, config)
     out: dict = {
@@ -505,51 +477,26 @@ _TRIANGULATION_DESIGNS: tuple[tuple[str, str], ...] = (
 
 
 def build_triangulation(config: str) -> pd.DataFrame | None:
-    """Per-outcome cross-design consistency of the randomised on-intervention effect.
+    """Compare each outcome's assigned-arm contrasts in score units.
 
-    #391 finding 5 (decision 2026-07-22): the triangulation consumes each
-    family's **canonical items-scale average marginal effect over its randomised
-    comparison** — the single-outcome available-case modified ITT t2 AME
-    (``tau_prob_* x n_items``), the
-    crossover model's t2 arm-gap items pushforward (``tau_t2_items_*``) and the
-    gain-factor period-1 marginal (``trt_items_*`` from
-    ``treatment_marginal.csv``) — with explicit ``{design}_scale`` and
-    ``{design}_population`` columns, and reports whether they **agree in
-    direction** (all favour the same side of zero) and whether their credible
-    intervals **mutually overlap**. ``consistent`` is true when both hold. The
-    verdict is computed over the *converged* designs (``diagnostics_summary.json``
-    gate PASS) that carry an items-scale estimate; it is left blank (``pd.NA``)
-    when fewer than two such designs are available.
+    Uses the ITT t2 average marginal effect (``tau_prob_* * n_items``), the crossover
+    model's t2 gap (``tau_t2_items_*``), and the gain-factor period-1 contrast
+    (``trt_items_*``). Only convergence-passing, score-scale summaries enter the
+    direction and interval-overlap verdict. With fewer than two, the verdict is
+    ``pd.NA``. Returns ``None`` if no outcome has two design summaries.
 
-    The raw logit coefficients survive only as the clearly-labelled
-    ``{design}_logit_*`` **appendix columns**, because the logit link is
-    **non-collapsible**: a more-adjusted conditional log-odds effect (the
-    gain-factor coefficient, with its child intercept, baseline, ability, skill
-    and confounder conditioning) is systematically larger in magnitude than the
-    marginal available-case modified ITT ``tau`` even under an identical truth, so a logit-scale
-    magnitude comparison across these designs is apples-to-oranges no matter
-    which gain-factor column it reads. The marginal items quantities remove that
-    artefact; what remains is a *population* difference (the available-case modified ITT and crossover
-    marginals average over t2 level rows, the gain-factor marginal over
-    period-1 transition rows), which the population columns state and which is
-    why the flags are still read qualitatively.
+    Logit coefficients remain as labelled appendix columns. They condition on
+    different covariates and need not be comparable across designs. Score units give
+    the contrasts a common scale, but fitted populations and model assumptions can
+    still differ; each row records its scale and population.
 
-    This is a **consistency check, not a pooled estimate**: the three analyses share
-    the same trial data, so their effects must never be averaged into one headline —
-    the value is in whether distinct model specifications triangulate on the same story
-    (issue #230 §6). Returns ``None`` if no outcome has at least two design summaries.
+    The analyses share trial data. Their agreement is a sensitivity check, not
+    independent evidence. Phoneme blending is excluded because its required
+    ordinary-logit/guessing-floor comparison is reported separately.
 
-    B is excluded even though all three ordinary-logit fits exist: the
-    phoneme-blending conclusion must first be read across the registered
-    LRPITT08/LRPITT08B response-link pair. ``response_link_scope`` records this
-    conservative scope in every emitted row.
-
-    Direction remains a coarse sign check at the 0.5 boundary (#295 review): two
-    essentially-null designs with opposite-sign medians (``prob_pos`` e.g. 0.55
-    and 0.45) are marked ``direction_agree = False`` even though neither shows a
-    real signal; a ``direction_agree = False`` with wide, overlapping intervals
-    is a null-result artefact, not a contradiction. (``prob_pos == 0.5`` exactly
-    is treated as agreeing with either side, which is harmless.)
+    Direction agreement uses the 0.5 probability boundary, with an exact 0.5 treated
+    as agreeing with either side. Opposite directions near that boundary can occur
+    with little posterior support and wide, overlapping intervals.
     """
     rows: list[dict] = []
     for outcome, itt_id, did_id, gf_id in TRIANGULATION_OUTCOMES:
@@ -754,27 +701,15 @@ def _logit_from_count(count: float, n_trials: int) -> float:
 
 
 def _mechanism_interval_slope(trace: xr.DataTree, mech_logit: np.ndarray, n_trials: int) -> tuple[np.ndarray, str]:
-    """Posterior draws of the declared-interval slope, per SD of the exposure logit.
+    """Return slope draws over the declared exposure interval, per logit SD.
 
-    **Estimand.** The secant slope of the fitted exposure term across the family's
-    **declared headline interval** — the interquartile range of the fitted exposure
-    (#602) — expressed per 1 SD of the exposure logit::
+    For a curve, the secant is::
 
-        slope = [f(x_hi) - f(x_lo)] * sd(mech_logit) / [ell(x_hi) - ell(x_lo)]
+        [f(x_hi) - f(x_lo)] * sd(mech_logit) / [ell(x_hi) - ell(x_lo)]
 
-    For a linear fit this is *exactly* ``beta_mech``, which is what makes the two
-    shapes commensurable on one axis. For a curve fit it is the rise across the same
-    interval the report's headline contrast uses, so the forest and the per-model
-    headline describe one relation on two scales rather than two different
-    quantities over two different intervals.
-
-    Before #602 the curve models contributed a fitted-row average derivative over
-    the *whole* observed range instead. That is a defensible statistic, but it is
-    not the declared interval, and the observed extremes are order statistics of a
-    156-row sample sitting exactly where an HSGP curve is least constrained — so it
-    is retained as a labelled secondary column, never as the plotted quantity.
-
-    Input arrays must be aligned (one row of ``f_mech`` per ``mech_logit`` entry).
+    ``x_lo`` and ``x_hi`` are rounded count quantiles at ``MECH_REF_QUANTILES``.
+    ``ell`` is the Haldane-corrected count logit. For a linear fit this quantity is
+    ``beta_mech``. Arrays must align one ``f_mech`` row with each exposure value.
     """
     counts = _counts_from_logit(mech_logit, n_trials)
     x_lo = float(round(float(np.quantile(counts, MECH_REF_QUANTILES[0]))))
@@ -834,25 +769,13 @@ def _mechanism_row_average_slope(trace: xr.DataTree, mech_logit: np.ndarray) -> 
 
 
 def mechanism_forest(config: str, out_path: str) -> bool:
-    """Compare the mechanism slopes of the R/E/L -> W models on one scale.
+    """Plot R/E/L -> W association slopes per SD of each exposure logit.
 
-    Reported **per SD of the mechanism logit**, which is what makes the three
-    comparable and is the linear models' native unit.
-
-    The family is mixed by design: ``mech-058`` (L) keeps its HSGP curve, while
-    ``mech-056`` (R) and ``mech-057`` (E) were switched to a linear mechanism in the
-    #258 review because the nonparametric curve would not converge for them. Their
-    slope is the ``beta_mech`` coefficient, which multiplies the *standardised*
-    mechanism logit and is therefore already per SD.
-
-    A curve model has no single slope, so its comparable quantity is the secant
-    across the family's **declared headline interval** — the interquartile range of
-    the fitted exposure (#602) — divided by that interval's width in SDs of the
-    exposure logit. For a linear fit that construction returns ``beta_mech``
-    exactly, which is what makes the two shapes commensurable, and it puts the
-    forest on the same interval as every per-model headline instead of a second,
-    undeclared one. The fitted-row average derivative over the whole observed range,
-    which the forest plotted until #602, is kept as a labelled secondary column.
+    Linear fits use ``beta_mech``. Curve fits use the secant across the declared
+    interquartile exposure interval, divided by its width in SD units. The fitted-row
+    average derivative over the whole observed range remains a secondary CSV field.
+    Each exposure has its own fitted SD, so equal slopes need not imply equal changes
+    in outcome items or equal effects of a raw-score increment.
     """
     labels: list[str] = []
     shapes: list[str] = []
@@ -864,12 +787,7 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     row_avgs: list[float] = []
 
     for model_id, sym in MECH_IDS:
-        # Fail closed on the convergence gate, like every other comparison in this
-        # script. This forest loaded whatever trace it found and wrote no gate
-        # column, so a REVIEW fit would have entered it unmarked — against the rule
-        # ``_gate_status`` states in terms (#586 finding 6). The stored mech-056/057/
-        # 058 traces all pass, so no published forest was wrong; the implementation
-        # was simply fail-open.
+        # This forest requires a clean convergence pass for every included fit.
         gate = _gate_status(model_id, config)
         if gate != "PASS":
             print(
@@ -883,18 +801,8 @@ def mechanism_forest(config: str, out_path: str) -> bool:
             return False
         trace = az.from_netcdf(nc)
 
-        # Read the mechanism logit vector the fit actually used, from the trace's
-        # ``constant_data``, rather than rebuilding it from the prepared frame.
-        #
-        # The former reconstruction filtered on outcome + mechanism missingness only,
-        # but the mechanism factory ALSO drops rows with a missing *confounder*
-        # post-score (mech-057 adjusts for R; mech-058 for E and R). For mech-058 that
-        # produced 157 rows against the trace's 156, the guard skipped it, and the
-        # whole forest was then abandoned as incomplete — so ``mechanism_forest.png``
-        # and its CSV were silently never written. The persisted vector removes both
-        # the mismatch and the residual risk of a length that matches by luck while
-        # the rows differ. Verified 2026-08-05: identical to the old reconstruction
-        # for mech-056 and mech-057, and the correct 156 rows for mech-058.
+        # Use the persisted exposure vector. Rebuilding it could select different
+        # rows because the factory also requires observed confounders.
         if "mech_post_logit" not in getattr(trace, "constant_data", {}):
             print(
                 f"[warn] {model_id}: no mech_post_logit in constant_data; DROPPING "
@@ -1138,36 +1046,23 @@ def _tier1_delta_row(
 
 
 def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
-    """Write the 1A contrast CSV and the 1B negative-control forest (PNG + CSV).
+    """Write the decoding-slope contrast and the outcome-specific slope forest.
 
-    1A: Delta = beta(L->N) - beta(L->W), written as **up to two labelled rows**.
+    Contrast 1A is ``beta(L->N) - beta(L->W)``. Separate mech-096/mech-101 fits supply
+    a product-of-marginals sensitivity under working independence. They share
+    children, but their separate fits do not estimate cross-outcome dependence.
+    The jm-002 fit supplies the within-model contrast with its fitted covariance.
+    The CSV's ``identified`` flag distinguishes these posterior constructions; it
+    does not claim causal identification.
 
-    The historical row pairs mech-096 (N) and mech-101 (W), which are fitted
-    *separately*. They share children, so the true cross-outcome posterior covariance
-    is non-zero and unknown; pairing the two independent marginals index-wise convolves
-    them under a **working independence assumption**, making that Delta interval and
-    ``P(Delta > 0)`` a **product-of-marginals sensitivity**, not an identified
-    posterior contrast (PR #359 review). It is flagged ``identified=False``.
+    Both rows record sample and exposure-scale comparability. Different samples or
+    scalers prevent attributing their difference to the dependence specification
+    alone. Matching those fields is necessary, but cannot make the fitted models
+    otherwise equivalent. Keep both rows when available; a joint-only result can
+    still supply contrast 1A.
 
-    The second row is the **identified** contrast from ``jm-002`` (#421 Tier 3 (1)) —
-    the same ANCOVA parameterisation and adjustment set fitted *jointly*, with an LKJ
-    child-intercept covariance — flagged ``identified=True``. It is added rather than
-    substituted: the sensitivity row is the comparator the decoding-specificity note
-    quotes. When no ``jm-002`` run exists for the config, only the sensitivity row is
-    written and a message says so; when only ``jm-002`` exists, the 1A contrast is
-    still written and the 1B forest is skipped.
-
-    Both rows carry a ``comparable`` flag and a reason, and the same verdict is
-    written standalone to ``tier1_1a_comparison_contract.csv`` (fitted rows, children
-    and exposure scaler per source). Same parameterisation is not the same estimand
-    input: ``jm-002`` requires both outcome baselines and standardises the exposure
-    once over that union, while each marginal filters to its own outcome's rows and
-    re-standardises there. Only when the contract holds is the gap between the two
-    rows the cost of the working-independence assumption; otherwise it mixes that with
-    a sample and scale change (2026-08-23 joint-mechanism follow-up review, finding 2).
-    1B: a forest of ``beta_mech`` per outcome, grouped positive-control (written code:
-    W, N) vs negative-control (oral language: R, E, T, F). A non-converged run is
-    *marked*, never silently dropped (METHODS.md).
+    Forest 1B groups written-code outcomes W/N and oral-language comparators R/E/T/F.
+    Non-converged rows are marked. These are adjusted associations.
     """
     # The comparison contract, resolved before any row is written so both the
     # contrast rows and the standalone reconciliation table quote one verdict.
@@ -1217,24 +1112,8 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
         forest_csv = os.path.join(out_dir, "tier1_negative_control_forest.csv")
         df.to_csv(forest_csv, index=False)
 
-    # 1A. Two rows where both are available, never one replacing the other:
-    #
-    #  * the product-of-marginals *sensitivity* from the separate mech-096 / mech-101
-    #    fits (identified=False) — pairing two independent marginals imposes a zero
-    #    cross-outcome covariance the shared-child joint posterior does not have; and
-    #  * the **identified** contrast from the joint bivariate ANCOVA jm-002
-    #    (identified=True), the same parameterisation fitted jointly, whose interval
-    #    carries the covariance the pairing sets to zero.
-    #
-    # Keeping the sensitivity row is deliberate: it is the historical comparator the
-    # decoding-specificity note quotes. What the gap between the two rows means
-    # depends on ``comparable`` above: only when the sources share fitted rows and one
-    # exposure unit is that gap the cost of the working-independence assumption. On
-    # the current fits they do not — the joint model requires both outcome baselines
-    # and standardises the exposure once over that union, while each marginal filters
-    # to its own outcome's rows and re-standardises there — so the gap mixes a
-    # dependence change with a sample and scale change (2026-08-23 follow-up review,
-    # finding 2).
+    # Retain both the working-independence sensitivity and the joint-model contrast.
+    # Their difference can include changes in sample, exposure scale and model fit.
     contrast_rows: list[dict] = []
     if "N" in draws and "W" in draws:
         s = min(draws["N"].shape[0], draws["W"].shape[0])
@@ -1511,14 +1390,8 @@ def _unreliable_pareto_k(model_ids, config: str) -> dict[str, float]:
     return unreliable
 
 
-# Exact-refit repair budget for unreliable PSIS-LOO points (#438). The mechanism
-# family's HSGP pairs carry one or two influential observations out of ~150; a model
-# needing more than a handful of refits is telling us something about its structure,
-# not about importance sampling, so it declines to the per-model table instead.
-#
-# There is deliberately no fixed k threshold here: ``_reloo_repair`` reads each
-# fit's own persisted ``good_k`` (see the comment at its call site), because a
-# hard-coded 0.7 would count a k the fit's own threshold rejects as fine.
+# Limit exact-refit cost; exceeding this budget leaves a per-model table.
+# The repair uses each fit's persisted good_k threshold, not a fixed 0.7.
 _RELOO_MAX_REFITS = 5
 
 
@@ -1658,14 +1531,10 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
 
 
 def _elpd_verdict(elpd_diff: float) -> str:
-    """Label an ``elpd_diff`` by whether it discriminates between the models.
+    """Apply the project's descriptive ``|elpd_diff| < 4`` inconclusive rule.
 
-    Follows the suite's existing ``|elpd_diff| < 4`` rule: below that the models are
-    not distinguished by LOO, and the standard error is itself unreliable in that
-    regime, so the magnitude governs rather than the ratio. The rule and its
-    threshold now live in the shared library as
-    :data:`dse_research_utils.statistics.loo.ELPD_DIFF_INCONCLUSIVE`; the labels
-    are unchanged.
+    The shared helper supplies the threshold and labels. This reporting rule is
+    separate from the checks that decide whether a predictive comparison is valid.
     """
     return shared_loo.elpd_verdict(elpd_diff)
 
@@ -1725,21 +1594,11 @@ def _reloo_repair(traces: dict, config: str, unreliable: dict[str, float]) -> tu
 
 
 def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
-    """Overlay the letter-sound -> word-reading curve with and without ability adjustment.
+    """Overlay letter-sound -> word-reading curves with and without block design.
 
-    ``mech-058`` is the family's headline curve; ``mech-258`` is the same model with the
-    measured general-ability proxy (``blocks``) added and nothing else changed. Plotting
-    them together answers the question the negative-control panel raises — how much of the
-    fitted shape is the measured proxy accounting for? — on the curve itself rather than on
-    the linear anchor, where ``mech-101``/``mech-201`` already answer it.
-
-    The pair must be compared curve-against-curve. Overlaying ``mech-058`` on ``mech-201``
-    would confound the shape assumption with the adjustment, which is why ``mech-258``
-    exists at all.
-
-    Both are adjusted associations under the DAG. Block design is a single noisy subtest,
-    not the latent ability node, so the gap between the curves bounds what the *measured*
-    proxy accounts for and not what general ability does.
+    mech-058 and mech-258 share the curve specification. Their difference describes
+    sensitivity to adjustment for one measured ability subtest. It does not bound
+    confounding by latent general ability. Both curves are adjusted associations.
     """
     pairs = [
         ("lrp-rli-mech-058", "Unadjusted for ability (LRP58)", "#1f6fb4", "-"),
@@ -1953,20 +1812,13 @@ def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
 
 
 def phase_varying_slope_loo_compare(config: str, out_path: str, ids: list[str]) -> bool:
-    """Nested LOO of a partially-pooled per-period exposure slope vs the pooled one.
+    """Compare pooled and period-varying exposure slopes by predictive performance.
 
-    The pair differs by exactly one declared setting (``phase_varying_slope``), so
-    the comparison answers "is the exposure slope stable across the three period
-    transitions?" predictively rather than by eyeballing a forest (#604). Both fits
-    share the same rows and likelihood, which ``_loo_compare`` verifies before
-    differencing.
-
-    An inconclusive result is the expected outcome at this sample size and is a
-    pass, not a failure: with ~52 rows per period the varying-slope model adds two
-    shrunk deviations, and the standing ``|elpd_diff| < 4`` rule will usually
-    decline to separate them. Read it as "LOO does not distinguish these models",
-    and read ``sigma_mech_phase``'s own posterior in the varying fit for the size of
-    the between-period spread.
+    The pair differs in ``phase_varying_slope``. ``_loo_compare`` checks ordered rows
+    and score reliability before reporting a difference. An inconclusive result
+    means LOO does not distinguish the models; read ``sigma_mech_phase`` for the
+    posterior spread of period slopes. Predictive agreement does not prove that the
+    association is constant across periods.
     """
     if not _loo_compare(ids, config, out_path):
         return False
@@ -1997,14 +1849,9 @@ def rw_moderation_loo_compare(config: str, out_path: str) -> bool:
 
 
 def dose_response_loo_compare(config: str, out_path: str) -> bool:
-    """LOO comparison of LRP77 against its pooled-dose comparator (does dose vary by period?).
+    """Compare period-varying and pooled dose slopes for word reading.
 
-    The comparison is copied beside **both** paired runs under the name the dose
-    report partial looks up. Before #587 it was written only to the shared comparison
-    directory, under a third filename (``dose_response_loo_compare.csv``) that the
-    partial never reads, so the formal answer to "does the dose slope vary by period?"
-    was absent from both rendered reports even on a fully successful run — the report
-    printed its "how to read the comparison table" paragraph above nothing at all.
+    Copy the comparison beside both fits under the filename their reports read.
     """
     if not _loo_compare(DOSE_LOO_IDS, config, out_path):
         return False
@@ -2148,13 +1995,9 @@ def mediation_family_forest(df: pd.DataFrame, out_path: str) -> bool:
 
 
 def _report_gate_status(config: str) -> None:
-    """Print a convergence-gate roll-call for every fitted run of this config.
+    """Print each fitted run's convergence status before the comparisons.
 
-    Any REVIEW fit whose tau/slope feeds a comparison below is thereby surfaced
-    (issue #274 item 3): the comparison CSVs carry a per-row ``converged`` flag,
-    and this roll-call names the offenders up front so a non-converged fit's
-    numbers cannot slip into the forests unnoticed. A REVIEW fit "is not
-    interpretable — fix the model, do not report it" (METHODS.md).
+    Comparison rows also record whether their source fits passed convergence.
     """
     models_dir = str(_paths.stat_models_dir())
     suffix = f"-{config}"

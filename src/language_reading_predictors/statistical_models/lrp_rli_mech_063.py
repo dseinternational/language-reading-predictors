@@ -6,8 +6,8 @@ moderated by NONWORD DECODING (N).
 
 Companion to LRP61 (letter sounds x phoneme blending -> word reading) and to the
 vocabulary-moderator family (LRP71/93/94/95), extending the joint-readiness question to
-genuine nonword decoding. The mediation suite shows the word-reading gain does not
-measurably run *through* decoding (med-074 NIE ~ +0.0 words, 89% CrI -0.4 to +0.5); this
+genuine nonword decoding. The mediation suite reported a near-zero model-based indirect estimate through
+decoding (med-074 NIE ~ +0.0 words, 89% CrI -0.4 to +0.5); this
 model asks instead whether the letter-sound -> word-reading conversion is *gated by*
 decoding - whether letter sounds only translate into word reading once nonword decoding
 is in place (synergy), or convert independently.
@@ -16,9 +16,12 @@ The letter-sound mechanism enters as the HSGP curve ``f_mech`` (as in LRP58); no
 decoding enters as a standardised linear main effect ``gamma_mod * z(N)`` plus the
 interaction ``gamma_int * z(logit L) * z(N)``.
 
-**Reading ``gamma_int``.** The change in the letter-sound -> word-reading slope per +1 SD
-of decoding. ``gamma_int > 0`` = **synergy** (word reading highest when both are high);
-``gamma_int ~ 0`` = additive; ``gamma_int < 0`` = substitutive.
+**Reading ``gamma_int``.** It changes the letter-sound log-odds association
+per +1 SD of the moderator. A positive value makes that association larger as
+the moderator rises; a negative value makes it smaller. A value near zero
+gives little evidence for the added product term. Its sign alone does not
+establish that either skill helps, that both must be high, or that a threshold
+exists.
 
 **Estimand + power caveats.** Decoding N is a DAG-DESCENDANT of the exposure L
 (``LS -> ... -> NW``), so conditioning on it gives ``beta_mech`` the SHAPE of a
@@ -29,7 +32,7 @@ modification and not a symmetric "need both" prerequisite test. Everything is a
 latent-GA-confounded ADJUSTED ASSOCIATION, never causal. N is ~57% floored (median 0), so
 ``z(N)`` carries little variation and this interaction is **weakly powered - suggestive
 at best**; read alongside the descriptive finding that a small sight-word subgroup reads
-with little decoding while fluent reading (40+ words) always co-occurs with decoding.
+with little decoding while fluent reading (40+ words) co-occurs with decoding in this cohort.
 
 Adjustment set = the LRP58 L -> W set {G, A, W_pre, HS, IS, SP}; N enters additionally via
 its main effect + interaction. target_accept 0.999 per LRP58/LRP93.

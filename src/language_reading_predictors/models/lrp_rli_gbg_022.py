@@ -8,14 +8,11 @@ LRPGBG22: Predictors of DEAP average articulation gains (``deappav_gain``).
 Evaluation of Articulation and Phonology (Dodd et al., 2006) — the
 proportion of sounds correctly produced in a picture-naming task.
 It is a composite of ``deappin``, ``deappvo``, ``deappfi`` (in the
-candidate pool), but gain targets are near-noise (regression-to-
-the-mean dominates), so the level model carries the same-
-instrument check.
+candidate pool), so read the ranking alongside the level model's same-instrument check.
 
 The gain target spans min -13.9, max 12.9, median 0.20, mean 0.42,
 std 4.67, skew -0.09, with ~45% negative and ~2% zero observations
-(n = 152). Regression from the mean dominates gain targets across
-the suite.
+(n = 152).
 
 This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable average

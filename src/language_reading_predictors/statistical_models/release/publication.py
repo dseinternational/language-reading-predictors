@@ -71,16 +71,8 @@ JOINT_MECHANISM_WAVE_PSENSE = "psense_wave_t{timepoint}"
 class ReleaseEvaluation:
     """The whole publication decision for one fit, in the order it is made.
 
-    Before this existed the decision was assembled inline inside
-    ``reporting.generate_key_findings`` — four sequential branches over
-    ``diagnostics_summary.json``, ``config.json`` and the robustness gate, with no
-    object anyone could hold, print, record or test. Report finalisation therefore
-    could not *receive* a release decision; it could only call the function that
-    happened to make one on its way to writing findings.
-
-    The fields below carry what each stage found, so ``release_decision.json`` can
-    state why a fit published what it published — for every family, not only the
-    ones the robustness gate covers.
+    Store each stage's findings so finalisation and stored-fit evaluation can
+    report the same reasons in ``release_decision.json`` for every family.
     """
 
     status: PublicationStatus
@@ -404,8 +396,9 @@ def evaluate_publication(
     follow-up review, finding 1).
 
     4. **robustness** — required influence checks must preserve their named
-       scientific quantities; the phoneme-blending fits must carry their current,
-       validated trace-backed link pair (``lrp-rli-itt-008`` + ``lrp-rli-itt-108``);
+       scientific quantities; phoneme-blending fits must pass their family-specific
+       link-pair check (trace-backed for ITT, stored-artefact checks for seven
+       other families) or have a recorded exemption;
        for the families the treatment-effect gate covers, prior-sensitivity and
        floor-grid evidence must support a causal headline; and a factorised joint
        contrast whose declared LKJ dependence companion is not release-ready

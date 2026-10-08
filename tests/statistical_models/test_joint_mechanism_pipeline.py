@@ -10,11 +10,10 @@ by asserting the pipeline asks for it per outcome by name, with the artefact-lev
 counterpart in ``test_diagnostics.py`` where the helper lives — so a future refactor
 cannot drop any of them without a red test.
 
-The marginal-coverage guard is the subtle one. In the levels design the residual is
-saturated (one bivariate latent per child over exactly two cells), so the conditional
-coverage is 1.00 by construction and an implementation that quietly reuses the fitted
-residuals would report that same vacuous figure under a "new-child" label. That is not
-hypothetical: it is what ``pm.sample_posterior_predictive(var_names=[...])`` did.
+The marginal-coverage test supplies conditional draws that reproduce every
+observation. A helper that reuses them under a new-child label will fail the test.
+The production model's child residuals use the child's observed outcomes, so
+new-child predictions must redraw them from the population distribution.
 """
 
 from __future__ import annotations
@@ -630,10 +629,11 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
 
 
 def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagnostics):
-    """The levels design is saturated in its residual, so the conditional coverage is
-    1.00 by construction. The marginal companion must redraw the residual — a version
-    that quietly reuses the fitted values would report the same vacuous 1.00 under a
-    'new-child' label, which is exactly what `pm.sample_posterior_predictive` did."""
+    """New-child predictions redraw residuals instead of reusing conditional draws.
+
+    This fixture gives conditional predictions 100% coverage. That is a property
+    of the synthetic draws, not a guaranteed result of the production likelihood.
+    """
     ctx = _artefact_ctx(tmp_path, _artefact_trace(exact=True))
 
     plan = _jm_primary_fit_plan(
@@ -653,7 +653,7 @@ def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagno
     marginal = pd.read_csv(tmp_path / "ppc_summary_marginal.csv")
     # The conditional predictive reproduces every observation exactly.
     assert (conditional["coverage"] == 1.0).all()
-    # The marginal one is a genuinely different, falsifiable statistic.
+    # Redrawing the residual must change coverage in this fixture.
     assert set(marginal["mode"]) == {"count_interval_marginal"}
     assert (marginal["coverage"] < 1.0).any()
     # Pooled *and* per-outcome, at both levels: the two denominators differ by an

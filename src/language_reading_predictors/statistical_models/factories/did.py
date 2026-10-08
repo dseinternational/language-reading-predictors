@@ -77,8 +77,8 @@ def build_did_model(
     arm_gap_t1_prior_sigma: float | None = None,
     sigma_child_prior_sigma: float | None = None,
     # #576 material qualification 2: the dispersion prior's shape. The default
-    # concentration prior cannot reach the near-Binomial limit at a high
-    # denominator; ``"halfnormal_inverse_sqrt"`` can.
+    # concentration prior gives negligible mass near the Binomial limit for
+    # high-denominator outcomes; ``"halfnormal_inverse_sqrt"`` gives more.
     kappa_prior_family: str = "halfnormal_concentration",
     kappa_prior_sigma: float | None = None,
 ) -> BuiltModel[DidDosePayload | DidArmWavePayload]:
@@ -502,10 +502,9 @@ def build_did_model(
         if likelihood == "beta_binomial":
             if kappa_prior_family == "halfnormal_inverse_sqrt":
                 # The registered dispersion sensitivity (#576 material
-                # qualification 2): a HalfNormal on the concentration cannot
-                # reach the near-Binomial limit for a long test, so it imposes a
-                # floor on the estimated over-dispersion. The dispersion-scale
-                # parameterisation can conclude there is none.
+                # qualification 2): HalfNormal(50) gives negligible mass near
+                # the Binomial limit for a long test. The dispersion-scale prior
+                # gives more mass to that region without fixing dispersion at zero.
                 kappa = _rlm_dispersion_kappa(
                     float(_priors.inv_sqrt_kappa_prior().sigma)
                     if kappa_prior_sigma is None

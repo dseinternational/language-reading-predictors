@@ -1,32 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Typed settings and a resolved run plan for the concurrent-associations family (#394 pillar 4).
+"""Typed settings and a validated plan for concurrent associations.
 
-Mirrors the ITT / gain-factor / level-factor / DiD run-plan pattern (:mod:`itt`,
-:mod:`gain_factors`, :mod:`level_factors`, :mod:`did`) for the per-wave concurrent
-conditional-associations (``kind="concurrent"``) models. A model module declares its
-settings; the plan is resolved and **validated before any data are loaded or an
-output directory is reset**, then drives data preparation and the ``config.json`` /
-``model_recipe.md`` audit trail. This removes the untyped ``spec.extra`` boundary
-(where a misspelled key silently defaulted) and records the resolved design,
-estimand, causal status, analysis population and missing-data assumption alongside
-every fit.
+Each wave has a separate between-child Beta-Binomial regression on same-wave
+skills and optional age and group terms. Matched single-skill refits retain the
+declared trait covariates. Every coefficient is an adjusted association.
 
-The concurrent design fits, **at each wave separately**, a between-child
-Beta-Binomial regression of the focal outcome's level on the standardised same-wave
-logits of a predictor skill set (plus age and a group nuisance term), reported side
-by side with matched single-skill refits that retain the trait covariates. Every coefficient is an **adjusted
-association**; the family makes no causal claim, so conditioning on contemporaneous
-(post-treatment) skill levels is intentional and the Table-2 fallacy applies.
-
-Because the model is fit once per wave with a wave-specific usable-predictor subset
-(and the single-skill refits vary ``include_age`` / ``include_group``), the factory is
-called many times by the pipeline; this plan therefore owns the *settings*, the
-single ``load_and_prepare`` call and the recorded metadata, while the per-wave
-factory calls stay in ``fit_concurrent`` using the resolved plan attributes.
-``predictor_slope_sigma`` defaults to ``None`` so the pipeline can fill the factory
-default through ``_default_of`` reflection, keeping the anti-drift single source.
+The plan controls data loading and shared settings. The pipeline chooses each
+wave's usable predictors and calls the factory. A ``None`` slope-prior scale
+uses the factory default through ``_default_of``.
 """
 
 from __future__ import annotations
@@ -66,10 +49,7 @@ _LEGACY_KEYS = frozenset(
         "predictor_slope_sigma",
         "waves",
         "score_mean_link",
-        # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
-        # ``context.make_context`` (CLI override > spec default > preset) and is never
-        # read by this family's settings. Listed so a legitimate per-model declaration
-        # is not rejected as a misspelling by the strict unknown-key check.
+        # Legacy sampling option resolved centrally, outside family settings.
         "target_accept",
     }
 )
@@ -170,9 +150,7 @@ class ConcurrentModelSettings:
                 f"{model_id}: unknown concurrent setting(s): {', '.join(unknown)}. "
                 "Declare ConcurrentModelSettings so misspellings fail fast."
             )
-        # Pass raw values through so __post_init__ is the single validation/coercion
-        # point. ``predictor_slope_sigma`` absent -> None (pipeline uses the factory
-        # default via _default_of), matching the former .get(key, _default_of(...)).
+        # Keep raw values for validation; None uses the factory's slope default.
         return cls(
             predictor_symbols=extra.get("predictor_symbols", _DEFAULT_PREDICTORS),
             covariates=extra.get("covariates", ()),
@@ -366,10 +344,7 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
         )
         if settings.waves is not None:
             raise ValueError(f"{spec.model_id}: waves is an RLM-only concurrent setting")
-        # Validate the measure symbols against the registry *before* make_context
-        # can reset an output directory — the RLM branch already did; the RLI
-        # branch previously failed only inside the loader, after the reset
-        # (2026-08-21 concurrent review, finding 5).
+        # Reject unknown measures before opening an output transaction.
         from language_reading_predictors.statistical_models.measures import (
             MEASURES as _rli_measures,
         )

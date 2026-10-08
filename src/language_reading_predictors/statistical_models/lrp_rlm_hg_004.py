@@ -28,7 +28,7 @@ this measure (computed straight from the complete-case panel).
 
 **Confirmed ceiling (#338).** The Beta-Binomial denominator (``n_trials=32``)
 is the instrument's confirmed maximum (``n_trials_confirmed=True`` in
-``datasets.RLM_MEASURES``): the BPVS Short Form has 32 items (Ripley & Yuill, 2005); the observed maximum of 29 in this cohort is only consistent with the short form, not the long form. Researched and signed off by the data owner
+``datasets.RLM_MEASURES``): the BPVS Short Form has 32 items (Ripley & Yuill, 2005); the observed maximum of 29 in this cohort does not itself establish the form. Researched and signed off by the data owner
 (2026-07-16). Per-measure prior calibration is left to the prior-critical-review
 follow-up; the shared defaults are used here and the prior-predictive check will
 flag any miscalibration.
@@ -67,9 +67,8 @@ SPEC = ModelSpec(
         # HalfNormal(50) on kappa itself gave the near-Binomial limit a prior
         # probability of 0.001 at these denominators, and 20 of 27 fitted cells
         # had a kappa posterior no narrower than its prior. 1/sqrt(kappa) ~
-        # HalfNormal(0.25) preserves the old prior's median variance inflation
-        # at every denominator while letting "no extra-Binomial dispersion" be
-        # an ordinary outcome. See priors.inv_sqrt_kappa_prior.
+        # HalfNormal(0.25) roughly retains the old median variance inflation
+        # while giving the near-Binomial limit appreciable prior support. See priors.inv_sqrt_kappa_prior.
         dispersion_prior_sigma=0.25,
     ),
 )

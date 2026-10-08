@@ -75,7 +75,6 @@ def scatter_plot(df: pd.DataFrame, x, y, color=None, palette=None, categorical=N
         plt.scatter(df[x], df[y], alpha=0.5)
 
     else:
-        # Decide continuous vs categorical
         if categorical is None:
             is_continuous = (
                 pd.api.types.is_numeric_dtype(df[color])
@@ -86,13 +85,11 @@ def scatter_plot(df: pd.DataFrame, x, y, color=None, palette=None, categorical=N
             is_continuous = not categorical
 
         if is_continuous:
-            # Continuous → gradient colormap
             continuous_cmap = palette if isinstance(palette, str) else plot_styles.SEQUENTIAL_CMAP
             sc = plt.scatter(df[x], df[y], c=df[color], alpha=0.5, cmap=continuous_cmap)
             plt.colorbar(sc, label=vars.get_variable_name(color))
 
         else:
-            # Categorical → fixed discrete colours
             if isinstance(df[color].dtype, pd.CategoricalDtype):
                 categories = list(df[color].cat.categories)
             else:

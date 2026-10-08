@@ -8,8 +8,8 @@ LRPGBL18: Predictors of Early Repetition Battery word repetition level (``erbwor
 the Early Repetition Battery (a repetition task indexing verbal /
 phonological short-term memory).
 
-The target spans min 0.0, max 28.0, median 12.00, mean 11.35, std
-5.22, skew -0.25 (n = 203).
+The loader sets the documented corrupt word-repetition cell to missing.
+See ``notes/202608262120-erb-word-repetition-quarantine-631.md``.
 
 This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable word repetition

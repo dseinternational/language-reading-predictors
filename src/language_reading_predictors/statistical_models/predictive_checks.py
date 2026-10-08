@@ -1,11 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Prior-pushforward and posterior-predictive coverage helpers (#637 stage 3).
+"""Compute estimand-scale prior checks and posterior-predictive coverage.
 
-The estimand-scale prior checks (#381) and the predictive coverage statistics
-(#318): what a prior implies on the reported scale before the data, and how much
-of the observed data the fitted model's prediction intervals contain.
+Prior checks describe model implications, conditional on any data-based anchors.
+Posterior checks measure in-sample predictive coverage of the fitted observations.
 
 ``prior_artifacts`` and ``ppc_artifacts`` write these; this module computes them.
 """
@@ -303,24 +302,15 @@ def indicator_prior_check(
 ) -> pd.DataFrame:
     """Indicator-scale prior-predictive check for the measurement families (#381).
 
-    The CFA families report loadings, communalities and factor correlations —
-    none of which is an outcome-scale quantity, so the estimand pushforward the
-    other families use has nothing to push. #381 asks for this instead, so they
-    are not silently exempt from the coverage guarantee. The check is on the
-    scale the model actually observes: the standardised indicator matrix.
+    Measurement families check the standardised indicators rather than an
+    outcome-scale contrast. ``sd_ratio`` compares pooled prior-predictive and
+    observed SDs. One is a useful scale reference, not a required prior value.
+    A ratio above or below one does not alone establish that the prior excludes
+    the observations.
 
-    Standardisation is what makes it sharp. The indicators are z-scored by
-    construction, so the observed SD is ~1 by definition and ``sd_ratio`` —
-    prior-predictive SD over observed SD — has a *known reference value of one*
-    rather than a judgement call. A ratio near 1 means the prior generates
-    indicator data of the right scale; well above 1 means it spends most of its
-    mass on configurations the standardisation makes impossible; **below 1 is the
-    one that matters**, because a prior narrower than the data cannot generate
-    what was observed and will fight the likelihood.
-
-    ``coverage_90`` is the complementary view: the share of observed values
-    inside the prior-predictive 90% band, pooled over that indicator's rows. A
-    well-scaled prior covers essentially all of them.
+    ``coverage_90`` is the share of observed values within their own
+    prior-predictive 90% intervals. Read it with the SD ratio and predictive
+    ranges rather than requiring every observed value to be covered.
 
     One row per **indicator**, pooled across nodes. The longitudinal model splits
     its observations into missingness-pattern blocks — one node each, sharing
@@ -397,18 +387,10 @@ def indicator_prior_check(
 def _indicator_prior_verdict(sd_ratio: float, coverage: float, n: int) -> str:
     """Label one indicator's prior scale (see :func:`indicator_prior_check`).
 
-    Ordered by which failure actually threatens a conclusion. A prior narrower
-    than the standardised data — or one that demonstrably fails to cover it — is
-    a real problem, because it cannot generate what was observed and will fight
-    the likelihood. A prior several times wider is wasteful and worth knowing
-    about, but it invalidates nothing.
-
-    The coverage arm is judged against **binomial sampling noise**, not against a
-    bare 0.90. With 75 children the standard error on a 90% coverage rate is
-    about 3.5 points, so a flat ``coverage < 0.9`` rule fires on ordinary noise:
-    it labelled three perfectly scaled ``rlm-mm-001`` indicators (``sd_ratio``
-    1.007) "too tight" at coverage 0.88. Two standard errors below nominal is the
-    threshold, so the flag means a real shortfall rather than a coin-flip.
+    These labels are screening rules, not proofs of prior-data conflict. The
+    coverage tolerance uses two binomial standard errors at nominal 90%
+    coverage. Dependence between observations and data-based standardisation
+    mean that tolerance is an approximation rather than a calibrated test.
     """
     if not np.isfinite(sd_ratio):
         return "not assessable"
@@ -469,13 +451,9 @@ def _ppc_node_arrays(trace: xr.DataTree, node: str) -> tuple[np.ndarray, np.ndar
     for a multi-dim likelihood (e.g. the panel ``y_obs``). Non-finite observed rows
     are *kept* here — callers mask them — so both arrays share one row indexing.
 
-    Since #662 the reshape and the alignment check are
-    ``statistics.samples.sample_matrix`` / ``SampleMatrix.observed_values``. The row
-    and column orders are the ones this module has always used: observation dims in
-    the predictive's own order with the last varying fastest, then ``chain`` before
-    ``draw`` with ``draw`` varying fastest. The check itself is stronger — equal row
-    *counts* no longer pass for differing coordinate labels — which is the point:
-    a silently misaligned observed vector produced a plausible coverage number.
+    ``sample_matrix`` and ``observed_values`` check the coordinates, not only row
+    counts. Observation dimensions follow the predictive array's order, with the
+    last varying fastest; chain and draw dimensions retain their array order.
     """
     try:
         pp = trace.posterior_predictive[node]
@@ -513,11 +491,6 @@ def _observation_checks(
       The shared helper rejects both an empty observation axis and a non-finite
       observation, so those cases are answered here and never reach it.
 
-    The upper bound now comes from the shared ``1 - (1 - p) / 2`` rather than
-    this module's ``(1 + p) / 2``. The two are algebraically equal and, in
-    float64, identical for every ``p >= 0.25`` — which covers every interval
-    this project publishes (50%, 89%, 90%, 95%); see
-    ``test_the_shared_upper_quantile_matches_the_one_it_replaced``.
     """
     if y_obs.shape[0] == 0 or not np.isfinite(y_obs).all():
         return None
@@ -570,7 +543,6 @@ def ppc_interval_coverage(
     checks = _observation_checks(y_obs, y_rep, ci_levels)
     rows: list[dict[str, object]] = []
     for column, p in enumerate(ci_levels):
-        # Closed-interval convention, unchanged.
         n_in = 0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
         rows.append(
             {
@@ -602,8 +574,8 @@ def ppc_interval_coverage_by_group(
     pooled coverage statistic mixes tests with different denominators, floors and
     ceilings and weights them by their observed cell counts. That aggregate is
     well-defined but it can conceal outcome-specific miscalibration -- a badly
-    fitted 6-item floored outcome is invisible beside a well-fitted 79-item one
-    (2026-08-23 joint audit, lower-priority reporting correction).
+    fitted outcome can have little influence beside a measure with many more
+    observed cells.
 
     Returns the same schema as the pooled frame with an extra label column, so the
     per-group rows concatenate with it and ``ppc_coverage_markdown`` continues to
@@ -755,7 +727,6 @@ def ppc_offfloor_rate_coverage(
     checks = _observation_checks(obs_rate, rep_rate, ci_levels)
     rows: list[dict[str, object]] = []
     for column, p in enumerate(ci_levels):
-        # Closed-interval convention, unchanged.
         n_in = 0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
         rows.append(
             {
@@ -793,18 +764,14 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
     # Per-group breakdown rows (``ppc_interval_coverage_by_group``) are a *split* of
     # the pooled rows, not extra observations, so summing them in as well would
     # double every total. They carry a group label the pooled rows leave null; drop
-    # them here and let the family's own results partial render them
-    # (2026-08-23 joint audit, lower-priority reporting correction). Frames without
-    # the column are untouched, so stored fits render identically.
+    # them here and let the family's results partial render them.
     for group_column in ("outcome", "measure"):
         if group_column in usable.columns:
             usable = usable[usable[group_column].isna()]
     if usable.empty:
         return ""
     # Pool across likelihood nodes by summing counts, never by averaging rates:
-    # a family with one node per measure writes one row per (node, level), and
-    # ``drop_duplicates`` would have rendered the first measure's coverage as if
-    # it covered all of them (2026-08-21 historical-families review, finding 4).
+    # a family with one node per measure writes one row per (node, level).
     # With a single node this is the identity on the one row per level.
     d = (
         usable.groupby("level_pct", as_index=True)[["n_total", "n_inside"]]

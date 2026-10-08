@@ -1,52 +1,24 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Reproducible SHAP-interaction screen for the reading models.
+"""Screen reading-model predictors for large SHAP interaction contributions.
 
-A discovery utility (the first step of the project's two-step philosophy): it
-ranks candidate pairwise interactions so the moderator choice for the Bayesian
-suite is *auditable*, not hand-picked. It is not inferential: SHAP can attribute
-link-curvature to "interactions", and the pooled rows ignore the 3-4 repeated
-measures per child. Confirm any signal in a Bayesian model with subject random
-effects (LRP71/72/73). The predictor sets and the 2026-07-06 exclusion of
-period-related process measures are recorded in
-``notes/202607061945-period-related-gain-predictors.md``.
+Fit LightGBM on the full data and rank pairs by their mean absolute off-diagonal
+SHAP interaction value. Report child-grouped cross-validation MAE separately.
+This screen can suggest model terms, but repeated rows and link curvature affect
+the ranking. A subsequent Bayesian fit on the same data is a model-based check,
+not independent confirmation or proof of a causal interaction.
 
-Method (matches the note's spec):
+The default level and gain predictor pools exclude period-related process
+measures. They therefore differ from the historical screen used to choose the
+LRP71/72/73 moderators. Record each run's predictor list in ``cv_mae.txt``.
 
-- Fit ``LGBMRegressor(objective="mae", n_estimators=300, learning_rate=0.03)``
-  on a target with a fixed predictor list. SHAP is computed on the FULL fit
-  (standard for discovery); GroupKFold (by ``subject_id``) is used only for a
-  reported cross-validated MAE.
-- ``shap.TreeExplainer(model).shap_interaction_values(X)`` returns an
-  ``(n_obs, n_feat, n_feat)`` array. Per-feature main effect is the mean
-  absolute *diagonal*; pairwise interaction strength is the mean absolute
-  *off-diagonal* ``mean_s |inter[s, i, j]|`` for ``i < j``, ranked descending.
+Write ``main_effects.csv``, ``interactions_ranked.csv`` and ``cv_mae.txt`` under
+``output/interaction_screen/<level|gain>/``.
 
-Two targets are screened with the canonical registry predictor sets:
+Run::
 
-- ``ewrswr`` (reading level)      -> ``Predictors.DEFAULT_LEVEL``
-- ``ewrswr_gain`` (reading gain)  -> ``Predictors.DEFAULT_GAIN``
-
-Both ``DEFAULT_LEVEL`` and ``DEFAULT_GAIN`` now exclude the period-related process
-measures (``attend`` / ``tascore`` / ``tachang``) — a deliberate 2026-07-06
-decision (``notes/202607061945``). Re-running the screen therefore no longer
-surfaces any attend/tascore/tachang interactions, so it will **not** reproduce
-the original LRP71/72/73 moderator-selection ranking, which predates that change;
-the exact predictor list used for a run is recorded in its ``cv_mae.txt``.
-
-Outputs, under ``output/interaction_screen/<level|gain>/``:
-
-- ``main_effects.csv``        — feature, mean |diagonal SHAP|
-- ``interactions_ranked.csv`` — feature_a, feature_b, strength (mean |off-diag|)
-- ``cv_mae.txt``              — GroupKFold mean MAE (+/- sd) and the full spec
-
-Usage::
-
-    python scripts/screen_interactions.py
-    python scripts/screen_interactions.py --target level
-    python scripts/screen_interactions.py --n-estimators 300 --learning-rate 0.03
-"""
+    python scripts/screen_interactions.py --target level"""
 
 from __future__ import annotations
 
@@ -178,11 +150,8 @@ def screen_target(
         f"n_features={len(feature_names)}"
     )
 
-    # CV MAE on the RAW (NaN-bearing) matrix: LightGBM handles missing values
-    # natively, so no fold sees full-sample column means — the leak that
-    # inflated the reported CV MAE when imputation ran before the split
-    # (issue #272 item 3). The SHAP interaction values below still need a
-    # fully-observed matrix, so imputation is applied to the full-fit model only.
+    # Keep missing values for CV so test-fold data do not set training means.
+    # Mean-fill only the full-data fit used for the SHAP screen.
     cv_mean, cv_sd, n_splits = _cv_mae(X_raw, y, groups, n_estimators, learning_rate)
     rprint(f"  GroupKFold({n_splits}) MAE: {cv_mean:.3f} +/- {cv_sd:.3f}")
 

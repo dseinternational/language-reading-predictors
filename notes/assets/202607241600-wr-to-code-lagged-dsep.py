@@ -9,21 +9,12 @@ word-reading standing tracking later movement in nonword reading and blending bu
 not letter sounds; this script asks the prior question — **which of those three
 couplings is identifiable at all**, and with what adjustment set.
 
-Same machinery and conventions as ``202607141030-lagged-dsep-checks.py`` (the
-d-separation checks behind the LCSM-081/082 design note), with two corrections:
-
-1. That script's ``REVERSE`` list was ``["TE", "TR", "PA", "RW"]`` — it predated the
-   **2026-07-17** addition of ``WR_t -> LS_t1`` to
-   ``dag/dag-language-reading-lagged.dagitty`` (added for the LRP-RLI-MED-176
-   direction contrast). Re-run today it therefore builds a graph the DAG no longer
-   matches. Note this is a stale *archived asset*, NOT an unguarded invariant: the
-   design note's recommendation to promote the checks to a pytest was actioned, and
-   ``tests/test_lagged_dag_adjustment_sets.py`` carries the corrected edge list
-   plus a mirror assertion against the parsed ``.dagitty``. This script rebuilds the
-   unroll from an explicit reverse-edge list and asserts that list against the
-   ``.dagitty`` too, so the same drift cannot recur here.
-2. It adds minimal-sufficient-set SEARCH rather than checking hand-written sets, so
-   "no fittable set exists" is a derived result rather than an assertion.
+Uses the same graph-unrolling conventions as
+``202607141030-lagged-dsep-checks.py``. Both scripts now check their reverse-edge
+lists against ``dag/dag-language-reading-lagged.dagitty``; tests enforce the same
+mirror. This script also searches for valid adjustment sets by greedy pruning.
+That search can find a set within the chosen size budget, but failure to find
+one does not prove that none exists.
 
 ``GA`` (latent general ability) is removed before every check: no measured set can
 block it, so each check asks the honest question — "GA aside, does this set block
@@ -46,10 +37,9 @@ import networkx as nx
 REPO = Path(__file__).resolve().parents[2]
 DAG_PATH = REPO / "dag" / "dag-language-reading-lagged.dagitty"
 
-# Rough per-parameter budget. n ~ 54 children x 3 transitions ~ 160 change rows, but
-# the effective n for a between-child coupling is the 54 children. A latent-process
-# model already spends ~12 parameters per process, so an adjustment set needing more
-# than about six measured nodes beyond the target's own process is not fittable here.
+# Heuristic search budget, not an identifiability or sampling theorem. Repeated
+# transitions do not provide independent between-child observations; the latent
+# process model also needs parameters beyond the adjustment terms.
 FITTABLE_MAX_ADJUSTERS = 6
 
 SKILLS = [
@@ -191,21 +181,15 @@ def candidate_adjusters(g: nx.DiGraph, x: str, y: str) -> list[str]:
 
 def minimal_sets(g: nx.DiGraph, x: str, y: str, n_orders: int = 40,
                  seed: int = 20260724) -> list[frozenset[str]]:
-    """Minimal sufficient adjustment sets, found by greedy pruning from pa(y).
+    """Find valid adjustment sets by pruning the full allowed candidate pool.
 
-    Exhaustive enumeration is infeasible here — the three-slice unroll leaves ~30
-    candidate adjusters, so searching every subset up to size 8 is ~6e6 d-separation
-    checks on a 50-node graph. Instead: start from the parent set of ``y`` (always
-    sufficient in a DAG, latent ``GA`` aside), then repeatedly try to drop one
-    element at a time, keeping the drop whenever the set stays valid. A set that
-    survives is minimal by construction — no single element can be removed. Repeating
-    over randomised drop orders surfaces genuinely different minimal sets, since
-    which one you land in depends on the order you prune.
-
-    This finds minimal sets, not necessarily the globally *smallest*; the reported
-    sizes are therefore upper bounds on the minimum. That is the safe direction for
-    the question being asked — if even the pruned set is too wide to fit, the
-    coupling is unfittable regardless.
+    Try each removal once in a random order, retaining it only if the set stays
+    valid. Repeat across orders and return distinct sets by increasing size.
+    This is not an exhaustive search or a proof of minimality. A retained node
+    is not revisited after later removals, and validity need not be monotone
+    when conditioning can open colliders. A returned set's size is an upper
+    bound on the smallest valid set, so an over-budget result does not prove
+    that the coupling cannot fit within the budget.
     """
     rng = random.Random(seed)
     # Seed from the FULL candidate pool, not from pa(y). pa(y) is sufficient in the

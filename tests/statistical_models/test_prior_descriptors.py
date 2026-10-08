@@ -92,8 +92,7 @@ def test_a_call_site_may_declare_a_different_scientific_role():
     """A family that reuses a prior for a different quantity says so where it builds it.
 
     The aligned family carries its cohort contrast on the treatment prior but
-    reports no causal term at all; the mediation legs carry a randomised-arm
-    coefficient whose causal deliverable is the decomposition, not the leg.
+    reports it as an association. The descriptor must record that call-site role.
     """
     model = _model(
         lambda: P.tau_prior().to_pymc(

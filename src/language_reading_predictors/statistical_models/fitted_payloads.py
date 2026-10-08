@@ -104,13 +104,8 @@ class JointMechanismPayload(FittedPayload):
     exposure_scale: tuple[float, float] | None = None
     """``(mean, sd)`` the exposure logit was standardised on, for replay by a refit.
 
-    The same need :class:`MechanismDesign` records for the mechanism family's exact
-    LOO refits, arriving here for cross-validation folds (#626). The factory filters
-    to rows with an observed outcome before standardising, so a fold that has withheld
-    children derives this from a different row set — across the five ``jm-002`` folds
-    the SD moves by up to 4.2% and the mean by up to 0.2 logits. Replaying the full
-    fit's value keeps ``beta_mech`` per full-data standard deviation and ``alpha`` on
-    one centring, which is what makes a fold's predictions spliceable at all.
+    Reuse these values in cross-validation folds to keep the coefficient scale
+    and intercept centring fixed when withheld children change the fitted rows.
     """
 
 
@@ -140,14 +135,9 @@ class MechanismDesign:
     def hsgp_design(self) -> HSGPDesign:
         """The saved geometry as the shared frozen design; legacy fits are refused.
 
-        Validation is ``statistics.models.hsgp_design.HSGPDesign`` (#662) rather
-        than a local repeat of the same predicates: it adds PyMC's own
-        eigenvalue and endpoint representability checks on top of "positive
-        integer ``m``, positive finite ``L``, finite ``center``". Only the
-        *absence* of any of the three scalars is still decided here, because
-        that is what identifies a design saved before the corrected basis
-        (#660) — and no subset may derive it. The project's "a fresh full fit
-        is required" contract is preserved for both outcomes.
+        The shared ``HSGPDesign`` validates values and numerical representability.
+        Missing or invalid geometry requires a fresh full fit; a refit subset
+        must not supply replacement values.
         """
         if self.hsgp_L is None or self.hsgp_m is None or self.hsgp_center is None:
             raise ValueError("incomplete saved HSGP design (m, L, center); a fresh full fit is required")
@@ -194,21 +184,11 @@ class MechanismPayload(FittedPayload):
 
 @dataclass(frozen=True)
 class DoseResponsePayload(FittedPayload):
-    """Realised dose design of a ``dose_response`` fit (#587 findings 2, 3, 13).
+    """Fitted dose design for associations among on-intervention rows.
 
-    The family reports an **intensive-margin** dose association among on-intervention
-    rows, so every consumer has to reuse the same treated-row standardisation, the
-    same treated mask and the same per-phase support bounds the factory fitted. The
-    audit found three ways that went wrong when they were recomputed downstream: the
-    reported ``+1 SD`` contrast was averaged over rows with no treated support, the
-    loader's pre-mask scaler disagreed with the fitted rows, and the prior pushforward
-    used a scalar slope where the posterior used a phase-indexed one.
-
-    ``dose_scaler`` standardises sessions **over the fitted treated rows only**, so a
-    unit of the fitted dose is one treated-row SD of sessions rather than one SD of a
-    distribution dominated by structural zeros. ``treated`` and ``raw_attend`` are
-    row-aligned to the fitted rows; ``phase_support`` carries the per-phase observed
-    session quartiles and bounds behind the reported contrast.
+    ``dose_scaler`` uses fitted treated rows, excluding structural zeros from
+    untreated rows. All arrays align with fitted rows. ``phase_support`` retains
+    each phase's session quartiles and bounds for natural-scale contrasts.
     """
 
     design: Literal["dose_intensive_margin"]
@@ -242,10 +222,8 @@ class DidDosePayload(FittedPayload):
 class DidArmWavePayload(FittedPayload):
     """Exact fitted rows, baseline anchor and score-mean link of an arm-by-wave DiD fit.
 
-    ``alpha_anchor`` is on the linear-predictor scale, so it is already mapped back
-    through ``score_mean_link`` (#576 finding 2): the two fields belong together, and
-    reading either without the other misplaces the anchor by about 1.1 logits on the
-    phoneme-blending pair.
+    ``alpha_anchor`` uses the linear-predictor scale defined by
+    ``score_mean_link``. Consumers must retain that link when reading the anchor.
     """
 
     design: Literal["arm_by_wave"]

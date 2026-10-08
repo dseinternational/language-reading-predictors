@@ -3,8 +3,7 @@
 
 """Readers, filenames and thresholds every release check shares.
 
-Extracted by #637 stage 3c so the checks below form a one-way graph: each
-reads from here, and only ``publication`` reads from the checks.
+Each check reads from here; ``publication`` combines their results.
 """
 
 from __future__ import annotations
@@ -30,13 +29,10 @@ GROWTH_INFLUENCE_TRACE_FILENAME = "trace_growth_influence_sensitivity.nc"
 
 
 #: Predeclared new-child predictive-adequacy floors for that design, pooled and per
-#: outcome. The ordinary conditional check is saturated by construction and PSIS-LOO
-#: is deliberately not computed, so the marginal check is the only one that can fail
-#: — and "can fail" needs a stated threshold rather than a reader's judgement. Set
-#: below nominal because the check is deliberately conservative (a redrawn residual
-#: widens the interval), and breaching it *qualifies* a release rather than
-#: withholding it: substantive misfit is information about the model, not evidence
-#: that the sampler failed.
+#: outcome. The conditional check can have inflated coverage, and this design omits
+#: PSIS-LOO. The policy sets these floors below nominal coverage to allow for the
+#: extra latent variation in the new-child prediction. A breach qualifies the
+#: release; predictive misfit is distinct from a sampling failure.
 JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS: dict[int, float] = {50: 0.35, 90: 0.75}
 
 
@@ -48,9 +44,8 @@ ReleaseStatus = Literal["release", "qualify", "withhold"]
 
 #: Families the gate covers, each keyed to the term its causal headline rests on.
 #: A family is here only if a randomised contrast identifies its headline — the
-#: observational families report adjusted associations, which the reports already
-#: label as such, and gating those on prior sensitivity would say nothing a reader
-#: does not already know from the label.
+#: observational families report adjusted associations and lie outside this
+#: causal-headline gate. They still require their own prior-sensitivity assessment.
 GATED_KINDS = frozenset({"itt", "joint", "did", "gain_factors", "level_factors"})
 
 

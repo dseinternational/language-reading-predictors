@@ -19,14 +19,14 @@ P2  The same with QUARTILES, reporting the full per-quartile profile as well as
     bands or a threshold.
 P3  PROSPECTIVE: split on word reading at wave t, then contrast the two halves on
     each measure's subsequent CHANGE (t -> t+1), both raw and residualised on the
-    measure's own level at t. The residual column is the one to read: a raw gain
-    contrast conditional on a correlated baseline is regression-to-the-mean plus
-    a ceiling constraint, not prediction.
+    measure's own level at t. Baseline differences, measurement error and scale
+    bounds can affect raw gain contrasts; the residual column adds a linear
+    starting-score adjustment without removing all those concerns.
 
 Effect size is **Cliff's delta** with a bootstrap 89% interval (house standard,
-``notes/202607172359-credible-interval-standard.md``), not Cohen's d: most of these
-measures are bounded item counts with heavy floors, where a mean difference divided
-by a pooled SD is not interpretable. Cliff's delta is the probability that a randomly
+``notes/202607172359-credible-interval-standard.md``). Most measures are bounded
+item counts with heavy floors; Cliff's delta describes pairwise ordering rather
+than a standardised mean difference. It is the probability that a randomly
 drawn top-band child outscores a randomly drawn bottom-band child, minus the reverse;
 it handles ties explicitly, which matters enormously here (see the tie diagnostics).
 ``prob_superiority = (delta + 1) / 2`` is reported alongside for readability.
@@ -41,7 +41,7 @@ measures: ``nonword`` is 72% floored at t1 and ``spphon`` 78%, so their band
 contrasts are compressed toward zero by the floor and their POSITION in the effect-
 size ranking reflects where the floor sits, not psychological importance.
 
-Run with the conda env interpreter from the repo root; writes CSVs to ``--out``.
+Run from the repository root with ``uv run python``; writes CSVs to ``--out``.
 """
 
 from __future__ import annotations
@@ -257,10 +257,9 @@ def run_monotonicity(df: pd.DataFrame, out: Path) -> pd.DataFrame:
     """Is each measure's quartile profile monotone, or does it step at one boundary?
 
     Reports the three adjacent-quartile Cliff's deltas (Q2-Q1, Q3-Q2, Q4-Q3). A
-    monotone construct spreads the separation across all three; a threshold shows one
-    large step and two near-zero ones. Read against ``pct_at_zero`` — a floored
-    measure shows a spurious "threshold" simply because the lower bands are all at the
-    floor and cannot separate from each other.
+    large step can describe a concentrated separation without establishing a
+    threshold. Read against ``pct_at_zero``: floor effects can leave lower bands
+    alike and concentrate the observed separation in one step.
     """
     rng = np.random.default_rng(SEED + 1)
     rows: list[dict] = []
@@ -351,15 +350,12 @@ def run_prospective(df: pd.DataFrame, out: Path) -> pd.DataFrame:
 
     Two columns per measure, and the difference between them is the entire point:
 
-    ``delta_raw``       Cliff's delta on the raw change. Contaminated: the bands
-                        differ on the measure's own level at t (everything correlates
-                        with word reading), so a high band starts higher and has less
-                        headroom on a bounded scale. Regression to the mean pushes
-                        this negative for any positively-correlated measure.
+    ``delta_raw``       Cliff's delta on the raw change. Baseline differences,
+                        headroom and regression to the mean can affect it;
+                        a negative contrast need not indicate slower learning.
     ``delta_residual``  The same contrast on the change RESIDUALISED on the measure's
-                        own level at t (OLS, within-wave). This is the honest
-                        descriptive read of "does word-reading standing predict
-                        subsequent movement beyond where the child already was".
+                        own level at t (OLS, within-wave). Describes subsequent
+                        movement after a linear starting-score adjustment.
 
     Even ``delta_residual`` is not causal and not adjusted for anything else — age,
     latent ability and the intervention arm all remain inside it. A linear residual
@@ -417,8 +413,8 @@ def run_prospective(df: pd.DataFrame, out: Path) -> pd.DataFrame:
                 "delta_residual": d_res, "delta_residual_lo": res_lo,
                 "delta_residual_hi": res_hi,
                 "residual_excludes_zero": bool(res_lo > 0 or res_hi < 0),
-                # Negative slope = regression to the mean on this measure: children
-                # starting higher change less. Quantifies the contamination in delta_raw.
+                # A negative slope means children starting higher changed less. Measurement
+                # error, scale bounds and real trajectory differences can each contribute.
                 "rtm_slope": float(slope),
                 **_censoring(frame, top, bottom, measure),
             })

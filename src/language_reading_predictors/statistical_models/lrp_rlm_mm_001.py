@@ -14,8 +14,8 @@ correlation tables, and the construct-structure summary that precedes any
 coupling model (Phase C). No structural leg - the factor -> gain question
 belongs to Phase D (``lrp-rlm-adj-001`` / ``lrp-rlm-hs-001``).
 
-**Wave 3** is the only wave carrying the full ability triad (``basmat`` is
-wave-3+), n = 75 complete-case across the battery. **Memory is a single
+**Wave 3** is the selected common wave carrying the full ability triad
+(``basmat`` is wave-3+), n = 75 complete-case across the battery. **Memory is a single
 indicator** (``basdig``; the paper's visual-recall measures are absent from the
 retained source), so its loading and residual are fixed by an assumed
 reliability of 0.8 (``lambda = sqrt(0.8)``): correlations involving the memory

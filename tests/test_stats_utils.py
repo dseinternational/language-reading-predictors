@@ -1,13 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Unit tests for :mod:`stats_utils`.
-
-``CLAUDE.md`` documents this file as the home of the stats-utility tests; it
-had gone missing. These cover the descriptive-statistics helpers and the
-feature-selection dependency matrices used by the model pipeline's
-``feature_selection_diagnostics`` step.
-"""
+"""Test descriptive statistics and the predictor-dependence diagnostics."""
 
 from __future__ import annotations
 
@@ -62,8 +56,8 @@ def test_differential_entropy_too_few_points_is_nan():
 def test_differential_entropy_normal_near_gaussian_value():
     rng = np.random.default_rng(1)
     h = differential_entropy_standardized(rng.normal(size=4000))
-    # Standard-normal differential entropy is ~1.4189 nats; KDE estimate is
-    # close but biased low, so allow a generous band.
+    # Standard-normal differential entropy is about 1.4189 nats; allow for
+    # sampling variation and density-estimation error.
     assert np.isfinite(h)
     assert 1.0 < h < 1.8
 

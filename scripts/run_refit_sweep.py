@@ -427,23 +427,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _stale_by_ordering(
     kind: str, ran: Sequence[str], config: str
 ) -> list[str]:
-    """Warn about a fit whose release qualification names a model fitted after it.
+    """Warn when a later companion fit may have made a release decision stale.
 
-    A release decision is written once, at fit time, from whatever its companions
-    looked like *then*. So a sweep that fits a parent before its registered
-    companion leaves the parent permanently qualified against a companion that now
-    exists — the decision is stale, not wrong-at-the-time, and nothing revisits it.
-
-    This bit ``lrp-rlm-jc-002`` twice: the 2026-08-26 batch fitted it 2m20s before
-    ``lrp-rlm-jc-102``, and the 2026-08-27 tail did the same at 24/25 and 25/25
-    (notes/202608271200-closing-584-588-residuals.md). Both times the parent
-    published "its own release decision withholds publication" about a companion
-    that was fitted, converged and publishable.
-
-    Detection rather than repair: ``regenerate_key_findings.py`` already
-    re-evaluates the decision and rewrites both files, so the fix is one command
-    and naming it is more useful than silently re-running it here.
-    """
+    A decision records the companion state at fit time. A companion fitted later in
+    the sweep can therefore require re-evaluation. Report the regeneration command
+    without changing the stored decision here."""
     if kind != "statistical":
         return []
     ran_set = set(ran)

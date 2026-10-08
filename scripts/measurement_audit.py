@@ -1,46 +1,21 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""
-Measurement-sensitivity audit of the RLI outcome measures.
+"""Describe score floors, ceilings and movement in the randomised RLI window.
 
-Motivation
-----------
+For each bounded-count outcome, report scale use, floor and ceiling fractions,
+between-child spread and paired t1-to-t2 changes. A project heuristic labels
+observed score patterns as detection-limited or detection-adequate. These labels
+are screening summaries, not validated estimates of reliability, statistical
+power or ability to detect a treatment effect. They cannot distinguish a true
+null effect from measurement limitations or establish a mediator's suitability.
 
-The available-case modified ITT estimates (LRPITT suite) show a robust
-word-reading and letter-sound contrast but no credible vocabulary contrast. Before that null is read as "the
-vocabulary component does not work", we need to know whether each outcome even
-had the *range and reliability* to register a change in the randomised window
-(t1 -> t2). A measure that is floored, ceilinged, or barely moves cannot show a
-treatment effect regardless of whether one exists.
+Write ``outcome_properties.csv`` and ``detectability_verdict.csv`` under
+``output/measurement_audit/``. No posterior is sampled.
 
-This audit is purely descriptive (no MCMC). For every bounded-count measure it
-reports, per timepoint, how much of the scale is used, the floor/ceiling
-fractions, a between-child dispersion proxy, and how many children's scores
-actually move between t1 and t2. It then applies a transparent, documented rule
-to flag each outcome as detection-"adequate" or detection-"limited".
+Run::
 
-Two roles
----------
-
-1. Read the vocabulary null honestly: true null vs not measurable.
-2. Select which phonics-route measures (letter-sound L, blending B, phonetic
-   spelling P) are usable as mediators in the LRP62 reading-route composite.
-
-Outputs (written under ``output/measurement_audit/``)
------------------------------------------------------
-
-- ``outcome_properties.csv`` -- one row per (measure x timepoint).
-- ``detectability_verdict.csv`` -- one row per measure, with the t1/t2 summary,
-  the t1->t2 movement stats, and the verdict + reason.
-
-Usage
------
-
-::
-
-    python scripts/measurement_audit.py
-"""
+    python scripts/measurement_audit.py"""
 
 from __future__ import annotations
 

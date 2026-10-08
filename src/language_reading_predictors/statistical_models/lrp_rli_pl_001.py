@@ -3,7 +3,9 @@
 
 """LRPPL001 - wave-pooled level association: letter-sound knowledge (L) -> word reading (W).
 
-Primary. Per-wave intercepts, so beta_mech is the within-wave association averaged over waves.
+Primary. Per-wave intercepts account for wave-wide level differences. The exposure
+is split into a child study-average (``beta_between``) and a deviation from that
+average (``beta_within``).
 
 One Beta-Binomial likelihood over every child-wave row, with letter-sound knowledge at the same
 wave as the standardised exposure and a child random intercept carrying the repeated

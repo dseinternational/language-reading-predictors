@@ -10,9 +10,9 @@ models, not a dependence-aware joint posterior. Cross-outcome comparisons are
 therefore reported on a common probability scale with a paired-dependence caveat.
 
 Outcomes are the ten **baseline-bearing** LRPITT measures. Nonword (N) is excluded:
-it is post-only and its degenerate baseline cannot enter the joint's dense
-pre-score matrix without injecting NaNs or polluting the cross-baseline block — its
-effect is read from the single-outcome off-floor model LRPITT11. Phonetic spelling
+its baseline is heavily floored and has missing values, so this joint
+specification omits it from the dense pre-score matrix. Its effect is read
+from the single-outcome off-floor model LRPITT11. Phonetic spelling
 (P) **is** included, as a graded outcome (its floored baseline simply shrinks
 gamma_own[P]); its binary off-floor exploratory analysis is in LRPITT09. LKJ residual
 correlation is off by default (prior-dominated at 8 outcomes, worse at 10; keep the

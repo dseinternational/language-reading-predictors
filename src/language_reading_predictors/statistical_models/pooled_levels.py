@@ -3,59 +3,20 @@
 
 """Wave-pooled between-child level associations (``kind="pooled_levels"``).
 
-The suite already answers "does a higher exposure level go with a higher outcome
-level?" **at each wave separately** (``concurrent``), and "does a higher exposure
-level go with ending a period higher, given where the child started?"
-(``mechanism``). It has no model for the third question a reader naturally asks:
-the same level association **pooled over all four waves**, as one coefficient.
+The model pools contemporaneous levels across waves, without an own-baseline
+term. Per-wave intercepts account for changes shared across waves, and a child
+random intercept represents repeated measures. By default, separate coefficients
+relate the child's mean exposure and deviations from that mean to the outcome.
+A comparator fits one pooled exposure coefficient.
 
-That gap is not filled by either neighbour. ``concurrent`` is per-wave by
-construction — it fits a separate model at each timepoint and every row it writes
-is keyed by ``timepoint`` — so pooling is not a flag on it but a different
-likelihood. ``mechanism`` conditions each outcome on its own period-start score,
-which partials out exactly the stable between-child variation a levels question is
-asking about; that is why its slopes are so much smaller than the per-wave level
-associations, and why the two must not be read as estimates of one quantity.
+Bounded exposures use standardised Haldane-corrected logits. Raw covariate
+exposures use standardised raw scores and require observed exposure values.
+Same-wave skill adjusters also use standardised logits; fitted rows must have
+the outcome, exposure and every skill adjuster observed. The payload records
+exclusions and exposure scales.
 
-The only stacked-levels skill-to-skill estimate that existed before this family was
-the ``horseshoe`` ranking (``hs-002`` / ``hs-004``), which is unsuitable as an
-association estimate on three counts: it is shrinkage-regularised, it carries **no
-child random intercept** despite stacking ~4 rows per child, and it is framed as a
-ranking cross-check rather than an effect.
-
-**Model.** One Beta-Binomial likelihood over every (child, wave) row:
-
-    eta = alpha_wave[t] + beta_G G + beta_mech z(logit exposure_t)
-          + gamma_A z(A) + sum_c gamma_c z(c) + u_child
-
-with no own-baseline term — its absence *is* the levels estimand — and a child
-random intercept carrying the repeated measures.
-
-**Wave intercepts.** ``use_wave_intercepts`` (default true) gives each wave its own
-intercept, so ``beta_mech`` is the within-wave association averaged over waves
-rather than a quantity part-driven by both measures rising together over the study.
-The unpooled alternative is a registered comparator, not a hidden default: on the
-RLI letter-sound / word-reading rows the pooled correlation of the two logit-scale
-scores is 0.68 against 0.62 once each wave is centred (0.64 against 0.60 on the raw
-counts), so secular co-movement is a real but modest tenth or less of the pooled
-association, and reporting both is cheaper than arguing about which is meant.
-
-Nothing here is causal. Exposure and outcome are measured at the same wave, so this
-family has *less* temporal structure than ``mechanism``, not more, and its
-coefficient absorbs every stable between-child difference the two skills share.
-
-**Covariate exposures and same-wave skill adjusters (#553).** Two extensions let the
-split reach the other predictors of word reading. ``mechanism_is_covariate`` takes
-the ``mechanism`` family's route for a raw-score exposure (``erbto``, ``deapp_c``)
-whose documented maximum is recorded nowhere: the exposure is the standardised raw
-score (the raw-units SD is recorded beside the fit), ``require_observed`` must name
-it so the mean-imputed rows are dropped — imputation plus an indicator is an
-*adjuster* policy, never acceptable for the exposure itself — and the Mundlak split
-is unchanged. ``skill_symbols`` adds other bounded-count measures at the **same
-wave** as standardised logits (the ``concurrent`` family's idiom), each a
-``gamma_{symbol}`` adjusted association; a row is kept only when the outcome, the
-exposure and every skill adjuster are observed at that wave, and the dropped count
-is reported.
+All slopes are associations. Contemporaneous measurement and a child intercept
+do not remove general-ability confounding or identify a causal skill effect.
 """
 
 from __future__ import annotations
@@ -686,14 +647,8 @@ def build_pooled_levels_model(
             eta = _priors.alpha_prior().to_pymc("alpha")
 
         if decompose_between_within:
-            # Mundlak / within-between split. A random-intercept model with one
-            # exposure coefficient returns a precision-weighted BLEND of the
-            # between-child and within-child associations, which correspond to
-            # different questions and, on these data, to very different values
-            # (r = 0.81 between against 0.45 within for the logit-scale letter-sound
-            # and word-reading scores; 0.70 against 0.51 on the raw counts).
-            # Splitting the exposure into the child mean and the deviation from it
-            # estimates each cleanly and leaves nothing blended.
+            # Separate between-child exposure means from within-child deviations;
+            # one coefficient would impose the same slope on both quantities.
             beta_between = _priors.beta_mech_prior().to_pymc(
                 "beta_between",
                 rationale="Between-child association: outcome logit per 1 pooled row-level SD of the study-average exposure {unit} for a child.".format(

@@ -61,13 +61,11 @@ def _resolve_level_predictor(prepared: PreparedData, key: str) -> tuple[str, np.
 
     ``age`` -> standardised age; a covariate column -> that standardised covariate;
     a measure symbol -> standardised concurrent logit of its post-count. Missing
-    values are mean-imputed (0 on the standardised scale) since PyMC — unlike
-    LightGBM — cannot take NaN inputs; the ranking is a sensitivity read, not a
-    calibrated fit, so mean-imputation is acceptable and is noted in the report.
-    Caveat (Group-C): zero-imputation shrinks a predictor's realised variance in
-    proportion to its missingness, biasing that coefficient toward zero — the ranking
-    therefore systematically disadvantages patchier predictors, which the report
-    should flag alongside the ordering.
+    values are mean-imputed at zero on the standardised scale because PyMC
+    cannot use NaN regressors. This reduces predictor variance and can bias
+    coefficients and rankings. The direction of bias depends on the missingness
+    pattern and relationships among predictors and outcome. Report missingness
+    beside the ranking.
     """
     from language_reading_predictors.statistical_models.measures import MEASURES
     from language_reading_predictors.statistical_models.preprocessing import (
