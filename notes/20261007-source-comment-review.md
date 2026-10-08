@@ -11,17 +11,17 @@ The review started at `38c4aeec` and moved to current main at `c44bb40f` before 
 
 [The file-level record](assets/20261007-source-comment-review.csv) lists every source file reviewed and whether it changed.
 
-| Source group | Files |
-| --- | ---: |
-| Python package | 536 |
-| Python tests | 172 |
-| Python scripts | 85 |
-| Python probes retained with notes | 19 |
-| Paired Python notebook sources | 5 |
-| Quarto sources | 380 |
-| Graphs, styles, bibliography, build scripts and configuration | 28 |
-| Upstream citation-style sources | 2 |
-| Total | 1227 |
+| Source group                                                  | Files |
+| ------------------------------------------------------------- | ----: |
+| Python package                                                |   536 |
+| Python tests                                                  |   172 |
+| Python scripts                                                |    85 |
+| Python probes retained with notes                             |    19 |
+| Paired Python notebook sources                                |     5 |
+| Quarto sources                                                |   380 |
+| Graphs, styles, bibliography, build scripts and configuration |    28 |
+| Upstream citation-style sources                               |     2 |
+| Total                                                         |  1227 |
 
 For Python, the review extracted comments, module and function documentation, class documentation and strings that document attributes. The reviewer read the relevant surrounding code before changing a claim. For Quarto, the review covered comments and documentation in executable chunks and hidden HTML comments. Repeated template contexts were compared together. The upstream citation styles retain their formatting rules and author credits, with one comment typo corrected in each. The review did not re-evaluate every scientific result or prove that every algorithm is correct. Pure prose documents, data files, generated output and dependency locks were outside the source comment review.
 
