@@ -4,6 +4,8 @@ description: Run Optuna hyperparameter tuning for the LightGBM gradient-boosting
 ---
 
 > [!NOTE]
+> pnpm check commands updated by a LLM-based AI tool (Codex/GPT-6).
+>
 > Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
 
 # Tune GB hyperparameters (Optuna)
@@ -63,7 +65,7 @@ Validate, then hand off to the GB reporting fit (see the `lrp-fit-gb` skill):
 ```bash
 uv run pytest tests/test_models.py tests/test_borrowed_params.py
 uv run python scripts/fit_model.py all --config dev        # smoke test
-uv run ruff check src/ && npm run format:check && npm run spellcheck
+uv run ruff check src/ && pnpm run format:check && pnpm run spellcheck
 ```
 
 Record the retune (policy, wall-clock, verdicts, exceptions) in a dated `notes/` note.

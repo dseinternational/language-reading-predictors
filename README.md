@@ -1,4 +1,6 @@
 > [!NOTE]
+> pnpm setup updated by a LLM-based AI tool (Codex/GPT-6).
+>
 > Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
 
 > [!NOTE]
@@ -62,10 +64,12 @@ Figures, model graphs and reports set text in [Noto Sans](https://fonts.google.c
 
 Install [Quarto](https://quarto.org/docs/get-started/) to create reports and the Node.js version declared in `package.json` to run spelling and formatting checks.
 
-Install the Node dependencies from the repository root:
+Install [pnpm](https://pnpm.io/installation). The `packageManager` field in `package.json` pins its version. From the repository root, install the Node dependencies from `pnpm-lock.yaml`:
 
 ```bash
-npm ci
+pnpm install --frozen-lockfile
+pnpm run spellcheck
+pnpm run format:check
 ```
 
 ## License

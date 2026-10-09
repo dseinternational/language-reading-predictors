@@ -1,4 +1,6 @@
 > [!NOTE]
+> pnpm setup updated by a LLM-based AI tool (Codex/GPT-6).
+>
 > Statistical review corrections prepared by a LLM-based AI tool (Codex/GPT-6).
 
 > [!NOTE]
@@ -55,6 +57,8 @@ Model graphs also need the system Graphviz `dot` binary (`brew install graphviz`
 
 Figures, graphs and reports set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, text falls back to the next installed font in the shared style's `font.sans-serif` list, such as Arial or DejaVu Sans.
 
+Spelling and Markdown formatting checks use Node.js 24 (see `.nvmrc`) and [pnpm](https://pnpm.io/installation), whose version is pinned in `package.json`. Install their dependencies with `pnpm install --frozen-lockfile`.
+
 ## Commands
 
 ```bash
@@ -69,11 +73,11 @@ uv run pytest tests/test_stats_utils.py::test_standardize -v
 uv run ruff check src/
 
 # Spell check (markdown and Quarto files)
-npm run spellcheck
+pnpm run spellcheck
 
 # Format Markdown
-npm run format
-npm run format:check
+pnpm run format
+pnpm run format:check
 
 # Fit a model (artifacts saved to output/models/{model_id}/)
 uv run python scripts/fit_model.py lrp-rli-gbg-001                    # dev config (fast, default)
@@ -234,8 +238,8 @@ Before creating a commit or opening a pull request, all of the following must pa
 
 ```bash
 uv run ruff check src/  # Python lint
-npm run format:check    # Markdown formatting
-npm run spellcheck      # Markdown + Quarto spelling (British English, en-GB)
+pnpm run format:check   # Markdown formatting
+pnpm run spellcheck     # Markdown + Quarto spelling (British English, en-GB)
 ```
 
 Fix Ruff findings; do not silence rules or add blanket `noqa` pragmas without justification.
