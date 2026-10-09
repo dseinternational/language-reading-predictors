@@ -8,13 +8,10 @@
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(gh pr *)",
-      "Bash(npm run *)",
+      "Bash(pnpm run *)",
       "Bash(ruff check *)",
       "Bash(uv tree *)"
     ]
   },
-  "additionalDirectories": [
-    "../research/",
-    "../vocabulary-growth/"
-  ]
+  "additionalDirectories": ["../research/", "../vocabulary-growth/"]
 }

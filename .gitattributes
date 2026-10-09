@@ -1,5 +1,5 @@
 # Normalise line endings to LF in the repository, so Prettier
-# (endOfLine: "lf", enforced by `npm run format:check`), ruff, Quarto and the
+# (endOfLine: "lf", enforced by `pnpm run format:check`), ruff, Quarto and the
 # rest of the tooling agree regardless of a contributor's core.autocrlf setting
 # or editor (e.g. GitHub Desktop on Windows).
 * text=auto

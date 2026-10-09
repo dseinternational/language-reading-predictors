@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> pnpm check commands updated by a LLM-based AI tool (Codex/GPT-6).
+>
 > Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
 >
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
@@ -992,8 +994,8 @@ All three must pass before committing (see CLAUDE.md; do not bypass with `--no-v
 
 ```bash
 uv run ruff check src/   # Python lint
-npm run format:check     # Markdown formatting (Prettier, proseWrap preserve)
-npm run spellcheck       # Markdown + Quarto spelling, British English (en-GB)
+pnpm run format:check    # Markdown formatting (Prettier, proseWrap preserve)
+pnpm run spellcheck      # Markdown + Quarto spelling, British English (en-GB)
 ```
 
 - New markdown must be `git add`-ed before `format:check` / `spellcheck` — those only see tracked files, so an untracked note passes locally then fails CI.
