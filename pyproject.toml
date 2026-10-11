@@ -7,7 +7,7 @@ name = "dse-language-reading-predictors"
 dynamic = ["version"]
 description = "Predictors of progress in language and reading skills for children with Down syndrome"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Frank Buckley" }]
 
@@ -22,7 +22,7 @@ dev = [
   "mypy>=2.4.0",
   "pandas-stubs",
   "pytest>=9.1.1",
-  "ruff>=0.16.10",
+  "ruff>=0.17.0",
   "scipy-stubs"
 ]
 
