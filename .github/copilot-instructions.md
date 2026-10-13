@@ -1,4 +1,6 @@
 > [!NOTE]
+> Node.js 26 requirements updated by a LLM-based AI tool (Codex/GPT-6).
+>
 > pnpm setup updated by a LLM-based AI tool (Codex/GPT-6).
 >
 > Statistical review corrections prepared by a LLM-based AI tool (Codex/GPT-6).
@@ -57,7 +59,7 @@ Model graphs also need the system Graphviz `dot` binary (`brew install graphviz`
 
 Figures, graphs and reports set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, text falls back to the next installed font in the shared style's `font.sans-serif` list, such as Arial or DejaVu Sans.
 
-Spelling and Markdown formatting checks use Node.js 24 (see `.nvmrc`) and [pnpm](https://pnpm.io/installation), whose version is pinned in `package.json`. Install their dependencies with `pnpm install --frozen-lockfile`.
+Spelling and Markdown formatting checks use Node.js 26 (see `.nvmrc`) and [pnpm](https://pnpm.io/installation), whose version is pinned in `package.json`. Install their dependencies with `pnpm install --frozen-lockfile`.
 
 ## Commands
 
