@@ -42,15 +42,11 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBL18 models **Early Repetition Battery word repetition** (`erbword`) at the observed timepoint. `erbword` is the number of real words correctly repeated from the Early Repetition Battery (a repetition task indexing verbal / phonological short-term memory). The target spans min 0.0, max 28.0, median 12.00, std 5.22, skew -0.25 (n = 203).
+LRPGBL18 models **Early Repetition Battery word repetition** (`erbword`) at the observed timepoint. `erbword` is the number of real words correctly repeated from the Early Repetition Battery (a repetition task indexing verbal / phonological short-term memory).
 
-The same-instrument Early Repetition Battery sibling(s) (`erbnw`, `erbto`) are in the candidate pool. Where one tops the ranking, the ranking's same-skill-excluded view (`ranking_excluding_same_skill.csv`) drops them to separate same-skill correlation from cross-domain signal.
-
-This is an **exploratory gradient-boosting discovery model** on the same footing as LRPGBG12–LRPGBL16 — it asks how predictable word repetition is and from what, to inform whether the shared DAG (v5) needs a verbal / phonological short-term memory node. It is **not** a causal or intention-to-treat estimate; the cross-validated associations describe prediction, not mechanism.
+The same-instrument Early Repetition Battery sibling(s) (`erbnw`, `erbto`) are in the candidate pool. The separate `scripts/rank_predictors.py` workflow can refit without the curated siblings and writes `ranking_excluding_same_skill.csv` under `output/ranking/<model_id>/`. Read its own fitted performance before interpreting prediction beyond those siblings.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent leakage across a child's repeated measures.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

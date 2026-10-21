@@ -42,15 +42,11 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG16 models **gains in DEAP fine-articulation** scores (`deappfi_gain`) between consecutive longitudinal timepoints. `deappfi` is a percentage-scale articulation measure from the Diagnostic Evaluation of Articulation and Phonology (Dodd et al., 2006): the proportion of *final* consonants correctly produced in a picture-naming task. All observations are included (no outlier exclusion).
+LRPGBG16 models **gains in DEAP fine-articulation** scores (`deappfi_gain`) between consecutive longitudinal timepoints. `deappfi` is a percentage-scale articulation measure from the Diagnostic Evaluation of Articulation and Phonology (Dodd et al., 2006): the percentage of *final* consonants correctly produced in a picture-naming task. All observations are included (no outlier exclusion).
 
-The target is **nearly symmetric with heavy two-sided spread** (skew −0.32, std 13.3 on a 0–100 scale) with ~48% negative and ~2% zero observations (n ≈ 152). Ceiling-driven regression is the dominant dynamic — children at the top of the scale tend to drop back between timepoints. Pair partner to LRPGBL16 (`deappfi` level); first articulation-domain target in the suite (DEAP measures have been used as predictors across LRPGBG12–LRPGBL07 but never as targets).
-
-This is a **baseline exploratory model** for the gain-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_GAIN` set (`deappfi` is already a level predictor in that set). Later variants will have a documented starting point for comparison.
+This is a **baseline exploratory model** for the gain-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_GAIN` set (`deappfi` is already a level predictor in that set).
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

@@ -1,26 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL09: Predictors of letter-sound knowledge level.
+lrp-rli-gbl-009: Predictors of letter-sound knowledge level.
 
 ``LRPGBL09`` is the exploratory model for letter-sound knowledge level
-(``yarclet``). It is Huber-tuned on the full 32-predictor
+(``yarclet``). It is Huber-tuned on the full
 :attr:`Predictors.DEFAULT_LEVEL` set (minus the target), with no
-outlier exclusion, designed to identify the most important
-influences on letter-sound knowledge level.
-
-The target is **left-skewed with a ceiling at 32** (``yarclet`` min
-0, max 32, median 21, skewness −0.60, n ≈ 214). The ceiling effect
-(95th percentile = 31, 99th = 32) means many children score at or
-near the instrument maximum — a different pathology from the
-right-skewed / floor-at-0 targets of LRPGBL12 and LRPGBL06. Log / log1p
-transforms are inappropriate here because the skew is in the wrong
-direction; a reflection-log or quantile objective might be
-considered later.
-
-Fits the full ``Predictors.DEFAULT_LEVEL`` set; hyperparameters were re-tuned
-by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
+outlier exclusion, used to rank predictors of
+letter-sound knowledge level.
 """
 
 from language_reading_predictors.data_variables import Variables as V

@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL14: Predictors of basic concept knowledge level (CELF).
+lrp-rli-gbl-014: Predictors of basic concept knowledge level (CELF).
 
 ``LRPGBL14`` is the exploratory model for basic concept knowledge level
 (``celf``). The ``celf`` score is drawn from the Clinical Evaluation of
@@ -11,11 +12,6 @@ this study only the basic-concept-knowledge subtest (18 linguistic
 concepts) was administered — so ``celf`` is a lexical/semantic concept
 measure, NOT a grammar measure (grammar is covered by ``trog`` for
 receptive and ``aptgram`` for expressive grammar).
-
-The target is **mildly left-skewed** (``celf`` min 0, max 18, median 11,
-mean 10.88, std 4.24, skewness −0.37, n ≈ 214). The max of 18 is the
-instrument maximum but the 95th percentile is below it, so there is no
-strong ceiling pathology.
 """
 
 from language_reading_predictors.data_variables import Variables as V

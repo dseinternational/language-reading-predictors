@@ -44,13 +44,9 @@ with open("metrics.json") as f:
 
 LRPGBL15 models **TROG-2 receptive-grammar scores** (`trog`) at the observed timepoint rather than the change between timepoints. The `trog` score is the items-correct total from the Test for Reception of Grammar 2 (TROG-2; Bishop 2003), covering eight grammatical constructs in blocks of four items. All observations are included (no outlier exclusion) so the full range of outcomes informs the model.
 
-The target is **near-Gaussian** (skew 0.29, range 3–27, median 14) — a clean distribution with no floor or ceiling pathology.
-
-This is a **baseline exploratory model** for the level-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a documented starting point for comparison.
+This is a **baseline exploratory model** for the level-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_LEVEL` set (minus the target).
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

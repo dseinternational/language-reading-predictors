@@ -1,23 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG10: Predictors of phoneme-blending gains.
+lrp-rli-gbg-010: Predictors of phoneme-blending gains.
 
 ``LRPGBG10`` is the baseline exploratory model for phoneme-blending
 gains (``blending_gain``). ``blending`` is a phoneme-blending
 (phonological awareness) score on a 0–10 scale: the child selects
 which of three pictures depicts the word formed by segmented
 phonemes spoken by the examiner.
-
-The target is **mildly right-skewed** (``blending_gain`` min −5,
-max 7, median 0, mean 0.48, std 2.15, skewness 0.51, with ~35%
-negative and ~20% zero observations, n ≈ 161). Similar in shape
-to LRPGBG05 (``rowpvt_gain``, skew 0.04) but with heavier zero
-pile-up.
-
-Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -72,5 +64,8 @@ class LRPGBG10(GainModel):
     params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for blending_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory gain model for blending_gain using DEFAULT_GAIN and its own baseline. "
+        "Huber parameters come from the 22 September 2026 retune. Read predictive "
+        "performance and ranking stability from the fitted outputs; baseline "
+        "associations can reflect score limits or regression to the mean."
     )

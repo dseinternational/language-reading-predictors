@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG04: Predictors of not-taught-expressive-vocabulary gains.
+lrp-rli-gbg-004: Predictors of not-taught-expressive-vocabulary gains.
 
 ``LRPGBG04`` is the exploratory model for *not-taught* expressive-vocabulary gains
 (``b1exnt_gain`` — change in the Block 1 not-directly-taught expressive vocabulary
@@ -14,9 +15,8 @@ Predictor set: :attr:`Predictors.DEFAULT_GAIN` plus the auto-included baseline
 total = taught + not-taught, which contains the target directly — same exclusion
 as LRPGBG02).
 
-Status: Huber-tuned by Optuna on the full predictor set (150 trials, seed 47;
-#169). The not-taught denominator (12 items) is unconfirmed in the data
-dictionary (#144).
+The not-taught denominator (12 items) is unconfirmed in the data dictionary
+(#144). The boosting fit uses raw scores and does not require that denominator.
 """
 
 from language_reading_predictors.data_variables import Variables as V

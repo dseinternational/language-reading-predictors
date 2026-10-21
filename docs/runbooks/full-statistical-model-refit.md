@@ -38,7 +38,7 @@ Complete these prerequisites before starting:
 #    The later bare Python commands require this activation.
 #    Without activation, prefix Python commands with `uv run --locked`.
 uv sync --locked
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
+source .venv/bin/activate    # PowerShell: .\.venv\Scripts\Activate.ps1
 
 # 2. Authenticate to Azure with an account that has the write role on the
 #    destination container. Verify access on the current host.
@@ -998,7 +998,7 @@ pnpm run format:check    # Markdown formatting (Prettier, proseWrap preserve)
 pnpm run spellcheck      # Markdown + Quarto spelling, British English (en-GB)
 ```
 
-- New markdown must be `git add`-ed before `format:check` / `spellcheck` — those only see tracked files, so an untracked note passes locally then fails CI.
+- Stage new Markdown before `format:check`: its wrapper selects tracked files. CSpell scans Markdown and Quarto paths, including untracked files, subject to `.cspell.config.yaml` exclusions.
 - Correct misspellings. Add valid names or terms that CSpell lacks to `config/spellcheck/allow-en.txt`; do not use the allow list to hide errors.
 
 Commit with a Conventional Commit message, open the PR, and reference the issue it closes. The published report URLs and the dated note are the deliverables.

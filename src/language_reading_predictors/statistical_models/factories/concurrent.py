@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """Concurrent (same-wave) association model construction."""
 
@@ -73,8 +74,8 @@ def build_concurrent_model(
     inputs and the associations are a descriptive read. Mean imputation changes the
     predictor distribution and can bias a conditional coefficient; the direction is
     not guaranteed when missingness relates to the predictor, outcome, or other
-    skills. Rows missing the focal OUTCOME are dropped by the caller (an outcome
-    cannot be imputed).
+    skills. This analysis drops rows missing the focal outcome; it does not model
+    their missing outcomes.
 
     Regularising ``Normal(0, predictor_slope_sigma)`` slopes are essential: with
     n ≈ 53 and a strongly inter-correlated predictor cluster, the mutually-adjusted

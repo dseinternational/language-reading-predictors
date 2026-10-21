@@ -1,89 +1,32 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
-"""LRP77 - Period-resolved dose-response: intervention dose -> word reading (W).
+"""Period-resolved attendance associations with word reading (lrp-rli-dose-077).
 
-The gated #104 Phase-2 follow-up to the period-resolved GB diagnostic
-. Phase 1 found the
-structure in the near-noise gain models sits on the **dose / intervention-status
-axis**, with a weak positive dose signal concentrated in period 1 for word
-reading. This model quantifies that one signal with honest uncertainty.
+The Beta-Binomial model predicts the word-reading post-score conditional on its
+own baseline logit over all three transitions. It estimates associations with
+attendance, not a raw gain score or a causal attendance effect.
 
-Estimand
---------
-Among rows **on the intervention**, how word-reading **conditional change**
-relates to how many sessions were attended — the *intensive* margin — with
-partial pooling across the three periods, and whether that slope **varies by
-period**. The outcome is the Beta-Binomial post-count of W conditional on its own
-baseline logit (``adjust_baseline_symbol`` = ``W``, ``n_trials`` = 79) -
-conditional change, never raw change scores (Lord's paradox / regression to the
-mean).
+Sessions are centred and standardised over fitted rows with positive attendance.
+The model separates presence (``theta_treated``) from between-child attendance
+and period-specific within-child attendance deviations. Each child's mean uses
+their fitted positive-attendance rows only; untreated rows contribute zero to
+both dose components. Assigned arm enters from period 2 because it is collinear
+with presence in period 1. Phase intercepts allow different mean changes across
+the unequal assessment intervals, without defining a common per-month slope.
 
-Two margins, deliberately separated (#587 finding 2)
-----------------------------------------------------
-In period 1 every immediate-arm child attended 45-91 sessions and every waitlist
-child attended **zero**: arm and session count correlate at 0.970. A single dose
-coefficient spanning both groups is therefore not an attendance effect at all —
-arithmetically it is the randomised treatment contrast divided by the mean dose.
-(On the pre-repair stored fit that identity was exact: the period-1 slope times
-the treated mean dose, plus the arm term, reproduced ``lrp-rli-itt-010``'s
-randomised tau to three decimal places.)
+Age and arm are adjusted, while latent general ability can still confound
+attendance and outcome. A child random intercept does not remove that
+confounding. The baseline-skill companion ``lrp-rli-dose-177`` checks sensitivity
+to measured proxies; a change in slope does not quantify confounding removed.
+Cumulative prior dose is omitted from the headline and retained only as a
+flagged collider sensitivity (issue #269).
 
-So sessions enter **centred and standardised over the fitted on-intervention rows
-only**, zero elsewhere, and a separate ``theta_treated`` indicator carries the
-extensive margin. Assigned arm enters only from period 2 (``beta_arm_late``),
-where both arms are treated and arm reads as intervention *order*; in period 1 it
-would be exactly collinear with ``treated``. The exposure is additionally split
-Mundlak-style into each child's study-average attendance (``beta_dose_between``)
-and their within-child deviation from it, because a lone slope over a child random
-intercept returns a precision-weighted blend of the two.
-
-Causal structure (revised DAG; dag/dag-language-reading.dagitty)
----------------------------------------------------------------
-The focal edge is ``sessions -> outcome``. Sessions is the revised DAG's ``IS``
-node, and the per-period ``attend`` is the model's *exposure* — regressing the
-outcome on it is the estimand, not a "conditioning on IS" violation of the ITT
-rule. What that rule forbids is conditioning on *other* functions of ``IS`` that
-open a back door: in particular the **cumulative prior dose** ``attend_cumul`` (a
-running sum of earlier-period ``IS``), which an earlier version adjusted via
-``dose_stage_covariate`` — reopening the latent-GA back door. That term is
-**dropped** from the headline here (#269) and is not fitted; nothing downstream of,
-or aggregating, the focal dose is conditioned on. It remains available only as a
-**flagged sensitivity option** (set
-``DoseResponseModelSettings(dose_stage_covariate="attend_cumul")``, the
-dose-response analogue of the aligned family's cumulative-session collider
-sensitivity) — read any movement of the slope under it as a back-door sensitivity,
-not a better estimate.
-
-**There is no clean back-door set.** ``IS`` has three parents in the revised DAG —
-``A -> IS``, ``GA -> IS`` and ``IG -> IS`` — and all three also point into the
-outcomes. Age and assigned group are measured and adjusted. **Latent general
-ability GA is not**, and conditioning on measured baselines does not close it.
-``W_pre`` is the regression-to-the-mean / autoregression control (parameterisation,
-not a back-door). An earlier version of this docstring claimed v5 has no
-``age -> dose`` edge and deliberately omits ``ability -> dose``; both claims are
-contradicted by the DAG file (#587 finding 7).
-
-The unblocked path (``GA -> IS``)
----------------------------------
-Frank's 2012 caveat ("the children least able to learn tended to show the poorest
-attendance") is exactly the ``GA -> IS`` edge. Attendance is **not** randomised
-(only ``intervention`` is), so randomisation does not rescue this. The subject
-random intercept absorbs *stable* child differences and the between/within split
-names them; the baseline-ability sensitivity fit ``lrp-rli-dose-177`` conditions on
-the t1 skill cluster (L/E/B) to probe whether the slope survives. If it collapses
-there, the signal is substantially ability-confounded — but surviving is
-reassurance, not proof, because those are noisy proxies for ``GA``, not ``GA``.
-
-Caveats (carried into the report)
----------------------------------
-Every coefficient is an adjusted association, including ``theta_treated`` in
-period 1. Attendance adjustment prevents interpreting it as the assigned-arm
-causal effect. Phase-1 best strata reached only
-R^2 0.1-0.3; the deliverable is a calibrated attendance slope with credible
-intervals, not a strong predictor. Group is coded ``G = 2 - group``
-(G=1 = immediate-intervention, G=0 = waitlist control; positive = benefit), per the
-#117 sign convention.
+Every coefficient remains an adjusted association, including presence in period
+1: conditioning on treatment-induced attendance prevents interpreting it as the
+assigned-arm effect. Use the separate available-case modified ITT analysis for
+that contrast, subject to its selection, missing-data and timing assumptions.
 """
 
 from language_reading_predictors.statistical_models.context import (

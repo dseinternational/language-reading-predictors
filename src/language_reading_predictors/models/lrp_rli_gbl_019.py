@@ -1,23 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL19: Predictors of Early Repetition Battery total repetition level (``erbto``).
+lrp-rli-gbl-019: Predictors of Early Repetition Battery total repetition level (``erbto``).
 
 ``erbto`` is the ERB total score from the Early Repetition Battery
 (a repetition task indexing verbal / phonological short-term
 memory). It is a composite — ``erbword``, ``erbnw`` are its
-components and remain in the candidate pool, so a high naive R² is
-mechanical (see the same-skill-excluded ranking view, ``ranking_excluding_same_skill.csv``).
+components and remain in the candidate pool, so these concurrent components can inflate R² (see the same-skill-excluded ranking view, ``ranking_excluding_same_skill.csv``).
 
-The target spans min 1.0, max 36.0, median 21.00, mean 20.17, std
-9.47, skew -0.21 (n = 202).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable total repetition
-is and from what, to inform whether the shared DAG needs a verbal
-/ phonological short-term memory node. It is not a causal or
-available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

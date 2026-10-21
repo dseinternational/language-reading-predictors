@@ -31,4 +31,6 @@ The September findings notes summarise an earlier rebuild. The October correctio
 
 Keep scientific rules in `METHODS.md`, model-specific detail in the catalogue and templates, and commands in the runbook. A dated note should record a decision, its evidence or a reproducible run. Avoid copying changing model counts, full prior inventories or machine-specific credentials into several guides.
 
+Describe a model's specification in its template and source comments. Read sample sizes, target distributions, performance and scientific conclusions from the completed fit. Copied summaries can otherwise describe a different row set or tuning policy.
+
 When a note is superseded, retain any decision or evidence still needed to explain the current analysis. Remove duplicate findings and completed plans once their useful content has a clear home. Historical citations can link to the exact version in Git history so a newer result is not mistaken for the evidence originally cited.

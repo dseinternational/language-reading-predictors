@@ -1,20 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL11: Predictors of phonetic-spelling level.
+lrp-rli-gbl-011: Predictors of phonetic-spelling level.
 
 ``LRPGBL11`` is the exploratory model for the phonetic-spelling level (``spphon``),
 the level companion to :mod:`lrp_rli_gbg_011`. Added in #116 Phase B.
 
 Predictor set: :attr:`Predictors.DEFAULT_LEVEL` minus the target. No leakage
 sibling to drop. As a level model a high naive R² is partly concurrent
-same-construct correlation; combined with the heavy floor on ``spphon`` (~78% at
-zero; #119/#144), read the ranking as exploratory.
-
-Status: Huber-tuned by Optuna on the full predictor set (150 trials, seed 47;
-#169), superseding the earlier parameters borrowed from the phonics-adjacent
-letter-sounds analogue LRPGBL09.
+same-construct correlation. Inspect the fitted zero frequency and held-out
+performance alongside the exploratory ranking.
 """
 
 from language_reading_predictors.data_variables import Variables as V

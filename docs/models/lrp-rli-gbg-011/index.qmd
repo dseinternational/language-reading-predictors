@@ -48,13 +48,11 @@ This is a **baseline exploratory model** for the gain-prediction task. It was Hu
 
 ::: {.callout-note title="Heavy floor on spphon"}
 
-`spphon` is heavily floored (~78% at zero at baseline; see #119/#144), so the gain target is dominated by zeros and the predictive signal is expected to be weak. The ranking will surface that honestly (low out-of-fold R²); read it as a "how predictable is spelling change at all" check rather than a strong model.
+`spphon` has many scores at zero. Check floor frequencies alongside held-out prediction and ranking stability. A large zero mass alone does not establish how well gains can be predicted.
 
 :::
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

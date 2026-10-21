@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """Cluster-first predictor-ranking tables (#116).
 
@@ -40,7 +41,7 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
     "aptinfo": ["aptgram"],  # same APT elicited sample
     "deappfi": ["deappin", "deappvo"],  # same DEAP picture-naming instrument
     "deappin": ["deappfi", "deappvo"],  # same DEAP picture-naming instrument
-    "deappvo": ["deappfi", "deappin"],  # DEAP voicing — same DEAP instrument
+    "deappvo": ["deappfi", "deappin"],  # DEAP vowels — same DEAP instrument
     "deappav": ["deappin", "deappvo", "deappfi"],  # DEAP average — its deterministic components
     "deapp_c": ["deappin", "deappvo", "deappfi"],  # DEAP composite — its deterministic components
     "rowpvt": ["b1reto"],    # receptive vocab — ROWPVT vs total b1reto

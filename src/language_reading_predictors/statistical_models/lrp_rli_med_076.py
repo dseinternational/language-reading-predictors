@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """LRP76 - longitudinal-ordering mediation: letter sounds (t2) -> word reading (t4).
 
@@ -25,14 +26,15 @@ outcome lagged via `load_and_prepare_lagged_outcome`):
 - Because the outcome is lagged, the t3-sensitivity sub-fit is skipped (it would
   double-lag).
 
-STRONG CAVEAT: the **t2 -> t4 increment is NOT randomised** — by t4 both arms have
-been treated (the wait-list has crossed over), so this is a triangulation design
-for the temporal-precedence question, read under stated assumptions, **not** a
-cleaner causal estimate than the contemporaneous LRP59. It is a within-current-design
-longitudinal check, and is explicitly *not* the full wave-unrolled cross-lagged
-model (issue #250), which additionally handles time-varying confounding. ID-2
-applies throughout (GA-confounded + treatment-induced dose confounder); the NIE is
-an adjusted association under a stated forward direction.
+Causal interpretation
+---------------------
+Assignment still randomises early-start versus delayed-start treatment schedules after
+crossover. It does not randomise letter-sound knowledge or identify the mediator–outcome
+relation. Measuring the mediator at t2 and the outcome at t4 establishes their
+measurement order, while latent ability and treatment-induced dose confounding still
+prevent a causal natural-effect interpretation. Read the decomposition under its stated
+forward model and compare it with the contemporaneous and t3-outcome analyses as a
+sensitivity to timing.
 """
 
 from language_reading_predictors.statistical_models.context import (

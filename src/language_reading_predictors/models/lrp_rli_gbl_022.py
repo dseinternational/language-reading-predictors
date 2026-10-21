@@ -1,24 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL22: Predictors of DEAP average articulation level (``deappav``).
+lrp-rli-gbl-022: Predictors of DEAP average articulation level (``deappav``).
 
 ``deappav`` is the DEAP picture-naming average from the Diagnostic
 Evaluation of Articulation and Phonology (Dodd et al., 2006) — the
 proportion of sounds correctly produced in a picture-naming task.
 It is a composite — ``deappin``, ``deappvo``, ``deappfi`` are its
-components and remain in the candidate pool, so a high naive R² is
-mechanical (see the same-skill-excluded ranking view, ``ranking_excluding_same_skill.csv``).
+components and remain in the candidate pool, so these concurrent components can inflate R² (see the same-skill-excluded ranking view, ``ranking_excluding_same_skill.csv``).
 
-The target spans min 47.1, max 94.9, median 77.70, mean 75.27, std
-11.30, skew -0.70 (n = 207).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable average
-articulation is and from what, to inform whether the shared DAG
-needs a speech-sound accuracy node. It is not a causal or
-available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

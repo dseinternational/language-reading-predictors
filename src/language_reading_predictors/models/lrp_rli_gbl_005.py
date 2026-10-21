@@ -1,14 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL05: Predictors of receptive vocabulary level.
+lrp-rli-gbl-005: Predictors of receptive vocabulary level.
 
 ``LRPGBL05`` is the exploratory model for receptive vocabulary level
-(``rowpvt``). The target is **essentially symmetric and near-Gaussian**
-(``rowpvt`` min 11, max 82, median 42, mean 41.1, std 14.1, skewness
-0.04, n ≈ 215) — no floor, no ceiling, no heavy tail; the cleanest
-target distribution of any LRP model.
+(``rowpvt``).
 """
 
 from language_reading_predictors.data_variables import Variables as V

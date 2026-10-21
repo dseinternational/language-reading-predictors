@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL02: Predictors of taught-vocabulary achievement level.
+lrp-rli-gbl-002: Predictors of taught-vocabulary achievement level.
 
 ``LRPGBL02`` is the exploratory model for *taught* expressive-vocabulary level
 (``b1extau`` — the Block 1 directly-taught expressive vocabulary score). It is
@@ -10,23 +11,13 @@ the taught-vocabulary analogue of :mod:`lrp_rli_gbl_006` (standardised expressiv
 level, ``eowpvt``), completing the gain + achievement-level inventory for taught
 vocabulary.
 
-The target is mildly right-skewed (``b1extau`` min 0, max 19, median 8, mean
-8.16, skewness 0.35, n ≈ 215) — comparable to ``eowpvt`` (skew 0.63), so the
-plain Huber LightGBM pipeline with no outlier exclusion used by LRPGBL06 carries over.
-
 Predictor set: :attr:`Predictors.DEFAULT_LEVEL` (target ``b1extau`` is already
 excluded — it is in ``DEFAULT_EXCLUDED``) **minus** ``b1exto``. The Block 1
 expressive *total* ``b1exto`` equals taught + not-taught (``b1extau + b1exnt``),
-so it contains the target directly and must be removed to avoid leakage — the
-only deviation from the LRPGBL06 predictor set. (LRPGBL06 additionally dropped
-``b1reto`` as redundant with ``rowpvt``; here ``b1reto`` is retained, since for a
-*taught*-vocabulary target it carries non-tautological receptive-vocabulary
-signal.)
-
-Status: fits the full ``Predictors.DEFAULT_LEVEL`` set (minus the leakage
-exclusions above). Hyperparameters Huber-tuned by Optuna on the full predictor set
-(150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), superseding the earlier parameters seeded from the
-LRPGBL06 standardised analogue.
+so it is excluded. Unlike the standardised-vocabulary companion, this model
+retains ``b1reto`` as a related receptive-vocabulary measure. Related measures
+can still dominate a ranking; the exclusion alone does not establish a
+substantive or causal interpretation.
 """
 
 from language_reading_predictors.data_variables import Variables as V

@@ -33,7 +33,7 @@ Mediator $L_{t2}$ (Beta-Binomial on $L_{t1}$); outcome $W_{t4}$ (conditioned on 
 
 ## Assumptions — read this first {#sec-assumptions}
 
-The **t2 → t4 increment is NOT randomised** — by t4 both arms have been treated (the wait-list has crossed over), so this is a **triangulation design** for the temporal-precedence question, read under stated assumptions, **not** a cleaner causal estimate than the contemporaneous LRP59. It is a within-current-design longitudinal check, and is explicitly *not* the full wave-unrolled cross-lagged model (issue #250), which additionally handles time-varying confounding. ID-2 applies throughout; the NIE is an adjusted association under a stated forward direction. $n \approx 53 \Rightarrow$ wide intervals.
+Assignment still randomises early-start versus delayed-start treatment schedules after crossover. It does not randomise letter-sound knowledge or identify the mediator–outcome relation. Measuring the mediator at t2 and the outcome at t4 establishes their measurement order, while latent ability and treatment-induced dose confounding still prevent a causal natural-effect interpretation. Read the decomposition under its stated forward model and compare it with the contemporaneous and t3-outcome analyses as a sensitivity to timing.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

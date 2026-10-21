@@ -44,13 +44,9 @@ with open("metrics.json") as f:
 
 LRPGBL05 models **receptive vocabulary scores** (`rowpvt`) at the observed timepoint rather than the change between timepoints. The target is `rowpvt` --- a receptive one-word picture vocabulary test raw score. All observations are included (no outlier exclusion) so the full range of outcomes informs the model.
 
-The target is **essentially symmetric and near-Gaussian** (skew 0.04, no floor or ceiling) — the cleanest target distribution of any LRP model to date. Transforms are unnecessary; standard MAE and RMSE objectives should behave well.
-
 This is an **exploratory model** for the level-prediction task. It runs on Huber-tuned hyperparameters from an Optuna 150-trial study on the full `Predictors.DEFAULT_LEVEL` set (minus the target); #116 Phase D retired hard feature selection in favour of full-set ranking. The predictor ranking is shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

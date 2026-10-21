@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL01: Predictors of taught-receptive-vocabulary level.
+lrp-rli-gbl-001: Predictors of taught-receptive-vocabulary level.
 
 ``LRPGBL01`` is the exploratory model for the *taught* receptive-vocabulary level
 (``b1retau`` — Block 1 directly-taught receptive vocabulary score), the level
@@ -14,9 +15,6 @@ Predictor set: :attr:`Predictors.DEFAULT_LEVEL` minus the target, **minus**
 target construct directly — mirrors the ``b1exto`` exclusion in LRPGBL02). As a
 level model, a high naive R² is partly concurrent same-construct correlation;
 read the ranking as exploratory.
-
-Status: Huber-tuned by Optuna on the full predictor set (150 trials, seed 47;
-#169), superseding the earlier parameters borrowed from LRPGBL02.
 """
 
 from language_reading_predictors.data_variables import Variables as V

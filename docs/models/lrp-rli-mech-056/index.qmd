@@ -45,7 +45,7 @@ Observed parents of $R$ (RV) under the revised DAG (#245): $\{A, HS, RW, TR\}$.
 - $RW$ — phonological memory (`erbto`), now an upstream cause of $R$. **New (#245).**
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 
-$E$ is a *descendant* of $R$ (path $R \to E$) that also affects $W$. Conditioning on $E$ would change the estimand by removing the $R \to E \to W$ pathway and pulling the estimated $f^R$ toward the direct-only component. $E$ is therefore **not** in the adjustment set. $GA$ (general ability) is latent and cannot be conditioned on; the child random intercept proxies its time-invariant part, so $f^R$ stays an adjusted association.
+$E$ is a *descendant* of $R$ (path $R \to E$) that also affects $W$. Conditioning on $E$ would change the estimand by removing the $R \to E \to W$ pathway and pulling the estimated $f^R$ toward the direct-only component. $E$ is therefore **not** in the adjustment set. $GA$ (general ability) is latent and cannot be conditioned on; a child random intercept models repeated observations and does not establish control for $GA$, so $f^R$ stays an adjusted association.
 
 ### Interpretation caveats
 

@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """Longitudinal correlated-factor model construction."""
 
@@ -363,10 +364,10 @@ def build_longitudinal_corr_factor_model(
         # --- Marginal indicator covariance + mean over the (t, j) stack ---
         Lambda_wave = lam[:, None] * pt.as_tensor_variable(onehot)  # (J, D)
         Lambda_full = pt.linalg.kron(pt.eye(T), Lambda_wave)  # (T*J, T*D)
-        # A small diagonal nugget guarantees a numerically PD covariance for the
-        # Cholesky even when a factor's trait share -> 1 (its waves become near-
-        # identical, so Sigma_f is rank-deficient) coincides with a tiny residual SD
-        # draw; z is standardised (~unit scale), so 1e-6 is negligible.
+        # A diagonal nugget stabilises the Cholesky when near-identical factor
+        # waves coincide with tiny residual SDs. It makes the covariance positive
+        # definite in exact arithmetic; floating-point factorisation can still
+        # fail. The 1e-6 addition is small relative to standardised z's unit scale.
         sig2_full = pt.tile(sigma_ind**2, T) + 1e-6  # (T*J,) in (t, j) order
 
         # mean of z[t, j] = lambda[j] * factor_mean[domain(j), t]; flatten to (t, j).

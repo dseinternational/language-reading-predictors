@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """LRP77a - Baseline-ability sensitivity fit for LRP77 (probes the GA -> IS path).
 
@@ -13,11 +14,11 @@ Rationale: the revised DAG carries ``GA -> IS`` (latent), so if abler children
 attended more (Frank 2012), ``g`` is a common cause of attendance and outcome and
 the measured adjustment set does not identify an attendance effect. Conditioning
 on the baseline-skill cluster probes that path with observed proxies.
-**Read LRP77a against LRP77:** if the slope survives, the assumption that ability
-does not drive attendance is more defensible in this sample; if it collapses, the
-LRP77 signal is substantially ability-confounded and should be downgraded. Neither
-outcome *proves* the latent path is closed — these are noisy proxies for ``g``,
-not ``g``.
+Compare the attendance association with LRP77, including uncertainty and fitted
+row identities. Stability does not show that latent ability is unrelated to
+attendance, and attenuation does not measure the confounding removed. Measurement
+error, collinearity and sample changes can affect the comparison. These proxies
+do not establish control for ``g``.
 
 Each adjuster is that child's **verified t1 value, broadcast across all three
 transitions** (``ability_baseline_wave="t1"``, the default). Until #587 this fit

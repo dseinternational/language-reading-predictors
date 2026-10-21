@@ -1,28 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL16: Predictors of DEAP fine-articulation level.
+lrp-rli-gbl-016: Predictors of DEAP fine-articulation level.
 
 ``LRPGBL16`` is the baseline exploratory model for DEAP fine-
 articulation level (``deappfi``). ``deappfi`` is a
 percentage-scale articulation measure from the Diagnostic
 Evaluation of Articulation and Phonology (Dodd et al., 2006) —
-the proportion of sounds correctly produced when the child is
+the percentage of sounds correctly produced when the child is
 asked to name pictures. ``deappfi`` specifically scores the
 *final* consonant of each word (distinct from ``deappin``
-initial and ``deappvo`` voicing).
-
-The target is **left-skewed with ceiling** (``deappfi`` min
-5.4, max 95.2, median 66.6, mean 60.3, std 20.9, skewness
-**−0.87**, n ≈ 207). Ceiling effects are possible at the top
-end — several children score in the 90s. No zeros in the
-sample (unlike the reading targets where floor effects
-dominate).
-
-DEAP measures have been used as predictors across every other
-model in the suite but never as targets until LRPGBL16/22. First
-articulation-domain target.
+initial consonants and ``deappvo`` vowels).
 """
 
 from language_reading_predictors.data_variables import Variables as V

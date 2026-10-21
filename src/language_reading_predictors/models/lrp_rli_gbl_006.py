@@ -1,12 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL06: Predictors of expressive-vocabulary level.
+lrp-rli-gbl-006: Predictors of expressive-vocabulary level.
 
 ``LRPGBL06`` is the exploratory model for expressive-vocabulary level
-(``eowpvt``). The target is mildly right-skewed (``eowpvt`` min 8, max
-77, median 33, skewness 0.63, n ≈ 215) with no hard floor at 0.
+(``eowpvt``).
 """
 
 from language_reading_predictors.data_variables import Variables as V

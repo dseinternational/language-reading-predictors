@@ -1,23 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL13: Predictors of non-word reading level.
+lrp-rli-gbl-013: Predictors of non-word reading level.
 
 ``LRPGBL13`` is the baseline exploratory model for non-word reading
 level (``nonword``). ``nonword`` is an items-correct score from
 a non-word decoding task (observed range 0–6 in this sample).
 
-The target is **heavily floor-loaded** (``nonword`` min 0, max 6,
-median 0, mean 1.24, std 1.81, skewness 1.38, with **57% at
-zero**, n ≈ 215). Non-word reading / phonological decoding is a
-late-emerging skill — most children in this sample have not yet
-started to decode non-words reliably, so the data are genuinely
-half zeros. This differs from the LRPGBL12 / LRPGBL09 right-skewed
-reading targets where zeros are a minority.
-
-Log or quantile transforms may be more appropriate than a plain
-regression here; plan for a ``lrpgbl13_log`` variant in follow-up PRs.
 """
 
 from language_reading_predictors.data_variables import Variables as V

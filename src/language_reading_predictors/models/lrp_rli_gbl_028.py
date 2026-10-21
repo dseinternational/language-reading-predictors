@@ -1,22 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL28: Predictors of language sample total words level (``lsamto``).
+lrp-rli-gbl-028: Predictors of language sample total words level (``lsamto``).
 
 ``lsamto`` is the total number of words produced from a coded
 sample of the child's spontaneous connected speech.
 
-The target spans min 3.0, max 221.0, median 68.50, mean 76.59, std
-51.97, skew 0.65 (n = 106).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable total words is
-and from what, to inform whether the shared DAG needs a
-spontaneous connected speech node. It is not a causal or
-available-case modified ITT estimate. The language-sample measures are
-recorded at t1–t2 only, so this level model is doubly exploratory
-(≈106 rows, two waves) and no gain model is fitted. The other
+Rankings describe predictive associations, not causal effects. The language-sample measures are
+recorded at t1–t2 only, and no corresponding gain model is registered. The other
 language-sample measures are absent from the default predictor
 pool (recorded at t1–t2 only), so this model cannot be carried by
 same-instrument siblings.

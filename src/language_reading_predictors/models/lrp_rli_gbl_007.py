@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL07: Predictors of expressive-information (APT) level.
+lrp-rli-gbl-007: Predictors of expressive-information (APT) level.
 
 ``LRPGBL07`` is the baseline exploratory model for expressive-
 information level (``aptinfo``). ``aptinfo`` is the information
@@ -10,14 +11,7 @@ raw score from the Action Picture Test (Renfrew, 1997): the child
 is shown pictures and asked to describe them, with scoring of the
 information content of the response (as distinct from its
 grammatical structure, which is scored separately as ``aptgram``
-— LRPGBG08/18).
-
-The target is **essentially symmetric** (``aptinfo`` min 0,
-max 37.5, median 16.5, mean 16.97, std 7.93, skewness 0.24,
-with ~1% at zero, n ≈ 214) — one of the cleanest distributions
-in the suite, comparable to LRPGBL15 (`trog`, skew 0.29) and
-LRPGBL10 (`blending`, skew 0.01) and much cleaner than the paired
-LRPGBL08 (`aptgram`, skew 1.23).
+— ``lrp-rli-gbl-008``).
 """
 
 from language_reading_predictors.data_variables import Variables as V
