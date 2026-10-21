@@ -771,3 +771,12 @@ basetemp
 cachetools
 filelock
 msgspec
+certifi
+fetchall
+fetchone
+jsonpointer
+mistune
+nbconvert
+numcodecs
+setuptools
+wcwidth
