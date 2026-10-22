@@ -504,9 +504,8 @@ def test_dag_contradicting_prose_is_gone_from_every_dose_module():
         )
         # Every module must acknowledge the unblocked latent-ability path. The old
         # prose asserted the opposite ("no ability -> dose edge assumed", "v5 has
-        # age -> outcome but no age -> dose"); dose-077 now quotes those claims only
-        # in order to record that the DAG contradicts them, so match on the honest
-        # statement rather than on the absence of the words.
+        # age -> outcome but no age -> dose"). Require the current explanation to
+        # name the latent-ability path explicitly.
         assert "GA -> IS" in source or "GA is not" in source, model_id
         assert "edge assumed" not in source, model_id
         assert "sole confounder" not in source, model_id

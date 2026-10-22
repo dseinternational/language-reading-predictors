@@ -34,3 +34,9 @@ uv run python -m pytest tests/statistical_models/test_documentation.py tests/sta
 Ruff, Markdown formatting and British-English spelling checks passed. The registry-count check passed, all 277 statistical-report templates retain their required include order, and the local Markdown-link audit found no missing file targets.
 
 Python syntax-tree comparisons permit only comments, documentation strings and explanatory `notes` metadata to change. All 873 fenced blocks and the displayed equation in the 71 changed Quarto files match the base revision. Graph statements, model equations, settings, parameter values, data, dependency locks and the three synchronised instruction files are unchanged. No models were refitted or stored scientific results recomputed. Existing provenance and publication checks still govern saved-fit reuse.
+
+## CI follow-up, 22 October 2026
+
+The [first full CI run](https://github.com/dseinternational/language-reading-predictors/actions/runs/39646294893) passed 4,277 tests, skipped 15 and failed one documentation check. The dose-response prose described latent-ability confounding but no longer named the `GA -> IS` path explicitly, as `test_dag_contradicting_prose_is_gone_from_every_dose_module` requires. The local suite above did not include that test.
+
+The follow-up names all three attendance parents (`A -> IS`, `GA -> IS`, `IG -> IS`) in the shortened `dose-077` explanation. It also removes an outdated test comment about prose that had already been deleted. The test assertions and executable model code are unchanged. All 51 tests in `tests/statistical_models/test_dose_response_estimand.py` pass locally after the correction. There were no review comments or inline threads when checked.

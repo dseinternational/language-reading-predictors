@@ -16,7 +16,9 @@ both dose components. Assigned arm enters from period 2 because it is collinear
 with presence in period 1. Phase intercepts allow different mean changes across
 the unequal assessment intervals, without defining a common per-month slope.
 
-Age and arm are adjusted, while latent general ability can still confound
+The DAG gives attendance three parents: age (``A -> IS``), latent general
+ability (``GA -> IS``) and assigned arm (``IG -> IS``). These also cause the
+outcome. Age and arm are adjusted, while latent ability can still confound
 attendance and outcome. A child random intercept does not remove that
 confounding. The baseline-skill companion ``lrp-rli-dose-177`` checks sensitivity
 to measured proxies; a change in slope does not quantify confounding removed.
