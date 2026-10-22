@@ -1,22 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG05: Predictors of receptive vocabulary gains.
+lrp-rli-gbg-005: Predictors of receptive vocabulary gains.
 
 ``LRPGBG05`` is the exploratory model for receptive vocabulary gains
 (``rowpvt_gain``). It is Huber-tuned on the full
 :attr:`Predictors.DEFAULT_GAIN` set (with the ``rowpvt`` baseline
-auto-included) and no outlier exclusion, designed to identify the most
-important influences on receptive vocabulary gains.
-
-The target is **essentially symmetric** (``rowpvt_gain`` min ≈ −20,
-max ≈ 34, median 5, mean 3.84, skewness 0.04, with ~29% negative
-and ~3% zero observations, n ≈ 161). Cleaner distribution than any
-previous gain target — no skew and no pile-up at zero.
-
-Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
+auto-included) and no outlier exclusion, designed to rank predictors of receptive vocabulary gains.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -57,7 +49,7 @@ class LRPGBG05(GainModel):
     """Receptive vocabulary gain predictors — exploratory (Huber-tuned, all data).
 
     Full ``Predictors.DEFAULT_GAIN`` set, Huber-tuned on the full
-    set (#169). Uses the full predictor set plus the base variable
+    set. Uses the full predictor set plus the base variable
     ``rowpvt`` (auto-included via :class:`GainModel`) with no outlier
     exclusion.
     """
@@ -72,5 +64,8 @@ class LRPGBG05(GainModel):
     params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for rowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory gain model for rowpvt_gain using DEFAULT_GAIN and its own baseline. "
+        "Huber parameters come from the 22 September 2026 retune. Read predictive "
+        "performance and ranking stability from the fitted outputs; baseline "
+        "associations can reflect score limits or regression to the mean."
     )

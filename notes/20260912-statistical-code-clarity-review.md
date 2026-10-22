@@ -3,6 +3,8 @@
 
 # Statistical model code review
 
+**Historical review.** The [implementation record](20260912-statistical-code-clarity-implementation.md) and [follow-up corrections](20260913-statistical-review-fixes.md) describe the response. The findings and proposed work below concern the reviewed revision; use current code and [METHODS.md](../METHODS.md) before treating them as unresolved requirements.
+
 Reviewed on 12 September 2026 against commit `c167dd502f4012ff573c023d167fff8db89069d1`. The review covers correctness, clarity, conciseness, comments and use by students. This note records findings and proposed work. It does not change model code or fitted results.
 
 The existing separation of settings, construction, fitting and reporting is useful. Further work should make those responsibilities easier to follow and remove places where the same statistical decision is described twice. Shorter code alone is a poor target. A short function that sends readers through several callbacks can be harder to understand than a longer, explicit calculation.

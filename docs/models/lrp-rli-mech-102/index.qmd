@@ -43,7 +43,7 @@ Parents of $RW$ under the revised DAG (2026-07-10): $\{A, GA, HS\}$ — and noth
 
 _No session-dose backdoor (as mech-090)._ The DAG has no $IG \to RW$ or $IS \to RW$ edge, so session dose is not a common cause of exposure and outcome; $RW$'s variation is not intervention-generated.
 
-$PA$ and the other reading/vocabulary descendants of $RW$ are mediators of the $RW \to N$ association (e.g. $RW \to PA \to N$); conditioning on them would block legitimate indirect routes and pull the slope toward the direct-only component, so they are **not** in the adjustment set. $GA$ (general ability) is latent and cannot be conditioned on; the child random intercept proxies its time-invariant part, so the slope stays an **adjusted association, never causal**.
+$PA$ and the other reading/vocabulary descendants of $RW$ are mediators of the $RW \to N$ association (e.g. $RW \to PA \to N$); conditioning on them would block legitimate indirect routes and pull the slope toward the direct-only component, so they are **not** in the adjustment set. $GA$ (general ability) is latent and cannot be conditioned on; a child random intercept models repeated observations and does not establish control for $GA$, so the slope stays an **adjusted association, never causal**.
 
 ### Interpretation caveats
 

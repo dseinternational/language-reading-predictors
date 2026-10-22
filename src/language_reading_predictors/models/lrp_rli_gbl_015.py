@@ -1,17 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL15: Predictors of receptive-grammar (TROG-2) level.
+lrp-rli-gbl-015: Predictors of receptive-grammar (TROG-2) level.
 
 ``LRPGBL15`` is the exploratory model for receptive-grammar level (``trog``).
 The ``trog`` score is the items-correct total from the Test for Reception
 of Grammar 2 (TROG-2; Bishop 2003), covering eight grammatical constructs.
-The target is near-Gaussian (min 3, max 27, median 14, mean 14.31, std
-4.83, skewness 0.29, n ≈ 215) — cleaner than most LRP level targets.
-
-Fits the full ``Predictors.DEFAULT_LEVEL`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V

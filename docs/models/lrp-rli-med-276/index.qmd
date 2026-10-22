@@ -25,7 +25,7 @@ Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
 
 ## Overview
 
-The reverse-direction [LRP176](../lrp-rli-med-176) ($WR_{t2} \rightarrow LS_{t4}$) reads its indirect effect on the 0–32 letter-sound scale, which is ~12% ceilinged at t4 and could attenuate the NIE. LRP276 is the **ceiling-sensitivity companion**: the identical design with the outcome taken at **t3** (only ~6% of children at the $LS$ ceiling), so the reverse $WR \rightarrow LS$ indirect is read with more room in the outcome to move. Close agreement with LRP176 means the small reverse signal is not a ceiling artefact; a materially larger t3 NIE would mean the t4 read was ceiling-attenuated.
+The reverse-direction [LRP176](../lrp-rli-med-176) ($WR_{t2} \rightarrow LS_{t4}$) reads its indirect effect on the 0–32 letter-sound scale, which is ~12% ceilinged at t4 and could attenuate the NIE. LRP276 is the **ceiling-sensitivity companion**: the identical design with the outcome taken at **t3** (only ~6% of children at the $LS$ ceiling), so the reverse $WR \rightarrow LS$ indirect is read with more room in the outcome to move. Agreement describes stability across outcome horizons; a difference can reflect follow-up time, ceiling support or other model differences. Neither result isolates a ceiling effect.
 
 ## Design
 
@@ -33,7 +33,7 @@ Mediator $W_{t2}$ (Beta-Binomial on $W_{t1}$); outcome $L_{t3}$ (conditioned on 
 
 ## Assumptions — read this first {#sec-assumptions}
 
-As LRP176 / LRP76: the **t2 → t3 increment is NOT randomised** (the wait-list crosses over after t2), and the whole decomposition is ID-2 (`GA`-confounded + treatment-induced dose confounder), so the NIE is an adjusted association under a stated *reverse* direction, never proof that reading drives the code. The design randomises no early word-reading shock, so the reverse direction is intrinsically under-powered. $n \approx 53 \Rightarrow$ wide intervals.
+Assignment still randomises treatment schedules after crossover. It does not randomise word reading as a mediator, and latent ability and treatment-induced dose confounding remain. This decomposition assumes a reverse direction; it cannot establish that reading changes letter-sound knowledge. Compare its uncertainty with the t4-outcome companion. Changing the outcome wave changes both ceiling support and follow-up time, so the comparison does not isolate either influence.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

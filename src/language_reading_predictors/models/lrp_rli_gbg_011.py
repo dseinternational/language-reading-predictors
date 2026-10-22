@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG11: Predictors of phonetic-spelling gains.
+lrp-rli-gbg-011: Predictors of phonetic-spelling gains.
 
 ``LRPGBG11`` is the exploratory model for phonetic-spelling gains (``spphon_gain``
 — change in the phonetic-spelling score), the spelling member of the reading/
@@ -13,13 +14,8 @@ Predictor set: :attr:`Predictors.DEFAULT_GAIN` plus the auto-included baseline
 spelling has no taught/total decomposition — so no extra ``exclude``.
 
 Caveat: ``spphon`` is heavily floored (~78% at zero at baseline; see #119/#144),
-so the gain target is dominated by zeros and the predictive signal is expected to
-be weak. The ranking will surface that honestly (low out-of-fold R²); treat it as
-a "how predictable is spelling change at all" read rather than a strong model.
-
-Status: Huber-tuned by Optuna on the full predictor set (150 trials, seed 47;
-#169), superseding the earlier parameters borrowed from the phonics-adjacent
-letter-sounds analogue LRPGBG09.
+so inspect floor frequencies alongside held-out predictive performance. A large
+zero mass alone does not establish how well gains can be predicted.
 """
 
 from language_reading_predictors.data_variables import Variables as V

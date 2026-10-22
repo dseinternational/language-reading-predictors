@@ -1,17 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """Mediation orchestration (``kind="mediation"``, LRP59 / LRP64).
 
 The three entry points share the g-formula NDE/NIE decomposition in
 :mod:`language_reading_predictors.statistical_models.mediation`:
-``fit_mediation`` runs the single-mediator split by counterfactual simulation,
+``fit_mediation`` integrates the single-mediator decomposition,
 ``fit_mediation_period_stacked`` stacks the period transitions, and
 ``fit_mediation_multi`` decomposes two mediators. None of them computes ordinary
-PSIS-LOO — the published quantity is a simulated contrast, not a pointwise
-predictive density. The temporal-ordering sensitivity refits the outcome one wave
-later so the mediator precedes it in time; that increment is not randomised, so it
-is triangulation only (#84).
+PSIS-LOO; these pipelines report decompositions rather than predictive scores.
+The temporal-ordering sensitivity measures the outcome one wave later than the
+mediator. Assignment still randomises treatment schedules after crossover, but
+the mediator is not randomised and mediator–outcome confounding remains (#84).
 """
 
 from __future__ import annotations
@@ -77,7 +78,7 @@ def _raw_covariate_confounders(confounders: Iterable[str]) -> tuple[str, ...]:
     return tuple(c for c in confounders if c not in MEASURES)
 
 
-_T3_SENSITIVITY_TIME = 3  # post-RCT wave used for the temporal-ordering check
+_T3_SENSITIVITY_TIME = 3  # post-crossover wave used for the temporal-ordering check
 
 
 def _leg_contract(plan, built) -> dict:
@@ -115,10 +116,10 @@ def _fit_t3_sensitivity(
 
     Refits the *identical* mediation model but with the outcome measured at a
     later wave (t3) while the mediator stays at t2, so the mediator precedes the
-    outcome in time. The t2 -> t3 increment is **not randomised** (both arms are
-    treated after t2), so this is a triangulation point for the contemporaneous
-    measurement caveat, not a cleaner causal estimate. Returns the g-formula
-    decomposition DataFrame for the t3-outcome variant.
+    outcome in time. Assignment still randomises the treatment schedules, but
+    temporal ordering does not remove mediator–outcome confounding or identify
+    causal mediation. Returns the g-formula decomposition DataFrame for the
+    t3-outcome variant.
     """
     from language_reading_predictors.statistical_models import mediation as _med
 
@@ -382,8 +383,8 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     # --- Temporal-ordering sensitivity: outcome at t3, mediator still at t2 ---
     # Triangulation for the contemporaneous-measurement caveat (issue #84): the
-    # mediator now precedes the outcome in time. NB the t2 -> t3 increment is not
-    # randomised (both arms treated after t2), so read this as triangulation only.
+    # mediator precedes the outcome. Randomised assignment still contrasts
+    # treatment schedules, but does not identify this mediation decomposition.
     # Skipped when the primary fit is ALREADY longitudinal (outcome_time set, LRP76)
     # — the sensitivity would double-lag and duplicate the primary estimand.
     # The interventional companions are NO LONGER exempt (#585 finding 2): they are

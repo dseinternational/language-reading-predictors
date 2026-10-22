@@ -15,7 +15,7 @@ Use the fit's `priors_table.csv`, prior density panels and `config.json`. The ta
 
 [priors.py](../../src/language_reading_predictors/statistical_models/priors.py) defines shared constructors and `PriorDescriptor`. Each factory records a descriptor when it creates a free random variable. It names the constructor, fitted distribution, scientific role, rationale, density panel and source of the declaration.
 
-- Named constructors record their defaults through `.to_pymc(...)`. The factory supplies `role` and `rationale` when their meaning differs in that model.
+- Named constructors record their actual parameter values, including overrides, through `.to_pymc(...)`. The factory supplies `role` and `rationale` when their meaning differs in that model.
 - Inline priors use `priors.declare(...)` at the construction site.
 - `EXTERNAL_PRIORS` explicitly describes variables created by the shared HSGP library.
 - A missing descriptor stops the fit. The report must not infer a prior's meaning from a variable name.

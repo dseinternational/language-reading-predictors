@@ -42,7 +42,7 @@ Parents of $RW$ under the revised DAG (2026-07-10): $\{A, GA, HS\}$ — and noth
 
 _No session-dose backdoor (contrast with LRP88/LRP89)._ The DAG has no $IG \to RW$ or $IS \to RW$ edge: under the locked structure the intervention does not move phonological memory, so session dose is **not** a common cause of exposure and outcome here, and the flagged-IS caveat that LRP88 and LRP89 carry does not apply. $RW$'s variation is not intervention-generated — in that respect this is the cleanest adjustment set of the #311 trio.
 
-$TR$, $TE$, $RV$, $EV$, $PA$, $NW$ and $PS$ are *descendants* of $RW$ ($RW \to \{TE, EV, TR, RV, PA, NW, PS\}$) that also affect $W$; conditioning on them would block legitimate indirect paths (e.g. $RW \to PA \to NW \to W$) and pull the slope toward the direct-only component, so they are **not** in the adjustment set. $SP$ is neither a parent nor a descendant of $RW$ and is not needed. $GA$ (general ability) is latent and cannot be conditioned on; the child random intercept proxies its time-invariant part, so the slope stays an adjusted association.
+$TR$, $TE$, $RV$, $EV$, $PA$, $NW$ and $PS$ are *descendants* of $RW$ ($RW \to \{TE, EV, TR, RV, PA, NW, PS\}$) that also affect $W$; conditioning on them would block legitimate indirect paths (e.g. $RW \to PA \to NW \to W$) and pull the slope toward the direct-only component, so they are **not** in the adjustment set. $SP$ is neither a parent nor a descendant of $RW$ and is not needed. $GA$ (general ability) is latent and cannot be conditioned on; a child random intercept models repeated observations and does not establish control for $GA$, so the slope stays an adjusted association.
 
 ### Interpretation caveats
 

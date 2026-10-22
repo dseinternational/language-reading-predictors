@@ -1,24 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG06: Predictors of expressive-vocabulary gains.
+lrp-rli-gbg-006: Predictors of expressive-vocabulary gains.
 
 ``LRPGBG06`` is the exploratory model for expressive-vocabulary gains
-(``eowpvt_gain``). It is Huber-tuned on the full 34-predictor
+(``eowpvt_gain``). It is Huber-tuned on the full
 :attr:`Predictors.DEFAULT_GAIN` set (plus the auto-included base
-variable ``eowpvt``), with no outlier exclusion, designed to
-identify the most important influences on expressive-vocabulary
-gains.
-
-The target is signed (``eowpvt_gain`` min ≈ −13, max ≈ 28, median 3,
-skewness 0.32, with ~25% negative observations and n ≈ 161). That's
-much milder skew than LRPGBG12's ``ewrswr_gain`` and nearly symmetric —
-a log / signed-log transform may or may not help and is a question
-for future investigation.
-
-Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
+variable ``eowpvt``), with no outlier exclusion, used to rank predictors of
+expressive-vocabulary gains.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -59,7 +50,7 @@ class LRPGBG06(GainModel):
     """Expressive-vocabulary gain predictors — exploratory (Huber-tuned, all data).
 
     Full ``Predictors.DEFAULT_GAIN`` set, Huber-tuned on the full
-    set (#169). Uses the full predictor set plus the base variable
+    set. Uses the full predictor set plus the base variable
     ``eowpvt`` (auto-included via :class:`GainModel`) with no outlier
     exclusion.
     """
@@ -74,5 +65,8 @@ class LRPGBG06(GainModel):
     params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for eowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory gain model for eowpvt_gain using DEFAULT_GAIN and its own baseline. "
+        "Huber parameters come from the 22 September 2026 retune. Read predictive "
+        "performance and ranking stability from the fitted outputs; baseline "
+        "associations can reflect score limits or regression to the mean."
     )

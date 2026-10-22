@@ -1,22 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL26: Predictors of language sample intelligibility level (``lsamint``).
+lrp-rli-gbl-026: Predictors of language sample intelligibility level (``lsamint``).
 
 ``lsamint`` is the percentage of intelligible words from a coded
 sample of the child's spontaneous connected speech.
 
-The target spans min 18.4, max 100.0, median 82.47, mean 77.95,
-std 19.02, skew -1.07 (n = 106).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable intelligibility
-is and from what, to inform whether the shared DAG needs a
-spontaneous connected speech node. It is not a causal or
-available-case modified ITT estimate. The language-sample measures are
-recorded at t1–t2 only, so this level model is doubly exploratory
-(≈106 rows, two waves) and no gain model is fitted. The other
+Rankings describe predictive associations, not causal effects. The language-sample measures are
+recorded at t1–t2 only, and no corresponding gain model is registered. The other
 language-sample measures are absent from the default predictor
 pool (recorded at t1–t2 only), so this model cannot be carried by
 same-instrument siblings.

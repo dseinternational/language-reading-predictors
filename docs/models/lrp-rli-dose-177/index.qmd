@@ -31,9 +31,9 @@ LRP77a is the **baseline-ability sensitivity fit** for [LRP77](../lrp-rli-dose-0
 
 **Why.** The revised DAG carries $GA \to IS$ (latent), so if abler children attended more (Frank 2012) then $g$ is a common cause of attendance and outcome and the measured adjustment set does not identify an attendance effect — and because attendance is **not** randomised, randomisation does not rescue it. Conditioning on the baseline-skill cluster probes that path with observed proxies.
 
-**How to read it — against LRP77.** If the attendance slope is materially unchanged here, the assumption that ability does not drive attendance is more defensible in this sample. If it collapses toward zero, the LRP77 signal is substantially ability-confounded and should be downgraded. **Neither outcome proves the latent path is closed:** these are noisy proxies for $g$, not $g$.
+**Compare with LRP77.** Report how the attendance association changes after adding the baseline-skill proxies, with uncertainty. Stability does not show that latent ability is unrelated to attendance; a smaller slope does not measure the amount of confounding removed. The comparison also depends on measurement error, collinearity and any change in fitted rows. These proxies do not establish control for $g$.
 
-See the LRP77 report for the full estimand, the extensive/intensive split, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations caveat (adjusted association; $R^2$ 0.1–0.3 in Phase 1).
+See the LRP77 report for the estimand, the presence and attendance terms, and the $G = 2 - \text{group}$ coding (G=1 = immediate intervention). Every attendance coefficient remains an adjusted association.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

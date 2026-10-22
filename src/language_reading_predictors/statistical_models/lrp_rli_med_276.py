@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """LRP276 - reverse WR->LS, t3 outcome: less-ceilinged sensitivity to LRP176.
 
@@ -22,12 +23,14 @@ Design mirrors LRP176 exactly, only ``outcome_time`` changes (4 -> 3):
   mediator WR and the outcome LS (hearing `hs`, speech `deapp_c`) at baseline; RW
   and vocabulary are not WR<->LS confounders and are omitted (see LRP176).
 
-STRONG CAVEAT (as LRP176/LRP76): the t2 -> t3 increment is **not randomised** (the
-wait-list crosses over after t2), and the whole decomposition is ID-2
-(`GA`-confounded + treatment-induced dose confounder), so the NIE is an adjusted
-association under a stated *reverse* direction, never proof that reading drives the
-code. The design randomises no early WR shock, so the reverse direction is
-intrinsically under-powered.
+Causal interpretation
+---------------------
+Assignment still randomises treatment schedules after crossover. It does not randomise
+word reading as a mediator, and latent ability and treatment-induced dose confounding
+remain. This decomposition assumes a reverse direction; it cannot establish that reading
+changes letter-sound knowledge. Compare its uncertainty with the t4-outcome companion.
+Changing the outcome wave changes both ceiling support and follow-up time, so the
+comparison does not isolate either influence.
 """
 
 from language_reading_predictors.statistical_models.context import (

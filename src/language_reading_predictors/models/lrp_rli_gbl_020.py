@@ -1,21 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL20: Predictors of DEAP initial-consonant articulation level (``deappin``).
+lrp-rli-gbl-020: Predictors of DEAP initial-consonant articulation level (``deappin``).
 
 ``deappin`` is initial-consonant accuracy from the Diagnostic
 Evaluation of Articulation and Phonology (Dodd et al., 2006) — the
 proportion of sounds correctly produced in a picture-naming task.
 
-The target spans min 25.9, max 92.4, median 71.67, mean 69.19, std
-12.69, skew -0.65 (n = 207).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable initial-
-consonant articulation is and from what, to inform whether the
-shared DAG needs a speech-sound accuracy node. It is not a causal
-or available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

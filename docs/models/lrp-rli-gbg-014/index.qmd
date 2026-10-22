@@ -44,13 +44,9 @@ with open("metrics.json") as f:
 
 LRPGBG14 models **gains in basic concept knowledge (CELF)** scores (`celf_gain`) between consecutive longitudinal timepoints. The target is `celf_gain` --- the change in `celf` score between assessments. The `celf` score is drawn from the Clinical Evaluation of Language Fundamentals Preschool 2nd Ed (Wiig, Secord & Semel 2006); in this study only the basic-concept-knowledge subtest (18 linguistic concepts) was administered, so `celf` is a lexical/semantic concept measure --- not a grammar measure. All observations are included (no outlier exclusion) so the full range of outcomes informs the model.
 
-The target is **mildly right-skewed** (skew 0.14) with 26% negative and ~17% zero observations — a heavier zero pile-up than other gain targets (3-12% in LRPGBG09/LRPGBG05).
-
 This is an **exploratory model** for the gain-prediction task. It runs on Huber-tuned hyperparameters from an Optuna 150-trial study on the full `Predictors.DEFAULT_GAIN` set (`celf` is already a level predictor in that set); #116 Phase D retired hard feature selection in favour of full-set ranking. The predictor ranking is shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

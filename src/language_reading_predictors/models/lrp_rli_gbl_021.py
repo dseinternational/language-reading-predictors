@@ -1,21 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL21: Predictors of DEAP vowel articulation level (``deappvo``).
+lrp-rli-gbl-021: Predictors of DEAP vowel articulation level (``deappvo``).
 
 ``deappvo`` is vowel accuracy from the Diagnostic Evaluation of
-Articulation and Phonology (Dodd et al., 2006) — the proportion of
+Articulation and Phonology (Dodd et al., 2006) — the percentage of
 sounds correctly produced in a picture-naming task.
 
-The target spans min 68.8, max 100.0, median 98.04, mean 95.86,
-std 5.72, skew -2.13 (n = 207).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable vowel
-articulation is and from what, to inform whether the shared DAG
-needs a speech-sound accuracy node. It is not a causal or
-available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

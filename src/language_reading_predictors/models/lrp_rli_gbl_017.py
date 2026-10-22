@@ -1,21 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL17: Predictors of Early Repetition Battery nonword repetition level (``erbnw``).
+lrp-rli-gbl-017: Predictors of Early Repetition Battery nonword repetition level (``erbnw``).
 
 ``erbnw`` is the number of nonwords correctly repeated from the
 Early Repetition Battery (a repetition task indexing verbal /
 phonological short-term memory).
 
-The target spans min 0.0, max 18.0, median 9.00, mean 8.98, std
-4.74, skew 0.01 (n = 202).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable nonword
-repetition is and from what, to inform whether the shared DAG
-needs a verbal / phonological short-term memory node. It is not a
-causal or available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

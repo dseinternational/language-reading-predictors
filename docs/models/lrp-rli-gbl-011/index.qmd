@@ -48,13 +48,11 @@ This is a **baseline exploratory model** for the level-prediction task. It was H
 
 ::: {.callout-note title="Heavy floor on spphon"}
 
-`spphon` is heavily floored (~78% at zero; see #119/#144), producing a right-skewed, zero-inflated target — the opposite pathology from the ceiling-bound letter-sounds analogue. Combined with the usual level-model caveat (a high naive R² is partly concurrent same-construct correlation), read the ranking as exploratory.
+`spphon` has many scores at zero. Inspect the fitted distribution and held-out prediction alongside the rankings. Concurrent measures of the same skill can inflate apparent level prediction.
 
 :::
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`).
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

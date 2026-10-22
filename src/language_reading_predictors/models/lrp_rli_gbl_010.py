@@ -1,20 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL10: Predictors of phoneme-blending level.
+lrp-rli-gbl-010: Predictors of phoneme-blending level.
 
 ``LRPGBL10`` is the baseline exploratory model for phoneme-blending
 level (``blending``). A phoneme-blending (phonological awareness)
 score on a 0–10 scale: the child selects which of three pictures
 depicts the word formed by segmented phonemes spoken by the
 examiner.
-
-The target is **essentially symmetric** (``blending`` min 0, max
-10, median 6, mean 5.76, std 2.55, skewness 0.01, n ≈ 215) — one
-of the cleanest distributions in the suite. The coarse 0–10
-scale may cap achievable R² (similar to CELF's 0–18 scale in
-LRPGBL14).
 """
 
 from language_reading_predictors.data_variables import Variables as V

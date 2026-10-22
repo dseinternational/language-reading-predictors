@@ -25,7 +25,7 @@ Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
 
 ## Overview
 
-Every other model in the suite *assumes* the direction letter sounds → word reading ($LS \rightarrow WR$): the contemporaneous DAG hard-codes it, and the lagged DAG carried the reverse edges $WR_t \rightarrow \{TE, TR, PA, RW\}_{t+1}$ but pointedly **not** $WR_t \rightarrow LS_{t+1}$, ruling the reverse out a priori. LRP176 is the deliberate mirror of the forward [LRP76](../lrp-rli-med-076) ($LS_{t2} \rightarrow WR_{t4}$): it exercises a $WR_t \rightarrow LS_{t+1}$ edge added to the lagged DAG for the purpose, swapping the roles so the **mediator is word reading at t2 and the outcome is letter-sound knowledge at t4**. Read beside LRP76, the pair is the direction contrast $LS \rightarrow WR$ vs $WR \rightarrow LS$ (the "does reading feed back into the code?" hypothesis, motivated by the DS-specific $WR \rightarrow NW$ finding of Roch & Jarrold 2012). Full rationale and caveats: `notes/202607172100-reverse-mediation-wr-ls-direction-spec.md`.
+This companion to [LRP76](../lrp-rli-med-076) swaps mediator and outcome: word reading at t2 predicts letter-sound knowledge at t4 under an assumed reverse direction. The lagged DAG includes $WR_t \rightarrow LS_{t+1}$ for this hypothesis. Roch and Jarrold (2012, DOI [10.1016/j.jcomdis.2011.11.001](https://doi.org/10.1016/j.jcomdis.2011.11.001)) reported word reading as a longitudinal predictor of later nonword reading; this does not identify an effect on letter-sound knowledge. See the [design record](../../../notes/202607172100-reverse-mediation-wr-ls-direction-spec.md) for the rationale and interpretation corrections.
 
 ## Design
 
@@ -33,7 +33,7 @@ Mediator $W_{t2}$ (Beta-Binomial on $W_{t1}$); outcome $L_{t4}$ (conditioned on 
 
 ## Assumptions — read this first {#sec-assumptions}
 
-The **t2 → t4 increment is NOT randomised** (both arms are treated by t4), so this is a **triangulation design** read under stated assumptions, not a clean causal estimate. ID-2 applies throughout (`GA`-confounded + the treatment-induced dose confounder $IG \rightarrow IS \rightarrow \{WR, LS\}$), so the NIE is an adjusted association under a stated *reverse* direction, never proof that reading drives the code. Two further asymmetries temper the reverse read: the design randomises an early letter-sound shock but **no** early word-reading shock (reading moves later), so this direction is intrinsically **under-powered**; and the outcome $LS$ is mildly ceilinged at t4 (~12% of children at the maximum), which if anything attenuates the reverse NIE (checked by LRP276). $n \approx 53 \Rightarrow$ wide intervals.
+Assignment still randomises treatment schedules after crossover. Word reading is not randomised as a mediator, and latent ability and treatment-induced dose can confound its association with later letter-sound knowledge. This decomposition assumes a reverse direction; it does not establish that direction. The intervention can affect several skills, so assignment is not an isolated experimental change in either word reading or letter sounds. Check ceiling support and compare with the t3-outcome companion without treating that comparison as an isolated ceiling correction.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

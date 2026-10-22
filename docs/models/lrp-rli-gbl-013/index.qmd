@@ -44,13 +44,9 @@ with open("metrics.json") as f:
 
 LRPGBL13 models **non-word reading scores** (`nonword`) at the observed timepoint rather than the change between timepoints. `nonword` is an items-correct score from a non-word decoding task (observed range 0–6 in this sample). All observations are included (no outlier exclusion) so the full range of outcomes informs the model.
 
-The target is **heavily floor-loaded** (skew 1.38, median 0, **57% at zero**) — most children have not yet started to decode non-words reliably. Phonological decoding is a late-emerging skill in this population. Log or quantile transforms may be appropriate in follow-up variants.
-
-This is a **baseline exploratory model** for the level-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_LEVEL` set (minus the target). Later variants will have a documented starting point for comparison.
+This is a **baseline exploratory model** for the level-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_LEVEL` set (minus the target).
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent data leakage across timepoints for the same child.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

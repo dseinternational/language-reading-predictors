@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG01: Predictors of taught-receptive-vocabulary gains.
+lrp-rli-gbg-001: Predictors of taught-receptive-vocabulary gains.
 
 ``LRPGBG01`` is the exploratory model for *taught* receptive-vocabulary gains
 (``b1retau_gain`` — change in the Block 1 directly-taught receptive vocabulary
@@ -17,11 +18,6 @@ Predictor set: :attr:`Predictors.DEFAULT_GAIN` plus the auto-included baseline
 contains the target/baseline construct directly; keeping it would make the model
 a between-tests calibration of the same instrument rather than an identification
 of substantive predictors (mirrors the ``b1exto`` exclusion in LRPGBG02).
-
-Status: Huber-tuned by Optuna on the full predictor set (150 trials, seed 47;
-#169), superseding the earlier parameters borrowed from the block-1
-taught-vocabulary analogue LRPGBG02. Importance rankings — the purpose of this
-model — are robust to reasonable parameters.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -76,5 +72,5 @@ class LRPGBG01(GainModel):
         "(b1retau_gain), the receptive analogue of lrpgbg02. b1reto (Block 1 "
         "receptive total = taught + not-taught) is excluded to avoid target "
         "leakage. Hyperparameters Huber-tuned by Optuna on the full set (150 trials, "
-        "seed 47; #169)."
+        "seed 47; Huber retune of 2026-09-22)."
     )

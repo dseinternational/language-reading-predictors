@@ -1,3 +1,4 @@
+// Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 // Language & reading causal DAG — TIME-LAGGED (wave-unrolled) companion graph.
 // Down Syndrome Education International. Companion to the authoritative
 // contemporaneous graph dag/dag-language-reading.dagitty (single-wave).
@@ -14,9 +15,9 @@
 // sets depend on each analysis. Temporal precedence alone does not establish
 // that an adjustment set identifies a causal effect.
 //
-// Suffix _t denotes a wave and _t1 the next wave. Assessments are about 20 weeks
-// apart. Repeating this template over four waves requires the same assumptions
-// and an explicit account of treatment timing.
+// Suffix _t denotes a wave and _t1 the next wave. Assessment intervals are
+// unequal (see METHODS.md, Assessment intervals). Repeating this template over
+// four waves requires explicit assumptions about timing and treatment history.
 //
 // DESIGN DECISIONS — Option A ADOPTED 2026-07-13 (PR #288 discussion). The
 //   lagged-DAG workstream was agreed 2026-07-10; the A-vs-B structure choice is
@@ -27,10 +28,9 @@
 //     reverse WR edges only. Forward influence of one skill on a *different*
 //     skill at the next wave is mediated — X_t -> X_t1 -> Y_t1 and
 //     X_t -> Y_t -> Y_t1 — rather than drawn as direct cross-lagged edges (the
-//     standard unrolled treatment). Rationale: assessments are ~20 weeks apart,
-//     and the tightly coupled cascade steps (letter-sounds feeding blending and
-//     decoding) act on a timescale of days to weeks, so a pure-lagged graph
-//     would assert dynamics we believe exist do not. The within-wave paths are
+//     adopted unrolled treatment). The within-wave cascade assumes that some
+//     skill relationships operate faster than the gap between assessments;
+//     the data do not establish those timescales or directions. These paths are
 //     part of the causal description, NOT an estimation demand: at n~54 the
 //     fitted models estimate lagged, pooled couplings only (model-plan note).
 //     The previously flagged within-wave LS->WR carve-out is moot under A —
@@ -41,11 +41,10 @@
 //     vocabulary measures; broad vocabulary is then reached indirectly via the
 //     within-wave TE_t1 -> EV_t1 / TR_t1 -> RV_t1 paths, so the founding RLI
 //     reading -> language hypothesis is routed through the taught words),
-//     WR_t -> PA_t1 (reciprocal with the within-wave PA -> WR — the
-//     cross-lagged test of which direction dominates), WR_t -> RW_t1
+//     WR_t -> PA_t1 (reciprocal hypothesis with the within-wave PA -> WR), WR_t -> RW_t1
 //     (reading -> phonological memory), and WR_t -> LS_t1 (reading feeding
-//     back into letter-sound knowledge — the reverse-causation cross-lagged
-//     test contrasting WR -> LS with the within-wave LS -> WR; added
+//     back into letter-sound knowledge — an assumed reverse path alongside
+//     the within-wave LS -> WR; added
 //     2026-07-17 to enable the LRP-RLI-MED-176 direction contrast, motivated
 //     by the DS-specific WR -> NW finding of Roch & Jarrold 2012; see
 //     notes/202607172100-reverse-mediation-wr-ls-direction-spec.md), and

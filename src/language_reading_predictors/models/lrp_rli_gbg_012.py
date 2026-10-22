@@ -1,14 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG12: Predictors of word-reading gains.
+lrp-rli-gbg-012: Predictors of word-reading gains.
 
 ``LRPGBG12`` is the exploratory model for word-reading gains
 (``ewrswr_gain``) — Huber-tuned with no outlier exclusion, designed to
-identify the most important influences on reading gains across the full
-range of outcomes. ``ewrswr_gain`` is moderately right-skewed (−4 to 21,
-median 2, skewness 1.33).
+rank predictors of reading gains across the full
+range of outcomes.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -89,9 +89,8 @@ class LRPGBG12(GainModel):
     )
     notes = (
         "Exploratory model for word-reading gains (ewrswr_gain). Fits the "
-        "full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature "
-        "selection in favour of full-set ranking); hyperparameters were "
-        "re-tuned by Optuna on the full set (150 trials, seed 47; #116 "
-        "reporting refresh). Gain models are near-noise (baseline-driven, "
-        "regression to the mean) — treat the ranking as exploratory."
+        "full DEFAULT_GAIN predictor set with its own baseline. Huber parameters "
+        "come from the 22 September 2026 retune. Read predictive performance and "
+        "ranking stability from the fitted outputs; baseline associations can "
+        "reflect score limits or regression to the mean."
     )

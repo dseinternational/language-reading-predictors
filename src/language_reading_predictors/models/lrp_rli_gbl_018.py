@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL18: Predictors of Early Repetition Battery word repetition level (``erbword``).
+lrp-rli-gbl-018: Predictors of Early Repetition Battery word repetition level (``erbword``).
 
 ``erbword`` is the number of real words correctly repeated from
 the Early Repetition Battery (a repetition task indexing verbal /
@@ -11,11 +12,7 @@ phonological short-term memory).
 The loader sets the documented corrupt word-repetition cell to missing.
 See ``notes/202608262120-erb-word-repetition-quarantine-631.md``.
 
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable word repetition
-is and from what, to inform whether the shared DAG needs a verbal
-/ phonological short-term memory node. It is not a causal or
-available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

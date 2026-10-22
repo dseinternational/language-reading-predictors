@@ -1,12 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL12: Predictors of word-reading level.
+lrp-rli-gbl-012: Predictors of word-reading level.
 
 ``LRPGBL12`` is the exploratory model for word-reading level (``ewrswr``) —
-Huber-tuned with no outlier exclusion. The target is heavily right-skewed
-(min 0, median 6.5, max 64) with a hard floor at 0.
+Huber-tuned with no outlier exclusion.
 """
 
 from language_reading_predictors.data_variables import Variables as V

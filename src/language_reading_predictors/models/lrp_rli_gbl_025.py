@@ -1,22 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL25: Predictors of language sample maximum utterance length level (``lsammax``).
+lrp-rli-gbl-025: Predictors of language sample maximum utterance length level (``lsammax``).
 
 ``lsammax`` is the maximum utterance length from a coded sample of
 the child's spontaneous connected speech.
 
-The target spans min 1.0, max 13.0, median 5.00, mean 5.22, std
-2.18, skew 0.67 (n = 106).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable maximum
-utterance length is and from what, to inform whether the shared
-DAG needs a spontaneous connected speech node. It is not a causal
-or available-case modified ITT estimate. The language-sample measures are
-recorded at t1–t2 only, so this level model is doubly exploratory
-(≈106 rows, two waves) and no gain model is fitted. The other
+Rankings describe predictive associations, not causal effects. The language-sample measures are
+recorded at t1–t2 only, and no corresponding gain model is registered. The other
 language-sample measures are absent from the default predictor
 pool (recorded at t1–t2 only), so this model cannot be carried by
 same-instrument siblings.

@@ -42,15 +42,11 @@ with open("metrics.json") as f:
 
 ## Overview
 
-LRPGBG22 models **DEAP average articulation** (`deappav_gain`) change between consecutive waves. `deappav` is the DEAP picture-naming average from the Diagnostic Evaluation of Articulation and Phonology (Dodd et al., 2006) — the proportion of sounds correctly produced in a picture-naming task. The gain target is two-sided (min -13.9, max 12.9, median 0.20, std 4.67, skew -0.09; ~45% negative, n = 152); regression from the mean dominates gain targets across the suite, so this model is expected to be near-noise.
+LRPGBG22 models **DEAP average articulation** (`deappav_gain`) change between consecutive waves. `deappav` is the DEAP picture-naming average from the Diagnostic Evaluation of Articulation and Phonology (Dodd et al., 2006) — the percentage of sounds correctly produced in a picture-naming task. Gains can be positive or negative. Assess predictive performance and ranking stability in the fitted outputs; a baseline association can reflect score limits or regression to the mean.
 
-`deappav` is a **composite** (`deappin`, `deappvo`, `deappfi`); its components are in the candidate pool, so a high naive R² is mechanical. The the same-skill-excluded ranking view variant drops the same-instrument DEAP siblings to test for any *cross-domain* signal (the `deappfi`/LRPGBL16 pattern).
-
-This is an **exploratory gradient-boosting discovery model** on the same footing as LRPGBG12–LRPGBL16 — it asks how predictable average articulation is and from what, to inform whether the shared DAG (v5) needs a speech-sound accuracy node. It is **not** a causal or intention-to-treat estimate; the cross-validated associations describe prediction, not mechanism.
+`deappav` is a **composite** (`deappin`, `deappvo`, `deappfi`); its components are in the candidate pool, so prediction can reflect overlap with the components. No same-skill-excluded comparison is produced for this gain target; inspect the full predictor set and its held-out performance.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to prevent leakage across a child's repeated measures.
-
-This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
 The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.

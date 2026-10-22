@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL08: Predictors of expressive-grammar (APT) level.
+lrp-rli-gbl-008: Predictors of expressive-grammar (APT) level.
 
 ``LRPGBL08`` is the baseline exploratory model for expressive-grammar
 level (``aptgram``). ``aptgram`` is the grammar raw score from the
@@ -10,17 +11,10 @@ Action Picture Test (Renfrew, 1997) — the child is shown pictures
 and asked to describe them, with scoring of the grammatical
 structure of the response.
 
-The target is **right-skewed** (``aptgram`` min 0, max 28,
-median 6, mean 7.63, std 6.34, skewness 1.23, with ~9% at zero,
-n ≈ 211) — comparable in skew magnitude to LRPGBL12's ``ewrswr``
-baseline, and a heavier floor than the receptive-grammar target
-``trog`` (LRPGBL15, skew 0.29).
-
 ``aptgram`` is the expressive-grammar parallel to ``trog``
 (LRPGBL15 receptive grammar) — the pair addresses the expressive vs
 receptive grammar asymmetry that is a live question in DS
-language research. The right-skew motivates a later log-transform
-variant (mirroring LRPGBL12's ``lrpgbl12_log``).
+language research.
 """
 
 from language_reading_predictors.data_variables import Variables as V

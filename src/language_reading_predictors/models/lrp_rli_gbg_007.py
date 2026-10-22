@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG07: Predictors of expressive-information (APT) gains.
+lrp-rli-gbg-007: Predictors of expressive-information (APT) gains.
 
 ``LRPGBG07`` is the baseline exploratory model for expressive-
 information gains (``aptinfo_gain``). ``aptinfo`` is the
@@ -10,18 +11,7 @@ information raw score from the Action Picture Test (Renfrew,
 1997): the child is shown pictures and asked to describe them,
 with scoring of the information content of the response (as
 distinct from its grammatical structure, which is scored
-separately as ``aptgram`` — LRPGBG08/18).
-
-The target is mildly right-skewed (``aptinfo_gain`` min −7,
-max 16, median 2.5, mean 2.61, std 4.44, skewness 0.25, with
-~29% negative and ~4% zero observations, n ≈ 160). The low
-zero-mass is unusual — most children show measurable change
-from timepoint to timepoint (cf LRPGBG15 `trog_gain` ~8% zero,
-LRPGBG08 `aptgram_gain` ~11% zero, LRPGBG13 `nonword_gain` ~48%
-zero).
-
-Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
+separately as ``aptgram`` — ``lrp-rli-gbg-008``).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -76,5 +66,8 @@ class LRPGBG07(GainModel):
     params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for aptinfo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory gain model for aptinfo_gain using DEFAULT_GAIN and its own baseline. "
+        "Huber parameters come from the 22 September 2026 retune. Read predictive "
+        "performance and ranking stability from the fitted outputs; baseline "
+        "associations can reflect score limits or regression to the mean."
     )

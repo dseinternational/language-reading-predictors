@@ -154,7 +154,7 @@ if mediation_summary_t3 is not None and not _t3_ready:
     )
 ```
 
-The t3 sensitivity puts the mediator before the outcome in time, but the later contrast is no longer the clean randomised phase-0 contrast. Use it as a direction check, not as a replacement estimand.
+The t3 sensitivity puts the mediator before the outcome in time. Assignment still randomises early-start versus delayed-start treatment schedules after crossover. It does not randomise the mediator or remove mediator–outcome confounding. Compare the decompositions as a sensitivity to the outcome horizon; agreement does not establish causal direction.
 
 ### Mediator-coefficient tipping analysis
 

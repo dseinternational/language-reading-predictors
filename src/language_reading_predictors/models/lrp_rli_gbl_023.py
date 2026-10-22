@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBL23: Predictors of DEAP composite articulation level (``deapp_c``).
+lrp-rli-gbl-023: Predictors of DEAP composite articulation level (``deapp_c``).
 
 ``deapp_c`` is the DEAP picture-naming composite from the
 Diagnostic Evaluation of Articulation and Phonology (Dodd et al.,
@@ -12,14 +13,7 @@ final consonants in a picture-naming task. ``deappin``, ``deappvo``,
 so their inclusion can inflate R² (see the same-skill-excluded
 ranking view, ``ranking_excluding_same_skill.csv``).
 
-The target spans min 141.2, max 284.6, median 234.56, mean 225.33,
-std 34.54, skew -0.67 (n = 207).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable composite
-articulation is and from what, to inform whether the shared DAG
-needs a speech-sound accuracy node. It is not a causal or
-available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V

@@ -1,22 +1,15 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """
-LRPGBG17: Predictors of Early Repetition Battery nonword repetition gains (``erbnw_gain``).
+lrp-rli-gbg-017: Predictors of Early Repetition Battery nonword repetition gains (``erbnw_gain``).
 
 ``erbnw`` is the number of nonwords correctly repeated from the
 Early Repetition Battery (a repetition task indexing verbal /
 phonological short-term memory).
 
-The gain target spans min -6.0, max 10.0, median 1.00, mean 1.26,
-std 3.15, skew 0.04, with ~22% negative and ~20% zero observations
-(n = 147).
-
-This is an exploratory gradient-boosting discovery model on the
-same footing as LRPGBG12–22: it asks how predictable nonword
-repetition is and from what, to inform whether the shared DAG
-needs a verbal / phonological short-term memory node. It is not a
-causal or available-case modified ITT estimate.
+Rankings describe predictive associations, not causal effects.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -70,5 +63,8 @@ class LRPGBG17(GainModel):
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for erbnw_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
+        "Exploratory gain model for erbnw_gain using DEFAULT_GAIN and its own baseline. "
+        "Huber parameters come from the 22 September 2026 retune. Read predictive "
+        "performance and ranking stability from the fitted outputs; baseline "
+        "associations can reflect score limits or regression to the mean."
     )
