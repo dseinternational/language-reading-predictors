@@ -74,9 +74,9 @@ from language_reading_predictors.statistical_models.runtime import (
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 #: The mechanism curve in blue (``chart-1``) and the readiness knee drawn over it in
-#: the next series colour, green (``chart-2``), as in ``mechanism_items.py``.
+#: green (``chart-3``), as in ``mechanism_items.py``.
 _CURVE_COLOUR = CHART_COLOURS[0]
-_KNEE_COLOUR = CHART_COLOURS[1]
+_KNEE_COLOUR = CHART_COLOURS[2]
 
 
 def _mechanism_run_plan(

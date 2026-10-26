@@ -86,9 +86,9 @@ __all__ = [
 ]
 
 #: Arm colours from the shared chart colours (``dse_research_utils.plot.styles``):
-#: wait-list control orange (``chart-3``) and immediate intervention blue
+#: wait-list control orange (``chart-2``) and immediate intervention blue
 #: (``chart-1``), the same in every figure that shows the arms.
-_CONTROL_COLOR = CHART_COLOURS[2]
+_CONTROL_COLOR = CHART_COLOURS[1]
 _INTERVENTION_COLOR = CHART_COLOURS[0]
 #: Icon-array / ROPE-triple colours: the three-step diverging scale, from harm (the
 #: orange low end) through negligible (the grey middle) to benefit (the blue high

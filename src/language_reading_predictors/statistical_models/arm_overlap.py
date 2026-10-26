@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 # Match the arm colours in predicted_scores.py.
-_CONTROL_COLOR = CHART_COLOURS[2]
+_CONTROL_COLOR = CHART_COLOURS[1]
 _INTERVENTION_COLOR = CHART_COLOURS[0]
 
 

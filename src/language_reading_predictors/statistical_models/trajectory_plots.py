@@ -52,15 +52,15 @@ __all__ = [
 ]
 
 #: Arm colours from the shared chart colours (``dse_research_utils.plot.styles``),
-#: matching ``predicted_scores.py``: wait-list control orange (``chart-3``),
+#: matching ``predicted_scores.py``: wait-list control orange (``chart-2``),
 #: immediate intervention blue (``chart-1``).
-_CONTROL_COLOR = CHART_COLOURS[2]
+_CONTROL_COLOR = CHART_COLOURS[1]
 _INTERVENTION_COLOR = CHART_COLOURS[0]
 #: Model fit and observed overlay in the panels without an arm split: the model in
 #: blue (``chart-1``), as in the other posterior summaries, and the observed values in
-#: green (``chart-2``), as in the posterior-predictive checks.
+#: green (``chart-3``), as in the posterior-predictive checks.
 _FIT_COLOR = CHART_COLOURS[0]
-_OBSERVED_COLOR = CHART_COLOURS[1]
+_OBSERVED_COLOR = CHART_COLOURS[2]
 #: Per-arm colour lookup and human labels (dataset arm coding: 1 = immediate, 0 = waitlist).
 ARM_COLORS: dict[int, str] = {0: _CONTROL_COLOR, 1: _INTERVENTION_COLOR}
 ARM_LABELS: dict[int, str] = {0: "wait-list control", 1: "immediate intervention"}

@@ -77,9 +77,9 @@ from language_reading_predictors.statistical_models.invariants import (
 __all__ = ["RHAT_MAX", "ESS_THRESHOLD", "BFMI_THRESHOLD", "_bfmi_per_chain"]
 
 #: Predictive-check histograms: the model's draws in blue (``chart-1``) and the
-#: observed values in green (``chart-2``), as in ``ppc_artifacts.py``.
+#: observed values in green (``chart-3``), as in ``ppc_artifacts.py``.
 _PREDICTIVE_COLOUR = CHART_COLOURS[0]
-_OBSERVED_COLOUR = CHART_COLOURS[1]
+_OBSERVED_COLOUR = CHART_COLOURS[2]
 
 
 def run_prior_predictive(
@@ -1135,7 +1135,12 @@ def save_prior_posterior_plot(
     with az.rc_context(rc):
         _save_pc(
             out,
-            lambda: azp.plot_prior_posterior(tr, var_names=var_names, **plot_kwargs),
+            lambda: azp.plot_prior_posterior(
+                tr,
+                var_names=var_names,
+                color=[_PREDICTIVE_COLOUR, _OBSERVED_COLOUR],
+                **plot_kwargs,
+            ),
             "prior_posterior.png",
             title="Prior vs posterior overlay",
         )
