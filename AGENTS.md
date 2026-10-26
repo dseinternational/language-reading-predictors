@@ -1,4 +1,6 @@
 > [!NOTE]
+> Shared Quarto theme and font integration by a LLM-based AI tool (Codex/GPT-6).
+>
 > Node.js 26 requirements updated by a LLM-based AI tool (Codex/GPT-6).
 >
 > pnpm setup updated by a LLM-based AI tool (Codex/GPT-6).
@@ -57,7 +59,7 @@ If Numba fails on Windows with `ran out of registers during register allocation`
 
 Model graphs also need the system Graphviz `dot` binary (`brew install graphviz`, `apt install graphviz` or `winget install Graphviz.Graphviz`).
 
-Figures, graphs and reports set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, text falls back to the next installed font in the shared style's `font.sans-serif` list, such as Arial or DejaVu Sans.
+Figures and graphs set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, text falls back to the next installed font in the shared style's `font.sans-serif` list, such as Arial or DejaVu Sans.
 
 Spelling and Markdown formatting checks use Node.js 26 (see `.nvmrc`) and [pnpm](https://pnpm.io/installation), whose version is pinned in `package.json`. Install their dependencies with `pnpm install --frozen-lockfile`.
 
@@ -178,7 +180,7 @@ The `joint`, `joint_mechanism` and `historical_joint` families declare predictio
 
 New-child K-fold validation also requires finite scores, complete child coverage, converged folds and independent latent-integration batch checks under validation schema version 1. Withhold legacy tables without that evidence. The default total latent-draw budget grows from 64 to at most 512 per posterior draw; batches must agree within 0.1 log-score units per child and 1.0 for the study total, with the total tolerance divided over folds. These are stability tolerances, separate from the between-child score standard error, and do not bound integration error. Re-score compatible saved fold traces through `--reuse-trace`. See `notes/20261004-statistical-review-corrections.md`.
 
-Each report template contains a title, model-specific prose and shared includes. Its front matter layers `_partials/_fonts.scss` over the cosmo theme and sets `html-math-method: mathml`, so browsers draw equations in Noto Sans Math; the GB report step copies the stylesheet too. Keep this order: `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → `_priors` → `_prior_predictive` → family results → collapsed `_technical` (convergence and diagnostics) → `_footer`. `scripts/restructure_statistical_reports.py` validates the order. Shared partials in `docs/models/_partials/` read `config.json` and `measures`; copy them beside the report at fit time so includes resolve.
+Each report template contains a title, model-specific prose and shared includes. Its HTML front matter uses `theme: [theme/dse.scss, theme/project.scss]` and `html-math-method: mathml`. The unmodified shared DSE theme sets web fonts from DSE's CDN and uses installed Noto Sans Math, or the browser's maths font, for MathML. The project layer keeps long equations within a scrolling box. Both model report steps copy these theme files beside the report. The book uses the same layers and loads its PDF fonts from `docs/fonts/` through LuaLaTeX, including Noto Sans Mono for code. `docs/theme/design-tokens.pin.json` records the upstream release and hashes; `uv run python scripts/check_design_token_pin.py` checks the copied theme, fonts and licences offline. Change shared tokens upstream, then update the copies and pin together. Keep this order: `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → `_priors` → `_prior_predictive` → family results → collapsed `_technical` (convergence and diagnostics) → `_footer`. `scripts/restructure_statistical_reports.py` validates the order. Shared partials in `docs/models/_partials/` read `config.json` and `measures`; copy them beside the report at fit time so includes resolve.
 
 Fit with `uv run python scripts/fit_statistical_model.py {model_id|all} --config dev|test|rep-lite|reporting [--render] [--target-accept X]`. The filename-derived `LazyModel` map imports only selected models. Sampling presets come from `dse_research_utils`; target-acceptance precedence is command override, model default, then preset, without mutating shared sampling code. `rep-lite` uses 4 chains × 4000 draws and `reporting` uses 6 × 6000, both with preset `target_accept=0.95`. Check attained ESS; a draw count does not guarantee a pass. `scripts/compare_statistical_models.py` writes comparisons under `output/statistical_models/comparison/`.
 

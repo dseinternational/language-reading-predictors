@@ -4,7 +4,7 @@ title: "LRP-RLM-ADJ-005: Byrne wave-1 predictors of verbal-memory gain, waves 1-
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

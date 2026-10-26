@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dsegroup/apps-common/main/schemas/design-token-pin.schema.json",
+  "repository": "dsegroup/apps-common",
+  "tag": "tokens/2026.3.4",
+  "generator": "1.0.0",
+  "files": [
+    {
+      "source": "dist/quarto/theme.scss",
+      "path": "docs/theme/dse.scss",
+      "sha256": "926dd3d88f02e533295343364c03392fa6a7d069eb4b38894f4f7a52d495da06"
+    },
+    {
+      "source": "fonts/noto-sans-math/NotoSansMath-Regular.ttf",
+      "path": "docs/fonts/noto-sans-math/NotoSansMath-Regular.ttf",
+      "sha256": "b127e84699212b6b2ef50aff58e0ebebeec04ffe6db1b9eb9e209c8c3d97b4aa"
+    },
+    {
+      "source": "fonts/noto-sans-math/OFL.txt",
+      "path": "docs/fonts/noto-sans-math/OFL.txt",
+      "sha256": "c9c63b8ed6cf76b2ce0c58b241acfc1195c2c928334c989c7047cbdac58773d9"
+    },
+    {
+      "source": "fonts/noto-sans-mono/NotoSansMono-Bold.ttf",
+      "path": "docs/fonts/noto-sans-mono/NotoSansMono-Bold.ttf",
+      "sha256": "1100772b2f79c102402a1011df5e2226517d0f40ac553a25fb12fdbad8c11b85"
+    },
+    {
+      "source": "fonts/noto-sans-mono/NotoSansMono-Regular.ttf",
+      "path": "docs/fonts/noto-sans-mono/NotoSansMono-Regular.ttf",
+      "sha256": "87f8ce0522a6c99b743ee5fc75b4073cfdd575639119672828b7b9944b65b4f4"
+    },
+    {
+      "source": "fonts/noto-sans-mono/OFL.txt",
+      "path": "docs/fonts/noto-sans-mono/OFL.txt",
+      "sha256": "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a"
+    },
+    {
+      "source": "fonts/noto-sans/NotoSans-Bold.ttf",
+      "path": "docs/fonts/noto-sans/NotoSans-Bold.ttf",
+      "sha256": "87cb2d84472a7d66da659ee47b6cdb9552326e8c128245231f191b6ac72529d9"
+    },
+    {
+      "source": "fonts/noto-sans/NotoSans-BoldItalic.ttf",
+      "path": "docs/fonts/noto-sans/NotoSans-BoldItalic.ttf",
+      "sha256": "3d367743f371f28671d2764e911a53d7c20ec9b6aa8791d059e7090389fc52a5"
+    },
+    {
+      "source": "fonts/noto-sans/NotoSans-Italic.ttf",
+      "path": "docs/fonts/noto-sans/NotoSans-Italic.ttf",
+      "sha256": "678288f868807d4d64a6f3b51466871d117d915780381ce9d0ed4b3bcbd06d37"
+    },
+    {
+      "source": "fonts/noto-sans/NotoSans-Regular.ttf",
+      "path": "docs/fonts/noto-sans/NotoSans-Regular.ttf",
+      "sha256": "f3961a9cde016d41a4879aecda1474d3a36d6bf54fa0e4643de029cc2248b0e8"
+    },
+    {
+      "source": "fonts/noto-sans/OFL.txt",
+      "path": "docs/fonts/noto-sans/OFL.txt",
+      "sha256": "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a"
+    }
+  ]
+}

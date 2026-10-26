@@ -4,7 +4,7 @@ title: "LRP-RLM-HG-009: Historical BAS matrices growth, waves 3-4 + DS wave 5 (B
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

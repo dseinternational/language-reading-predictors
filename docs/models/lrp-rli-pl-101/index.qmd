@@ -4,7 +4,7 @@ title: "LRP-RLI-PL-101: Wave-pooled level association, letter sounds to word rea
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

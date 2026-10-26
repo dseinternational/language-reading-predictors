@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-080: Does word reading route through taught-receptive vocabu
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

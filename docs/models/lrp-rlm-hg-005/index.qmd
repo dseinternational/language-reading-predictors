@@ -4,7 +4,7 @@ title: "LRP-RLM-HG-005: Historical TROG receptive-grammar growth, waves 1-4 + DS
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

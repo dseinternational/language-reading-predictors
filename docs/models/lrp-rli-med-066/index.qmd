@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-066: Do letter-sounds and blending act as independent phonic
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

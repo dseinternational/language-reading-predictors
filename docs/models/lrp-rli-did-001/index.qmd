@@ -4,7 +4,7 @@ title: "LRP-RLI-DID-001: Waitlist-crossover arm-by-wave sensitivity for word rea
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

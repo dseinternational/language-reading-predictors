@@ -4,7 +4,7 @@ title: "LRP-RLI-MECH-073: Is the letter-sound (LS) -> word-reading (WR) effect a
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

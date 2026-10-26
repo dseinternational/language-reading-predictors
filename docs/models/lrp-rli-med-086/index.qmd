@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-086: Does the intervention raise nonword reading via letter-
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

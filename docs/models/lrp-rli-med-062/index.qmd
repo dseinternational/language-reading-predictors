@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-062: How much of the word-reading gain is *phonics-route-com
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

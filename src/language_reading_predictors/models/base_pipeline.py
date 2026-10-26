@@ -39,6 +39,7 @@ from sklearn.model_selection import GroupKFold, cross_validate
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.figure_io import save_styled_figure
+from language_reading_predictors.report_assets import copy_report_theme
 from language_reading_predictors.plot_utils import (
     SHAP_SCATTER_ALPHA,
     SHAP_SCATTER_X_JITTER,
@@ -1610,11 +1611,7 @@ class EstimatorPipeline:
         qmd_dest = context.output_dir / "index.qmd"
         shutil.copy(template, qmd_dest)
         print(f"  Template used: {template.relative_to(_ROOT_DIR)}")
-        # The template's theme layers the shared report fonts (#693), resolved
-        # beside the rendered file as for the statistical reports' partials.
-        partials_dest = context.output_dir / "_partials"
-        partials_dest.mkdir(exist_ok=True)
-        shutil.copy(_DOCS_DIR / "models" / "_partials" / "_fonts.scss", partials_dest)
+        copy_report_theme(context.output_dir, docs_dir=_DOCS_DIR)
 
         print(f"  Report template copied to: {qmd_dest}")
         print(
