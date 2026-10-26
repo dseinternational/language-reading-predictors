@@ -4,7 +4,7 @@ title: "LRP-RLI-MECH-301: Between/within split, letter sounds (LS) → word read
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

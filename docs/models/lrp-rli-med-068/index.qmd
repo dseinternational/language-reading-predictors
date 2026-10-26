@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-068: Does word reading route through taught-expressive vocab
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

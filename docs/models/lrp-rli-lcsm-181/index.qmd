@@ -4,7 +4,7 @@ title: "LRP-RLI-LCSM-181: No-reverse-coupling comparator (LOO baseline for LCSM-
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

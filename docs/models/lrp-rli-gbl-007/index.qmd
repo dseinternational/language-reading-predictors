@@ -4,7 +4,7 @@ title: "LRP-RLI-GBL-007: Predictors of APT expressive-information level"
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

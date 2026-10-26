@@ -74,9 +74,8 @@ book:
 format:
   html:
     code-fold: true
-    # Noto Sans text and Noto Sans Math equations, as in the figures (#693).
-    # Browsers draw MathML in the stylesheet's math font; MathJax would not.
-    theme: [default, ../models/_partials/_fonts.scss]
+    # Shared DSE design tokens, followed by this project's layout rules (#714).
+    theme: [../theme/dse.scss, ../theme/project.scss]
     html-math-method: mathml
   docx:
     reference-doc: ../template.docx
@@ -86,11 +85,32 @@ format:
     colorlinks: true
     link-citations: true
     fontsize: 12pt
-    mainfont: "Noto Sans"
-    sansfont: "Noto Sans"
-    mathfont: "Noto Sans Math"
-    monofont: "Monaspace Neon"
-    monofontoptions: "Scale=0.75"
+    pdf-engine: lualatex
+    mainfont: NotoSans
+    mainfontoptions:
+      - Path=../fonts/noto-sans/
+      - Extension=.ttf
+      - UprightFont=*-Regular
+      - BoldFont=*-Bold
+      - ItalicFont=*-Italic
+      - BoldItalicFont=*-BoldItalic
+    sansfont: NotoSans
+    sansfontoptions:
+      - Path=../fonts/noto-sans/
+      - Extension=.ttf
+      - UprightFont=*-Regular
+      - BoldFont=*-Bold
+      - ItalicFont=*-Italic
+      - BoldItalicFont=*-BoldItalic
+    monofont: NotoSansMono
+    monofontoptions:
+      - Path=../fonts/noto-sans-mono/
+      - Extension=.ttf
+      - UprightFont=*-Regular
+      - BoldFont=*-Bold
+    mathfont: NotoSansMath-Regular.ttf
+    mathfontoptions:
+      - Path=../fonts/noto-sans-math/
     linestretch: 1.25
     geometry:
       - top=30mm
@@ -98,4 +118,3 @@ format:
       - right=25mm
       - bottom=30mm
     include-in-header: footer.tex
-    

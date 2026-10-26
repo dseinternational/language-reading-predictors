@@ -4,7 +4,7 @@ title: "LRP-RLI-DID-102: Wide-tau prior sensitivity for the letter-sound arm-by-
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

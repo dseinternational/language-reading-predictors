@@ -4,7 +4,7 @@ title: "LRP-RLI-GF-208: Treatment-moderation variant, gains in TROG receptive gr
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

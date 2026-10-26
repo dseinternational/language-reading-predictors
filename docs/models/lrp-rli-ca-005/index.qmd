@@ -4,7 +4,7 @@ title: "LRP-RLI-CA-005: Concurrent conditional associations, skills → receptiv
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true
