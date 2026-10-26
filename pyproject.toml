@@ -38,7 +38,7 @@ environments = [
 [tool.uv.sources]
 # Resolve the shared library from a release tag. For local development:
 #   dse-research-utils = { path = "../research/src/python", editable = true }
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.18.0" }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.19.2" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"

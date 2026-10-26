@@ -15,16 +15,20 @@ from __future__ import annotations
 import pathlib
 import re
 
+import pytest
 from dse_research_utils.plot.styles import CHART_COLOURS, diverging_palette
+from matplotlib.colors import rgb_to_hsv, to_rgb
 
 from language_reading_predictors.statistical_models import (
     arm_overlap,
     diagnostics,
     figure_artifacts,
+    mechanism_items,
     ppc_artifacts,
     predicted_scores,
     trajectory_plots,
 )
+from language_reading_predictors.statistical_models.pipelines import mechanism
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
@@ -36,7 +40,7 @@ def test_each_arm_has_one_colour_in_every_figure():
         predicted_scores._INTERVENTION_COLOR,
         trajectory_plots.ARM_COLORS[1],
     }
-    assert control == {CHART_COLOURS[2]}
+    assert control == {CHART_COLOURS[1]}
     assert intervention == {CHART_COLOURS[0]}
 
 
@@ -47,8 +51,23 @@ def test_observed_values_have_one_colour_distinct_from_the_arms():
         ppc_artifacts._OBSERVED_COLOUR,
         trajectory_plots._OBSERVED_COLOR,
     }
-    assert observed == {CHART_COLOURS[1]}
+    assert observed == {CHART_COLOURS[2]}
     assert observed.isdisjoint(trajectory_plots.ARM_COLORS.values())
+
+
+@pytest.mark.parametrize(
+    ("colour", "low", "high"),
+    [
+        (predicted_scores._INTERVENTION_COLOR, 190, 250),
+        (predicted_scores._CONTROL_COLOR, 10, 45),
+        (diagnostics._OBSERVED_COLOUR, 90, 170),
+        (mechanism_items._WORKED_COLOR, 90, 170),
+        (mechanism._KNEE_COLOUR, 90, 170),
+    ],
+)
+def test_report_roles_keep_their_documented_hues(colour, low, high):
+    hue = rgb_to_hsv(to_rgb(colour))[0] * 360
+    assert low <= hue <= high
 
 
 def test_icon_array_runs_from_harm_to_benefit_on_the_diverging_scale():
