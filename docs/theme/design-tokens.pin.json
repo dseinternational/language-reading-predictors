@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/dsegroup/apps-common/main/schemas/design-token-pin.schema.json",
   "repository": "dsegroup/apps-common",
-  "tag": "tokens/2026.3.4",
+  "tag": "tokens/2026.3.7",
   "generator": "1.0.0",
   "files": [
     {
       "source": "dist/quarto/theme.scss",
       "path": "docs/theme/dse.scss",
-      "sha256": "926dd3d88f02e533295343364c03392fa6a7d069eb4b38894f4f7a52d495da06"
+      "sha256": "af7baa559e567579d74733b50e6ec121050ae717bc6fd9bf10e55b50d79b7c5b"
     },
     {
       "source": "fonts/noto-sans-math/NotoSansMath-Regular.ttf",

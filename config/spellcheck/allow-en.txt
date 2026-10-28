@@ -780,3 +780,10 @@ nbconvert
 numcodecs
 setuptools
 wcwidth
+dateutil
+obstore
+pycparser
+pywinpty
+soupsieve
+sqlalchemy
+tzdata

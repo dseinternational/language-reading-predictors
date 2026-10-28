@@ -64,10 +64,10 @@ SECONDARY_ESTIMAND = "mechanism_items_contrast_observed_range_fitted_rows"
 
 #: Curve / ribbon and worked-example accents from the shared chart colours
 #: (``dse_research_utils.plot.styles``): the curve in blue (``chart-1``), matching
-#: ``_write_mechanism_curve``, and the worked example in the next series colour,
-#: green (``chart-2``).
+#: ``_write_mechanism_curve``, and the worked example in
+#: green (``chart-3``).
 _CURVE_COLOR = CHART_COLOURS[0]
-_WORKED_COLOR = CHART_COLOURS[1]
+_WORKED_COLOR = CHART_COLOURS[2]
 
 
 def _stack_obs(da: xr.DataArray) -> np.ndarray:

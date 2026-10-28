@@ -12,8 +12,12 @@ out of the code: they raise a ``DeprecationWarning`` that Python hides outside
 
 from __future__ import annotations
 
+import colorsys
 import pathlib
 import re
+
+import matplotlib.colors as mcolors
+import pytest
 
 from dse_research_utils.plot.styles import CHART_COLOURS, diverging_palette
 
@@ -21,10 +25,12 @@ from language_reading_predictors.statistical_models import (
     arm_overlap,
     diagnostics,
     figure_artifacts,
+    mechanism_items,
     ppc_artifacts,
     predicted_scores,
     trajectory_plots,
 )
+from language_reading_predictors.statistical_models.pipelines import mechanism
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
@@ -36,7 +42,7 @@ def test_each_arm_has_one_colour_in_every_figure():
         predicted_scores._INTERVENTION_COLOR,
         trajectory_plots.ARM_COLORS[1],
     }
-    assert control == {CHART_COLOURS[2]}
+    assert control == {CHART_COLOURS[1]}
     assert intervention == {CHART_COLOURS[0]}
 
 
@@ -47,8 +53,24 @@ def test_observed_values_have_one_colour_distinct_from_the_arms():
         ppc_artifacts._OBSERVED_COLOUR,
         trajectory_plots._OBSERVED_COLOR,
     }
-    assert observed == {CHART_COLOURS[1]}
+    assert observed == {CHART_COLOURS[2]}
     assert observed.isdisjoint(trajectory_plots.ARM_COLORS.values())
+
+
+@pytest.mark.parametrize(
+    ("colour", "hue_low", "hue_high"),
+    [
+        (trajectory_plots.ARM_COLORS[0], 0.03, 0.14),  # control: orange
+        (trajectory_plots.ARM_COLORS[1], 0.50, 0.70),  # intervention: blue
+        (diagnostics._OBSERVED_COLOUR, 0.20, 0.50),  # observations: green
+        (mechanism_items._WORKED_COLOR, 0.20, 0.50),  # worked example: green
+        (mechanism._KNEE_COLOUR, 0.20, 0.50),  # readiness knee: green
+    ],
+)
+def test_role_hues_survive_upstream_palette_reordering(colour, hue_low, hue_high):
+    hue, saturation, _ = colorsys.rgb_to_hsv(*mcolors.to_rgb(colour))
+    assert saturation > 0.3
+    assert hue_low < hue < hue_high
 
 
 def test_icon_array_runs_from_harm_to_benefit_on_the_diverging_scale():

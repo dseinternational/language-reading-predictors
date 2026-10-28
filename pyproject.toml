@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.32.4"]
+requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -21,8 +21,8 @@ dependencies = [
 dev = [
   "mypy>=2.4.0",
   "pandas-stubs",
-  "pytest>=9.1.1",
-  "ruff>=0.17.0",
+  "pytest>=9.2.0",
+  "ruff>=0.17.3",
   "scipy-stubs"
 ]
 
@@ -38,7 +38,7 @@ environments = [
 [tool.uv.sources]
 # Resolve the shared library from a release tag. For local development:
 #   dse-research-utils = { path = "../research/src/python", editable = true }
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.18.0" }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.19.3" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"

@@ -83,6 +83,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Optional caches
+.uv-cache/
 .npm/
 .pnpm-store/
 .yarn/cache/
