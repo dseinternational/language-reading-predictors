@@ -77,9 +77,9 @@ from language_reading_predictors.statistical_models.invariants import (
 __all__ = ["RHAT_MAX", "ESS_THRESHOLD", "BFMI_THRESHOLD", "_bfmi_per_chain"]
 
 #: Predictive-check histograms: the model's draws in blue (``chart-1``) and the
-#: observed values in green (``chart-2``), as in ``ppc_artifacts.py``.
+#: observed values in green (``chart-3``), as in ``ppc_artifacts.py``.
 _PREDICTIVE_COLOUR = CHART_COLOURS[0]
-_OBSERVED_COLOUR = CHART_COLOURS[1]
+_OBSERVED_COLOUR = CHART_COLOURS[2]
 
 
 def run_prior_predictive(

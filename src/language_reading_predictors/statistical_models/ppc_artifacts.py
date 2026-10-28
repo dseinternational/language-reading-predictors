@@ -39,9 +39,9 @@ from language_reading_predictors.statistical_models.plotting import (
 )
 
 #: Posterior-predictive checks draw the model in blue (``chart-1``) and the observed
-#: values in green (``chart-2``), with a distinct marker, in every check figure.
+#: values in green (``chart-3``), with a distinct marker, in every check figure.
 _PREDICTIVE_COLOUR = CHART_COLOURS[0]
-_OBSERVED_COLOUR = CHART_COLOURS[1]
+_OBSERVED_COLOUR = CHART_COLOURS[2]
 
 
 # Binary nodes need group-cell rate coverage because individual 0/1 intervals
