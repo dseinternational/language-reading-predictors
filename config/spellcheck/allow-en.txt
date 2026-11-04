@@ -787,3 +787,7 @@ pywinpty
 soupsieve
 sqlalchemy
 tzdata
+anyio
+fastjsonschema
+ipython
+pyarrow

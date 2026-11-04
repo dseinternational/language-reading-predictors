@@ -540,13 +540,7 @@ def test_dependence_summary_is_none_without_the_block():
 
 
 def test_the_lkj_prior_sd_closed_form_matches_the_two_outcome_case():
-    """Verified against draws; only used when no prior group was persisted.
-
-    For d = 2 the closed form and this environment's sampler agree exactly. For
-    d > 2 they do not — ``pm.LKJCorr(n=3, eta=4)`` yields off-diagonal SDs of
-    0.316, 0.302 and 0.301 where a true LKJ is exchangeable — which is why the
-    summary prefers the fit's own prior draws.
-    """
+    """The fallback used without saved prior draws is exact for two outcomes."""
     from language_reading_predictors.statistical_models.priors import (
         JOINT_RESIDUAL_LKJ_ETA,
         residual_correlation_prior_sd,
@@ -556,3 +550,35 @@ def test_the_lkj_prior_sd_closed_form_matches_the_two_outcome_case():
     assert residual_correlation_prior_sd(2) == pytest.approx(1 / 3, abs=1e-12)
     with pytest.raises(ValueError):
         residual_correlation_prior_sd(1)
+
+
+@pytest.mark.parametrize("n_outcomes", [2, 3])
+def test_lkj_draws_match_the_reported_prior_spread(n_outcomes):
+    """Check the reporting formula against every pair from the installed PyMC.
+
+    PyMC 6.4 fixes unequal pair spreads for three or more outcomes. Saved fits
+    still use their own prior draws, including fits from before that correction.
+    """
+    import numpy as np
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models.priors import (
+        JOINT_RESIDUAL_LKJ_ETA,
+        residual_correlation_prior_sd,
+    )
+
+    count = 20_000
+    factors = pm.draw(
+        pm.LKJCorr.dist(n=n_outcomes, eta=JOINT_RESIDUAL_LKJ_ETA, size=count),
+        random_seed=20261103,
+    )
+    correlations = factors @ factors.swapaxes(-1, -2)
+    rows, columns = np.tril_indices(n_outcomes, k=-1)
+    pairs = correlations[:, rows, columns]
+    variance = residual_correlation_prior_sd(n_outcomes) ** 2
+    # Each correlation has mean zero. Its fourth moment gives the sampling
+    # error of the mean square, so use six such standard errors as tolerance.
+    denominator = 2 * JOINT_RESIDUAL_LKJ_ETA + n_outcomes - 1
+    fourth_moment = 3 / (denominator * (denominator + 2))
+    tolerance = 6 * np.sqrt((fourth_moment - variance**2) / count)
+    np.testing.assert_allclose((pairs**2).mean(axis=0), variance, rtol=0, atol=tolerance)
