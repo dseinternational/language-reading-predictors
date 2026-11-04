@@ -4,7 +4,7 @@ title: "LRP-RLI-MECH-096: Decoding channel, letter-sound knowledge (LS) -> nonwo
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

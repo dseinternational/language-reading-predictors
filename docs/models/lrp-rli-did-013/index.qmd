@@ -4,7 +4,7 @@ title: "LRP-RLI-DID-013: Exploratory wait-list t3 variation in word reading (WR)
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

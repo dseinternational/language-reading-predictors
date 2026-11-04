@@ -4,7 +4,7 @@ title: "LRP-RLI-GBL-025: Predictors of language sample maximum utterance length 
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

@@ -4,7 +4,7 @@ title: "LRP-RLI-HS-003: Regularized-horseshoe ranking cross-check - letter-sound
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

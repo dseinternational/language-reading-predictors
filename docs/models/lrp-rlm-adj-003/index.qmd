@@ -4,7 +4,7 @@ title: "LRP-RLM-ADJ-003: Byrne wave-1 predictors of receptive-vocabulary gain, w
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

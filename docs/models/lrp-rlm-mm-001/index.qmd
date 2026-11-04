@@ -4,7 +4,7 @@ title: "LRP-RLM-MM-001: Byrne correlated domain-factor measurement model, wave 3
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

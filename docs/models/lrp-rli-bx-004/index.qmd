@@ -4,7 +4,7 @@ title: "LRP-RLI-BX-004: Block-2 not-taught receptive vocabulary, block-active ex
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

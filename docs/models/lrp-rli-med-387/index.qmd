@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-387: Blending (PA) via letter sounds (LS) under the one-in-t
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

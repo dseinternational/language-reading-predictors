@@ -4,7 +4,7 @@ title: "LRP-RLI-ADJ-065: Adjusted model, independent baseline predictors of word
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

@@ -4,7 +4,7 @@ title: "LRP-RLI-GC-070: Do verbal/reading trajectories grow together, and does b
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

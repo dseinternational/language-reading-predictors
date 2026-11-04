@@ -14,6 +14,7 @@ import shutil
 
 from rich import print as rprint
 
+from language_reading_predictors.report_assets import copy_report_theme
 from language_reading_predictors.models._reporting import (
     metrics_table,
     print_panel,
@@ -94,6 +95,7 @@ def copy_report_template(context: StatisticalFitContext) -> None:
     partials_dst = os.path.join(context.output_dir, "_partials")
     if os.path.isdir(partials_src):
         shutil.copytree(partials_src, partials_dst, dirs_exist_ok=True)
+    copy_report_theme(context.output_dir, docs_dir=DOCS_DIR)
 
 
 def _strip_quarto_code_links(path: str) -> None:

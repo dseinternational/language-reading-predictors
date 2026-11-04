@@ -4,7 +4,7 @@ title: "LRP-RLM-HG-003: Historical WORD reading-comprehension growth, waves 1-4 
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

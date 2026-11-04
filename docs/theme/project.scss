@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// Project layout rules layered after the unmodified DSE theme.
+
+/*-- scss:rules --*/
+
+// MathML does not line-break, so long equations scroll without widening the page.
+math[display="block"] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25em;
+}

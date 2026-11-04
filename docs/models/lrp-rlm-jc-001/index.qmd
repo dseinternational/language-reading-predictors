@@ -4,7 +4,7 @@ title: "LRP-RLM-JC-001: Byrne joint correlated growth, word reading, receptive v
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

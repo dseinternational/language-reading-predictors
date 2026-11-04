@@ -1,4 +1,6 @@
 > [!NOTE]
+> Shared report theme and font setup updated by a LLM-based AI tool (Codex/GPT-6).
+>
 > pnpm setup updated by a LLM-based AI tool (Codex/GPT-6).
 >
 > Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
@@ -58,7 +60,9 @@ Supported platforms are Linux (x86-64 and arm64), Apple Silicon macOS, and Windo
 
 Plotting model graphs additionally requires the system [Graphviz](https://graphviz.org/) `dot` binary, which is not a Python package: `brew install graphviz`, `apt install graphviz` or `winget install Graphviz.Graphviz`.
 
-Figures, model graphs and reports set text in [Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) and equations in [Noto Sans Math](https://fonts.google.com/noto/specimen/Noto+Sans+Math). These are system fonts: `brew install --cask font-noto-sans font-noto-sans-math`, `sudo apt install fonts-noto-core`, or install both from Google Fonts on Windows. matplotlib caches its font list, so after installing them delete `fontlist-*.json` from the directory that `uv run python -c "import matplotlib; print(matplotlib.get_cachedir())"` prints. Without the fonts, text falls back to another installed font, such as Arial or DejaVu Sans.
+Figures and model graphs set text in [Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) and equations in [Noto Sans Math](https://fonts.google.com/noto/specimen/Noto+Sans+Math). Install these system fonts with `brew install --cask font-noto-sans font-noto-sans-math`, `sudo apt install fonts-noto-core`, or from Google Fonts on Windows. matplotlib caches its font list, so after installing them delete `fontlist-*.json` from the directory that `uv run python -c "import matplotlib; print(matplotlib.get_cachedir())"` prints. Without the fonts, text falls back to another installed font, such as Arial or DejaVu Sans.
+
+HTML reports use DSE's shared Quarto theme in `docs/theme/dse.scss`, followed by the scrolling-equation rules in `docs/theme/project.scss`. The theme loads Noto Sans and Noto Sans Mono from DSE's CDN. Native MathML uses installed Noto Sans Math, or the browser's maths font. The book's PDF uses LuaLaTeX and the bundled text, code and maths fonts in `docs/fonts/`, so it does not need those fonts installed. The theme, font files and their licences are copied from the release recorded in `docs/theme/design-tokens.pin.json`. Run `uv run python scripts/check_design_token_pin.py` to verify their hashes offline. Update shared values upstream, then copy a released version and update the pin together.
 
 #### Creating reports
 

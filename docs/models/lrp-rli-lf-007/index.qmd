@@ -4,7 +4,7 @@ title: "LRP-RLI-LF-007: Factors associated with the level of CELF basic concepts
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

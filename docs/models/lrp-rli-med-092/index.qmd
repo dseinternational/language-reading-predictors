@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-092: Does being on the programme raise word reading via lett
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

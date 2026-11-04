@@ -4,7 +4,7 @@ title: "LRP-RLI-MECH-058: Mechanism model, letter-sound knowledge (LS) -> word r
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

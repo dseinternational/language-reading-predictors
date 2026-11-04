@@ -12,12 +12,14 @@ out of the code: they raise a ``DeprecationWarning`` that Python hides outside
 
 from __future__ import annotations
 
+import colorsys
 import pathlib
 import re
 
+import matplotlib.colors as mcolors
 import pytest
+
 from dse_research_utils.plot.styles import CHART_COLOURS, diverging_palette
-from matplotlib.colors import rgb_to_hsv, to_rgb
 
 from language_reading_predictors.statistical_models import (
     arm_overlap,
@@ -56,18 +58,19 @@ def test_observed_values_have_one_colour_distinct_from_the_arms():
 
 
 @pytest.mark.parametrize(
-    ("colour", "low", "high"),
+    ("colour", "hue_low", "hue_high"),
     [
-        (predicted_scores._INTERVENTION_COLOR, 190, 250),
-        (predicted_scores._CONTROL_COLOR, 10, 45),
-        (diagnostics._OBSERVED_COLOUR, 90, 170),
-        (mechanism_items._WORKED_COLOR, 90, 170),
-        (mechanism._KNEE_COLOUR, 90, 170),
+        (trajectory_plots.ARM_COLORS[0], 0.03, 0.14),  # control: orange
+        (trajectory_plots.ARM_COLORS[1], 0.50, 0.70),  # intervention: blue
+        (diagnostics._OBSERVED_COLOUR, 0.20, 0.50),  # observations: green
+        (mechanism_items._WORKED_COLOR, 0.20, 0.50),  # worked example: green
+        (mechanism._KNEE_COLOUR, 0.20, 0.50),  # readiness knee: green
     ],
 )
-def test_report_roles_keep_their_documented_hues(colour, low, high):
-    hue = rgb_to_hsv(to_rgb(colour))[0] * 360
-    assert low <= hue <= high
+def test_role_hues_survive_upstream_palette_reordering(colour, hue_low, hue_high):
+    hue, saturation, _ = colorsys.rgb_to_hsv(*mcolors.to_rgb(colour))
+    assert saturation > 0.3
+    assert hue_low < hue < hue_high
 
 
 def test_icon_array_runs_from_harm_to_benefit_on_the_diverging_scale():

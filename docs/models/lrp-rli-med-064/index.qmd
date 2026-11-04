@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-064: Do letter-sounds and vocabulary act as independent path
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

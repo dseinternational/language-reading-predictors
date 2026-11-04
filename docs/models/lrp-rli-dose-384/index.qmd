@@ -4,7 +4,7 @@ title: "LRP-RLI-DOSE-384: Period-resolved dose-response, intervention dose -> ph
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

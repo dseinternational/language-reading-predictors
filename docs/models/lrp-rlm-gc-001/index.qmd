@@ -4,7 +4,7 @@ title: "LRP-RLM-GC-001: Does baseline verbal reasoning predict the BAS word-read
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

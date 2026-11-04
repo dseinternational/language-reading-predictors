@@ -4,7 +4,7 @@ title: "LRP-RLI-MED-078: Interventional-effects decomposition of word reading vi
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

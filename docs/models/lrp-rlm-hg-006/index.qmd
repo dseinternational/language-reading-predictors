@@ -4,7 +4,7 @@ title: "LRP-RLM-HG-006: Historical BAS recall-of-digits growth, waves 1-4 + DS w
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

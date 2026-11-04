@@ -4,7 +4,7 @@ title: "LRP-RLI-BX-001: Block-2 taught expressive vocabulary, block-active expos
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true

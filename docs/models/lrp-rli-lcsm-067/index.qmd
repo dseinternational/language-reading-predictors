@@ -4,7 +4,7 @@ title: "LRP-RLI-LCSM-067: What within-child changes predict reading change? (lat
 format:
   html:
     code-fold: true
-    theme: [cosmo, _partials/_fonts.scss]
+    theme: [theme/dse.scss, theme/project.scss]
     html-math-method: mathml
     number-sections: true
     toc: true
