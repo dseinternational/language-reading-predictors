@@ -1135,7 +1135,12 @@ def save_prior_posterior_plot(
     with az.rc_context(rc):
         _save_pc(
             out,
-            lambda: azp.plot_prior_posterior(tr, var_names=var_names, **plot_kwargs),
+            lambda: azp.plot_prior_posterior(
+                tr,
+                var_names=var_names,
+                color=[_PREDICTIVE_COLOUR, _OBSERVED_COLOUR],
+                **plot_kwargs,
+            ),
             "prior_posterior.png",
             title="Prior vs posterior overlay",
         )

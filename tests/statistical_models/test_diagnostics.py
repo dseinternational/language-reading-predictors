@@ -1120,6 +1120,7 @@ def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(monkey
     assert observed["limit"] == 50
     assert observed["var_names"] == selected
     assert observed["plot_kwargs"] == {
+        "color": [diag._PREDICTIVE_COLOUR, diag._OBSERVED_COLOUR],
         "col_wrap": 5,
         "figure_kwargs": {
             "figsize": (22.0, 34.0),
