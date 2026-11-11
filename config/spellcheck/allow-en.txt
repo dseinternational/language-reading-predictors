@@ -791,3 +791,8 @@ anyio
 fastjsonschema
 ipython
 pyarrow
+mdit
+nccl
+pyzmq
+threadpoolctl
+jupytext
