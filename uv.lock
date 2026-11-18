@@ -601,6 +601,7 @@ name = "dse-language-reading-predictors"
 source = { editable = "." }
 dependencies = [
     { name = "dse-research-utils", extra = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"] },
+    { name = "filelock" },
 ]
 
 [package.dev-dependencies]
@@ -613,7 +614,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dse-research-utils", extras = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"], git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.19.4" }]
+requires-dist = [
+    { name = "dse-research-utils", extras = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"], git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.19.4" },
+    { name = "filelock" },
+]
 
 [package.metadata.requires-dev]
 dev = [
