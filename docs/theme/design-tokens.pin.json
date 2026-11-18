@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/dsegroup/apps-common/main/schemas/design-token-pin.schema.json",
   "repository": "dsegroup/apps-common",
-  "tag": "tokens/2026.3.7",
+  "tag": "tokens/2026.3.8",
   "generator": "1.0.0",
   "files": [
     {
