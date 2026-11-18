@@ -39,7 +39,7 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -458,15 +458,6 @@ def _stale_by_ordering(
         "Re-derive them with: "
         f"python scripts/regenerate_key_findings.py <model-id>-{config}",
     ]
-
-
-def _iter_journal(path: Path) -> Iterable[dict[str, object]]:
-    """Read a sweep journal back (used by ad-hoc reporting over a finished run)."""
-    with open(path, encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if line:
-                yield json.loads(line)
 
 
 if __name__ == "__main__":

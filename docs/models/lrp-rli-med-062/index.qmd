@@ -1,5 +1,5 @@
 ---
-title: "LRP-RLI-MED-062: How much of the word-reading gain is *phonics-route-compatible*? (reading-route decomposition)"
+title: "LRP-RLI-MED-062: Word reading, letter-sound knowledge and phoneme blending"
 
 format:
   html:
@@ -14,6 +14,8 @@ format:
 ---
 
 ::: {.callout-note}
+Model description updated by a LLM-based AI tool (Codex/GPT-6).
+
 Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
 :::
 
@@ -23,94 +25,21 @@ Clarity and precision edits by a LLM-based AI tool (Codex/GPT-6).
 {{< include _partials/_key_findings.qmd >}}
 {{< include _partials/_reading_guide.qmd >}}
 
-## Overview
+## Reading question
 
-LRP62 is the robust replacement for LRP59's single-mediator estimate. LRP59 asked how much of the intervention's word-reading effect flows specifically through **letter-sound** knowledge; that estimate was directionally informative but fragile (one measure as "the pathway", a very wide interval). Following the project review (`notes/2026-05-12-project-review.md`, sec. 124/167), LRP62 instead asks how much of the effect flows through the **phonics route as a whole** — decoding-compatible skills used *together* — versus a residual **lexical / whole-word-compatible** path.
+How much of the modelled difference in word reading between the immediate-intervention and wait-list arms is associated with their difference in phonics skills? The primary analysis uses available observations from baseline (t1) to the end of the randomised waiting period (t2). A positive word-reading contrast favours the immediate-intervention arm. Model `lrp-rli-med-059` uses letter-sound knowledge alone as its mediator. This model adds phoneme blending.
 
-We decompose the intervention's total effect on word reading $W$ into the **natural indirect effect (NIE)** transmitted through the phonics route, and the **natural direct effect (NDE)** — everything else — and report the **phonics-route share** $= \text{NIE} / \text{Total}$.
+## Measuring phonics skills {#sec-composite}
 
-_Mediator and outcome are measured at the same wave (read before the headline)._ The randomised contrast lives in the t1 → t2 window, so the route composite and the outcome ($W_{t2}$) are measured **contemporaneously** — temporal precedence of the route over word reading is **assumed, not observed**, and reverse/simultaneous influence within the wave cannot be ruled out. The phonics-route share is reported with this caveat stated alongside it (see the assumptions section). As a triangulation point, a **non-randomised sensitivity fit with the outcome at t3** (mediator still at t2) is reported in the temporal-ordering sensitivity section below.
+The mediator gives equal weight to letter-sound knowledge and phoneme blending. Each score is transformed to a corrected logit and standardised using its t2 distribution. The model averages the two values and standardises the average, applying the same scaling to baseline scores. A normal model describes the t2 composite. A Beta-Binomial model describes the t2 word-reading score and allows the composite's association with reading to differ by treatment arm.
 
-## The phonics-route composite {#sec-composite}
+The mediator and outcome models both condition on baseline word reading, the baseline composite, age, expressive and receptive vocabulary, hearing, phonological memory and speech production. Missingness indicators accompany hearing, memory and speech production.
 
-The mediator is an **equal-weight, standardised-logit composite** of the phonics measures that have usable spread in the randomised window:
+## Interpreting the decomposition {#sec-assumptions}
 
-- **Letter-sound knowledge** $L$ (YARC-LSK) and **phoneme blending** $B$.
-- **Phonetic spelling** $P$ is **excluded.** The measurement-sensitivity audit
-  (`scripts/measurement_audit.py`,
-  ) found $P$ floored — 78% of
-  children scored zero at t1 and 64% at t2, with only ~36% moving — so it carries
-  little usable signal and would only add noise to the composite. Nonword reading is
-  likewise floored and is post-only, so it cannot serve as a baseline-conditioned
-  mediator.
+The posterior g-formula divides the total word-reading contrast into a component through the composite (NIE) and a residual component (NDE). The residual includes everything outside the measured composite. It cannot identify a lexical or whole-word reading strategy. The ratio NIE / total can be unstable when the total is close to zero. Read the components in word-reading items alongside their intervals in the fitted report.
 
-Each measure's Haldane-logit is standardised on its post distribution (the same scaler maps the baseline value), the two are averaged per child, and the composite is standardised to mean 0 / SD 1. Because the composite is continuous, the mediator leg is a **Normal** model; the outcome leg and the counterfactual NDE/NIE decomposition are identical to LRP59.
-
-## Phase 0 only — the key design decision
-
-The intervention is a clean randomised contrast **only in phase 0 (t1 → t2)**: group 1 receives the intervention while group 2 is the wait-list control. After t2 both arms are treated, so `group` is no longer a treatment indicator. LRP62 therefore uses **the phase-0 transition only** (`phase_mode="itt"`), $n \approx 53$.
-
-Repo sign convention: $G = 2 - \text{group}$, so $G=1$ is the intervention arm and $G=0$ the wait-list control. All effects below are reported in the **intervention-helps** direction (intervention − control), so **positive = the intervention raises reading**.
-
-## Causal structure (DAG)
-
-- **Treatment** $G$ (randomised in phase 0).
-- **Mediator** $M$ = the phonics-route composite at t2 (letter-sound + blending),
-  with the baseline composite at t1.
-- **Outcome** $Y = W_{t2}$ (word reading at t2), with baseline $W_{t1}$.
-- Paths: $G \to M \to W_{t2}$ (indirect, phonics route) and $G \to W_{t2}$ (direct,
-  residual / lexical-compatible).
-- Mediator–outcome confounders $C$ (revised DAG, #246): age $A$, hearing $HS$,
-  phonological memory $RW$, speech production $SP$ — pre-treatment causes of the
-  route composite and $W_{t2}$.
-
-A joint model fits both legs simultaneously, including a $G \times M$ interaction so the decomposition admits exposure–mediator interaction. **NDE/NIE are computed by counterfactual simulation from the posterior (the g-formula), not as a product of coefficients.**
-
-## Assumptions — read this first {#sec-assumptions}
-
-The decomposition is causal **only under the following assumptions**; the phonics-route share is *not* assumption-free.
-
-- Randomisation in phase 0 delivers **no unmeasured confounding of $G \to Y$ and of
-  $G \to M$** for free.
-- **No unmeasured mediator–outcome (route $\to W$) confounding** — the binding,
-  unverifiable assumption and the main limitation. We adjust for the measured
-  confounders: $A$ (age), $E$ (expressive vocab), $R$ (receptive vocab), the
-  revised-DAG common causes $HS$ (hearing), $RW$ (phonological memory) and $SP$
-  (speech production) — entered by the missing-indicator method (#246) — plus the
-  baseline composite and $W_{t1}$, all at **baseline (t1)** so none is
-  treatment-affected. Whether $E$/$R$ remain confounders once the revised DAG is
-  settled is tracked in #264; they are **retained** here pending that. Residual
-  confounding by anything unmeasured would bias the NDE/NIE split.
-- **A second, structural non-identification — independent of the confounding
-  above.** Even setting the route $\to W$ confounding aside, the natural
-  direct/indirect split is **not point-identified**, because intervention **dose**
-  (sessions attended — $\text{IS}$ in the DAG) is a **treatment-induced
-  mediator–outcome confounder**: the randomised group drives dose, and dose points
-  into both the route composite and word reading. Randomising $G$ does not identify
-  natural effects in that structure, and — unlike ordinary confounding — the
-  problem is **not repaired by measuring and adjusting dose**, because dose is
-  itself a descendant of the exposure (VanderWeele, Vansteelandt & Robins 2014, DOI
-  [10.1097/EDE.0000000000000034](https://doi.org/10.1097/EDE.0000000000000034)).
-  The output below is therefore a **model-based g-formula decomposition under the
-  stated (cross-world) assumptions, not an identified natural effect**. An
-  **interventional** (rather than natural) mediation estimand — fitted for the
-  letter-sound route as `lrp-rli-med-078` — escapes *this* obstacle, since it
-  invokes no cross-world quantity. It is **not thereby identified**: it still
-  assumes no unmeasured mediator–outcome confounding (Hejazi, Rudolph, van der Laan
-  & Díaz 2022, assumption A5, DOI
-  [10.1093/biostatistics/kxac002](https://doi.org/10.1093/biostatistics/kxac002)),
-  which latent $GA$ violates here, and its positivity requirement and the missing
-  temporal ordering remain binding. It is a weaker-assumption target, not a
-  defensible one.
-- Confounders are taken at **baseline (t1), not post (t2)** — the **cross-world**
-  assumption.
-- Consistency and positivity are assumed.
-- **Contemporaneous measurement.** The route composite and word reading are both
-  measured at t2; there is no temporal precedence of mediator over outcome within
-  the window. The decomposition conditions on baselines, but this remains a
-  structural limitation shared with LRP59.
-
-_Triangulation, not a precise causal split._ Read the output below as triangulation. With $n \approx 53$, contemporaneous mediator/outcome measurement, and the no-unmeasured-confounding assumption, expect **wide intervals**. These are model-based g-formula decompositions under the stated assumptions, **not identified natural effects** (see the exposure-induced-confounder bullet above). "Most of the word-reading gain is phonics-route-compatible, with a residual lexical share that cannot be ruled out" is the honest result — not a point percentage. The temporal-ordering sensitivity section below refits with the **outcome at t3** (mediator at t2) as a further triangulation point for the same-wave caveat. LRP62 supersedes the single-mediator LRP59 as the way to talk about "how much is phonics".
+Randomisation assigned children to immediate or delayed intervention. A causal interpretation of the split would also require temporal ordering and control of common causes of phonics and reading. Both skills are measured at t2, latent general ability can influence both, and treatment assignment affects the dose of teaching each child receives. These features leave the natural direct and indirect effects unidentified. The sensitivity fit uses the t2 composite and t3 reading after crossover. It puts the two measurements in time order while also changing the follow-up interval and treatment received.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

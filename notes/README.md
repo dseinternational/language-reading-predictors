@@ -43,6 +43,8 @@ Other retained design notes, source audits and reviews provide the evidence behi
 
 ## Removed or superseded records
 
+The [18 November housekeeping note](20261118-boosting-variant-comparison.md) records why the boosting variant comparison script was retired and links to the version used to compare archived fold scores.
+
 The [7 October documentation review](20261007-documentation-review.md) lists the removed migration plans, completed repair logs, old tuning records and duplicate review notes. Their exact versions remain in Git history. References to their evidence must point to those versions rather than to a newer document with different results.
 
 The 17 September cleanup removed earlier repeated findings and run summaries. Those files remain in [the notes directory before that cleanup](https://github.com/dseinternational/language-reading-predictors/tree/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes). To recover a historical file locally, name its commit and original path:
