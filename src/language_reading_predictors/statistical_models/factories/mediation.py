@@ -512,10 +512,9 @@ def _build_route_composite_model(
     Same ITT-phase joint design and the *same* Beta-Binomial outcome model as
     :func:`build_mediation_model`, but the single count mediator is replaced by
     an equal-weight standardised composite of ``route_symbols`` modelled as
-    ``Normal(mu_M, sigma_M)``. NDE/NIE are still computed by counterfactual
-    simulation in :func:`mediation.decompose` (the ``gaussian_composite`` branch),
-    not from coefficients. Confounders are taken at baseline (cross-world
-    assumption), exactly as in LRP59.
+    ``Normal(mu_M, sigma_M)``. Both legs use baseline covariates. The g-formula
+    in :func:`mediation.decompose` uses numerical quadrature over the normal
+    mediator to compute the direct and indirect components.
     """
     if not route_symbols:
         raise ValueError("gaussian_composite requires non-empty route_symbols")

@@ -1,4 +1,6 @@
 > [!NOTE]
+> Command example and module guidance corrected by a LLM-based AI tool (Codex/GPT-6).
+>
 > Shared Quarto theme and font integration by a LLM-based AI tool (Codex/GPT-6).
 >
 > Node.js 26 requirements updated by a LLM-based AI tool (Codex/GPT-6).
@@ -71,7 +73,7 @@ uv run pytest
 
 # Run a single test file or test
 uv run pytest tests/test_stats_utils.py
-uv run pytest tests/test_stats_utils.py::test_standardize -v
+uv run pytest tests/test_stats_utils.py::test_standardize_zero_mean_unit_std -v
 
 # Lint
 uv run ruff check src/
@@ -124,7 +126,7 @@ When adding or renaming variables, update `data_variables.py` first. Other modul
 
 ### Module responsibilities
 
-- `ml_utils.py` provides a RandomizedSearchCV wrapper, cross-validation reports and GP kernel functions.
+- `ml_utils.py` re-exports the shared library's randomised search, cross-validation reporting and Gaussian-process kernels for existing notebooks.
 - `stats_utils.py` provides standardisation, descriptive statistics with normality tests, distance correlation matrices, mutual information dissimilarity and hierarchical clustering.
 - `plot_utils.py` provides figure helpers that save to the selected output root.
 

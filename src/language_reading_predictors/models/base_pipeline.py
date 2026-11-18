@@ -66,13 +66,6 @@ from language_reading_predictors.models._reporting import (
 
 from language_reading_predictors import paths as _paths
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
-_DOCS_DIR = _ROOT_DIR / "docs"
-# Env-aware (``DSE_LRP_OUTPUT_DIR``) GB models root, kept as a module constant for
-# importers such as ``scripts/rank_predictors.py``; instantiation-time paths call
-# ``_paths.gb_models_dir()`` so a CLI ``--output-dir`` override is also honoured (#180).
-_OUTPUT_DIR = _paths.gb_models_dir()
-
 ESTIMATOR_STEP = "est"
 """Name of the estimator step inside the sklearn ``Pipeline``."""
 
@@ -1595,9 +1588,9 @@ class EstimatorPipeline:
         context = self.context
         cfg = context.config
 
-        candidates = [_DOCS_DIR / "models" / cfg.model_id / "index.qmd"]
+        candidates = [_paths.DOCS_DIR / "models" / cfg.model_id / "index.qmd"]
         if cfg.variant_of:
-            candidates.append(_DOCS_DIR / "models" / cfg.variant_of / "index.qmd")
+            candidates.append(_paths.DOCS_DIR / "models" / cfg.variant_of / "index.qmd")
 
         template = next((c for c in candidates if c.exists()), None)
 
@@ -1610,8 +1603,8 @@ class EstimatorPipeline:
 
         qmd_dest = context.output_dir / "index.qmd"
         shutil.copy(template, qmd_dest)
-        print(f"  Template used: {template.relative_to(_ROOT_DIR)}")
-        copy_report_theme(context.output_dir, docs_dir=_DOCS_DIR)
+        print(f"  Template used: {template.relative_to(_paths.ROOT_DIR)}")
+        copy_report_theme(context.output_dir, docs_dir=_paths.DOCS_DIR)
 
         print(f"  Report template copied to: {qmd_dest}")
         print(
