@@ -11,11 +11,15 @@ The runner now overrides one prior in the registered model. The dispersion sweep
 
 The local output tree contained two level-factor sweep archives, under `output/statistical_models/` and `output/runs/20261001T175406Z-399586f4988d/statistical_models/`. Each contained a combined treatment-prior CSV and five copies attached to individual fits. The 30 distinct cell traces appeared twice each. All 60 files matched their recorded SHA-256 digests. The axis, outcome, treatment-prior scale and recorded primary hashes agreed between each CSV row and its trace. The attached rows matched the combined rows apart from their relative trace paths.
 
-**The dispersion scale is mislabelled in 18 of the 30 cells.** In each archive, the three treatment-prior settings for each of W, L and B record `kappa_sigma=50.0`. The corresponding fits' prior tables give `inv_sqrt_kappa ~ HalfNormal(0.25)`, and the sweep traces contain that free parameter. The value 50 was a hard-coded scale from the earlier prior on concentration. This affects 36 CSV row copies across the two archives. The P and N rows leave dispersion blank, as their likelihood requires.
-
-The incorrect value was written after sampling. Correcting its description requires no refit, and the level-factor release check uses the treatment-prior grid and trace evidence independently of this field. The archived files retain their original contents. For these W, L and B cells, read the dispersion prior as half-normal with scale 0.25 on `1/sqrt(kappa)`.
+The 18 November audit found a mislabelled dispersion scale in 18 of the 30 cells. In each archive, the three treatment-prior settings for each of W, L and B recorded `kappa_sigma=50.0`. The corresponding fits' prior tables give `inv_sqrt_kappa ~ HalfNormal(0.25)`, and the sweep traces contain that free parameter. After sampling, the runner wrote the hard-coded value 50 from the earlier prior on concentration. The level-factor release check uses the treatment-prior grid and trace evidence independently of this field.
 
 Every archived cell inspected was a treatment-prior sweep. The local output tree contained no level-factor arm-gap, dispersion or child-intercept sweep files, and the configured public project output prefix returned no entries. The 20 August run note records a 33-cell arm-gap sweep that predates the introduction of the nuisance options. Its underlying CSV was unavailable for inspection, as were any separate private archives. [August arm-gap sweep record](202608201800-level-factors-arm-gap-prior-sweep.md)
+
+### Archive correction, 19 November 2026
+
+Both archives now record `kappa_sigma=0.25` for all 18 affected cells. In each archive, the correction covered nine rows in the combined CSV and the matching nine rows in the three CSVs attached to the W, L and B fits. A byte-for-byte comparison of all 12 CSVs with their pre-correction copies verified that only the dispersion field changed in those 36 row copies across eight files. The P and N rows kept their blank dispersion fields.
+
+Before and after the correction, all 60 sweep trace files (30 distinct traces, each stored twice) and all 10 referenced primary traces matched their recorded SHA-256 hashes. No models were refitted for the archive correction.
 
 ## Runner verification
 
