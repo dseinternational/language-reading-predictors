@@ -14,7 +14,8 @@ authors = [{ name = "Frank Buckley" }]
 dependencies = [
   # The shared package supplies the scientific stack and these optional layers.
   # The graphs extra also needs the system Graphviz dot binary.
-  "dse-research-utils[boosting,columnar,dependence,graphs,io,notebook,tuning,viz]"
+  "dse-research-utils[boosting,columnar,dependence,graphs,io,notebook,tuning,viz]",
+  "filelock"
 ]
 
 [dependency-groups]

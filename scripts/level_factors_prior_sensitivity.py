@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Documentation edited by a LLM-based AI tool (Codex/GPT-6).
 
 """Treatment-prior sensitivity sweep for the level-factor family (#389 criterion 6).
 
@@ -29,6 +30,10 @@ artefact until now. This script is the level-family runner:
   evidence — the gate's evidence contract is the treatment-prior (tau) sweep
   only. Requires the t1-referenced parameterisation (every registered LF
   primary).
+- ``--axis kappa`` varies the dispersion prior in graded models. Its default
+  outcomes are W, L and B. ``--axis sigma_child`` varies the child-intercept
+  SD prior in both graded and off-floor models. Each writes a separate CSV
+  and records the fitted prior scales in the rows and trace provenance.
 - Each cell is gated on the full convergence criteria over all free variables
   (R-hat <= 1.01, ESS >= 400, BFMI >= 0.3, zero divergences); an unconverged cell
   is not evidence and blocks that outcome's report-local copy.
@@ -53,16 +58,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pymc as pm
+from filelock import FileLock
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors.statistical_models.factories.level_factors import build_level_factors_model
+from language_reading_predictors.statistical_models.level_factors import (
+    LevelFactorsRunPlan,
+    resolve_level_factors_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.measures import is_distal
 from language_reading_predictors.statistical_models.sensitivity import (
@@ -92,15 +104,9 @@ __all__ = [
     "main",
 ]
 
-KAPPA_SIGMA = 50.0
-
-#: The arm-gap axis writes to its own combined CSV — never the gate-evidence
-#: ``tau_prior_sensitivity.csv`` schema — and is never attached beside a primary.
-ARM_GAP_SENSITIVITY_FILENAME = "level_arm_gap_prior_sensitivity.csv"
-
-#: Nuisance-scale axes (#584 decision 4), each with its own CSV. Never gate
-#: evidence: the gate's contract is the treatment-prior (tau) sweep.
-NUISANCE_SENSITIVITY_FILENAMES = {
+AXIS_FILENAMES = {
+    "tau": f"level_{STANDARD_SENSITIVITY_FILENAME}",
+    "arm_gap": "level_arm_gap_prior_sensitivity.csv",
     "kappa": "level_dispersion_prior_sensitivity.csv",
     "sigma_child": "level_child_sd_prior_sensitivity.csv",
 }
@@ -125,14 +131,8 @@ def _grid_for(outcome: str, axis: str) -> tuple[float, ...]:
     )
 
 
-def _resolve_plan(outcome: str):
+def _resolve_plan(outcome: str) -> LevelFactorsRunPlan:
     """The registered primary's typed run plan (single source of truth)."""
-    import importlib
-
-    from language_reading_predictors.statistical_models.level_factors import (
-        resolve_level_factors_run_plan,
-    )
-
     model_id = LEVEL_SENSITIVITY_MODEL_IDS[outcome]
     module = importlib.import_module("language_reading_predictors.statistical_models." + model_id.replace("-", "_"))
     return resolve_level_factors_run_plan(module.SPEC)
@@ -142,20 +142,14 @@ def _fit_cell(
     outcome: str,
     sigma: float,
     *,
+    plan: LevelFactorsRunPlan,
     axis: str = "tau",
     config: str,
     sampling,
     sensitivity_dir: Path,
     primary_reference: PrimaryStandardReference,
 ) -> dict:
-    """Fit one level-factor sweep cell and return its standard-schema row.
-
-    ``axis`` selects which prior the cell moves: ``"tau"`` (the focal
-    ``d_grp_time`` treatment prior — the gate-evidence sweep) or ``"arm_gap"``
-    (the ``arm_gap_t1`` balance prior, 2026-08-20 review finding 1). On the
-    ``arm_gap`` axis the row's ``tau_sigma`` is NaN (the registered scale is in
-    use) and an ``arm_gap_sigma`` column carries the swept value.
-    """
+    """Vary one prior in the resolved plan and bind its scale to the saved cell."""
     from language_reading_predictors.statistical_models import diagnostics as _diag
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
@@ -163,24 +157,28 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
     from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
 
-    plan = _resolve_plan(outcome)
     prepared = load_and_prepare(**plan.prepare_kwargs())
     # The swept fit must be the panel the primary fits, not the panel the loader
     # returns: a comparator plan declares a shorter analysis window (#584 decision 3).
     prepared = plan.restrict_to_declared_waves(prepared)
     plan.validate_prepared(prepared)
     effective = tuple(c for c in plan.adjust_for if c in prepared.covariates)
-    prior_override = {
-        "tau": {"tau_prior_sigma": sigma},
-        "arm_gap": {"arm_gap_prior_sigma": sigma},
-        "kappa": {"kappa_prior_sigma": sigma},
-        "sigma_child": {"sigma_child_prior_sigma": sigma},
-    }[axis]
-    built = build_level_factors_model(
-        prepared,
-        **plan.factory_kwargs(effective_adjustment=effective),
-        **prior_override,
-    )
+    factory_kwargs = plan.factory_kwargs(effective_adjustment=effective)
+    factory_kwargs[f"{axis}_prior_sigma"] = sigma
+    built = build_level_factors_model(prepared, **factory_kwargs)
+
+    kappa_sigma = None
+    if plan.dispersion_free_term is not None:
+        kappa_sigma = float(built.prior_descriptors[plan.dispersion_free_term].density.sigma)
+    prior_settings = {
+        "sensitivity_axis": axis,
+        "tau_sigma": sigma if axis == "tau" else None,
+        "kappa_prior_family": plan.kappa_prior_family,
+        "kappa_sigma": kappa_sigma,
+        "sigma_child_prior_sigma": factory_kwargs["sigma_child_prior_sigma"],
+    }
+    if axis == "arm_gap":
+        prior_settings["arm_gap_sigma"] = sigma
     with built.model:
         trace = pm.sample(
             draws=sampling.draws,
@@ -209,11 +207,6 @@ def _fit_cell(
     )
     lo_q = (1.0 - REPORTING_CI_PROB) / 2.0
     n_trials = 1 if plan.off_floor else int(MEASURES[outcome].n_trials)
-    kappa_draws = (
-        trace.posterior["kappa"].stack(sample=("chain", "draw")).values
-        if "kappa" in trace.posterior
-        else np.array([np.nan])
-    )
     free_names = [rv.name for rv in built.model.free_RVs]
     convergence = _diag.subfit_convergence(trace, label=f"{outcome} {axis}", var_names=free_names)
 
@@ -245,14 +238,10 @@ def _fit_cell(
         "config": config,
         "outcome": outcome,
         "n_trials": n_trials,
-        "sensitivity_axis": axis,
-        # On the arm_gap axis the registered tau scale is in use, so the column
-        # is NaN and the swept value lives in arm_gap_sigma (added below).
-        "tau_sigma": sigma if axis == "tau" else np.nan,
+        **prior_settings,
         # A levels model has no own-baseline term; the column exists so the row
         # carries the standard sweep's full schema.
         "gamma_own_sigma": np.nan,
-        "kappa_sigma": np.nan if plan.off_floor else KAPPA_SIGMA,
         "use_precision_terms": True,  # the linear-age precision term is always built
         "data_sha256": data_sha256,
         "n": n,
@@ -266,7 +255,7 @@ def _fit_cell(
         "tau_logit_hi": float(np.quantile(contrast_draws, 1.0 - lo_q)),
         "ci_width_logit": float(np.quantile(contrast_draws, 1.0 - lo_q) - np.quantile(contrast_draws, lo_q)),
         "tau_sd_logit": float(np.std(contrast_draws)),
-        "kappa_median": float(np.nanmedian(kappa_draws)),
+        "kappa_median": np.nan if plan.off_floor else float(np.nanmedian(trace.posterior["kappa"].values)),
         "items_mean": float(np.mean(ame_prob)) * n_trials,
         "items_lo": float(np.quantile(ame_prob, lo_q)) * n_trials,
         "items_hi": float(np.quantile(ame_prob, 1.0 - lo_q)) * n_trials,
@@ -286,10 +275,6 @@ def _fit_cell(
         "sampling_random_seed": sampling.random_seed,
         "sampling_nuts_sampler": "nutpie",
     }
-    if axis == "arm_gap":
-        # Only the balance-prior axis carries this column, so the gate-evidence
-        # tau manifest keeps the exact standard schema.
-        row["arm_gap_sigma"] = sigma
     # Level-family provenance stamped on the cell trace. Deliberately NOT the ITT
     # ``standard_trace_provenance`` — that validator asserts the ITT free-variable
     # layout and would mislabel this family — but the same identity content.
@@ -302,9 +287,7 @@ def _fit_cell(
         # the cell provenance names the same element the gate reads.
         "focal_term": plan.focal_term,
         "arm_gap_reference": plan.arm_gap_reference,
-        "sensitivity_axis": axis,
-        "tau_sigma": sigma if axis == "tau" else None,
-        **({"arm_gap_sigma": sigma} if axis == "arm_gap" else {}),
+        **prior_settings,
         "likelihood": plan.likelihood,
         "n_trials": n_trials,
         "data_sha256": data_sha256,
@@ -330,7 +313,7 @@ def _fit_cell(
         provenance, sort_keys=True, separators=(",", ":")
     )
     sigma_token = f"{sigma:g}".replace(".", "p")
-    axis_token = "tau" if axis == "tau" else "armgap"
+    axis_token = "armgap" if axis == "arm_gap" else axis
     semantic = Path("traces") / f"level-{config}" / f"trace_{outcome}_{axis_token}-{sigma_token}.nc"
     trace_file, trace_sha256 = persist_sensitivity_trace(
         trace,
@@ -342,27 +325,30 @@ def _fit_cell(
     return row
 
 
+def _read_manifest(path: Path, axis: str) -> pd.DataFrame:
+    rows = pd.read_csv(path)
+    if "sensitivity_axis" not in rows or not rows["sensitivity_axis"].eq(axis).fillna(False).all():
+        raise ValueError(f"{path} contains missing or unexpected sweep axes; expected {axis!r}. Inspect the archive.")
+    return rows
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default="dev", help="sampling preset (dev/test/reporting)")
     ap.add_argument(
         "--outcomes",
         nargs="+",
-        default=list(LEVEL_SENSITIVITY_OUTCOMES),
         help=(
-            "level outcomes to sweep (default: the #389 review's W L P B N; "
-            "all eleven registered LF outcomes are supported)"
+            "level outcomes to sweep (default: W L P B N, or W L B for kappa)"
         ),
     )
     ap.add_argument(
         "--axis",
-        choices=("tau", "arm_gap", "kappa", "sigma_child"),
+        choices=tuple(AXIS_FILENAMES),
         default="tau",
         help=(
-            "which prior to sweep: 'tau' (the focal d_grp_time treatment prior "
-            "— the gate-evidence sweep, default) or 'arm_gap' (the arm_gap_t1 "
-            "balance prior, 2026-08-20 review finding 1; writes to its own "
-            "combined CSV and cannot be attached)"
+            "prior to sweep: treatment (tau), baseline arm balance (arm_gap), dispersion "
+            "(kappa, graded outcomes only) or child-intercept SD (sigma_child). Only tau can be attached."
         ),
     )
     ap.add_argument(
@@ -390,14 +376,19 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    unknown = sorted(set(args.outcomes) - set(LEVEL_SENSITIVITY_MODEL_IDS))
+    requested = args.outcomes or LEVEL_SENSITIVITY_OUTCOMES
+    unknown = sorted(set(requested) - set(LEVEL_SENSITIVITY_MODEL_IDS))
     if unknown:
         ap.error(f"unsupported level outcomes: {unknown}; choose from {sorted(LEVEL_SENSITIVITY_MODEL_IDS)}")
-    if args.axis == "arm_gap" and (args.attach or args.reattach):
-        # The balance-prior sweep is a sensitivity companion, not gate evidence:
-        # attaching it as tau_prior_sensitivity.csv would let a non-treatment
-        # sweep satisfy the release gate's evidence check.
+    if args.axis != "tau" and (args.attach or args.reattach):
         ap.error("--attach/--reattach apply only to the tau (gate-evidence) axis")
+    plans = {outcome: _resolve_plan(outcome) for outcome in requested}
+    if args.axis == "kappa":
+        off_floor = [outcome for outcome, plan in plans.items() if plan.kappa_prior_family is None]
+        if args.outcomes and off_floor:
+            ap.error(f"--axis kappa requires a dispersion prior; off-floor outcomes have none: {', '.join(off_floor)}")
+        for outcome in off_floor:
+            del plans[outcome]
 
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
@@ -406,22 +397,20 @@ def main() -> None:
     sensitivity_dir.mkdir(parents=True, exist_ok=True)
 
     sampling = _sampling.get_sampling_configuration(args.config, random_seed=20260701)
-    combined_path = sensitivity_dir / (
-        f"level_{STANDARD_SENSITIVITY_FILENAME}" if args.axis == "tau" else ARM_GAP_SENSITIVITY_FILENAME
-    )
+    combined_path = sensitivity_dir / AXIS_FILENAMES[args.axis]
 
     if args.reattach:
         # Re-install from the existing combined manifest without refitting: every
         # binding (current primary hashes, trace digests, convergence, sign) is
         # re-verified by attach_outcome_bundle, so a stale or tampered sweep
         # cannot be re-exposed.
-        combined = pd.read_csv(combined_path)
-        for outcome in args.outcomes:
+        combined = _read_manifest(combined_path, args.axis)
+        for outcome in plans:
             model_id = LEVEL_SENSITIVITY_MODEL_IDS[outcome]
             primary_dir = models_root / f"{model_id}-{args.config}"
             reference = load_primary_level_reference(primary_dir, outcome, config_name=args.config)
             assert_primary_sampling_contract(sampling, reference, config=args.config)
-            outcome_rows = combined.loc[combined["outcome"].astype(str) == outcome]
+            outcome_rows = combined.loc[combined["outcome"].eq(outcome) & combined["config"].eq(args.config)]
             destination = attach_outcome_bundle(
                 outcome_rows,
                 outcome=outcome,
@@ -432,9 +421,11 @@ def main() -> None:
             print(f"re-attached {destination}")
         return
 
+    if combined_path.exists():
+        _read_manifest(combined_path, args.axis)
     rows: list[dict] = []
     attach_ready: dict[str, bool] = {}
-    for outcome in args.outcomes:
+    for outcome, plan in plans.items():
         model_id = LEVEL_SENSITIVITY_MODEL_IDS[outcome]
         primary_dir = models_root / f"{model_id}-{args.config}"
         reference = load_primary_level_reference(primary_dir, outcome, config_name=args.config)
@@ -443,10 +434,11 @@ def main() -> None:
         assert_primary_sampling_contract(sampling, reference, config=args.config)
         outcome_rows = []
         for sigma in _grid_for(outcome, args.axis):
-            print(f"--- {outcome} ({model_id}): {'tau_sigma' if args.axis == 'tau' else 'arm_gap_sigma'}={sigma} ---")
+            print(f"--- {outcome} ({model_id}): {args.axis}_prior_sigma={sigma} ---")
             row = _fit_cell(
                 outcome,
                 float(sigma),
+                plan=plan,
                 axis=args.axis,
                 config=args.config,
                 sampling=sampling,
@@ -476,15 +468,14 @@ def main() -> None:
             print(f"    attached {destination}")
 
     combined = pd.DataFrame(rows)
-    # A subset rerun replaces the requested outcomes' rows and preserves the
-    # others, so the combined manifest stays reattachable for every swept fit
-    # (#390: the did runner shares this behaviour, keyed by model id).
-    if combined_path.exists():
-        previous = pd.read_csv(combined_path)
-        swept = set(combined["outcome"].astype(str))
-        previous = previous.loc[~previous["outcome"].astype(str).isin(swept)]
-        combined = pd.concat([previous, combined], ignore_index=True)
-    combined.to_csv(combined_path, index=False)
+    # Parallel subset runs can finish together. Merge against the latest complete
+    # manifest and replace only this preset's rows for the requested outcomes.
+    with FileLock(str(combined_path) + ".lock"):
+        if combined_path.exists():
+            previous = _read_manifest(combined_path, args.axis)
+            replaced = previous["config"].eq(args.config) & previous["outcome"].isin(plans)
+            combined = pd.concat([previous.loc[~replaced], combined], ignore_index=True)
+        write_atomic(combined_path, lambda temporary: combined.to_csv(temporary, index=False), mode="process_default")
     print(f"\nWrote {combined_path} ({len(combined)} rows)")
     for outcome, ok in attach_ready.items():
         state = "all cells converged" if ok else "HAS UNCONVERGED CELLS"

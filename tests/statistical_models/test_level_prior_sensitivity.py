@@ -13,6 +13,8 @@ unconverged, sign-unstable or bound to a different primary.
 from __future__ import annotations
 
 import json
+import sys
+from copy import copy
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +27,7 @@ import xarray as xr
 from language_reading_predictors.statistical_models.sensitivity import (
     _STANDARD_REQUIRED_COLUMNS,
     STANDARD_SENSITIVITY_FILENAME,
+    STANDARD_SENSITIVITY_PROVENANCE_ATTR,
     load_primary_level_reference,
     sha256_file,
 )
@@ -56,6 +59,8 @@ def _fake_primary(
     posterior_vars: tuple[str, ...] = ("alpha", "b_grp_time"),
     sampling: dict | None = None,
     focal_term: str | None = "b_grp_time[1]",
+    groups: np.ndarray | None = None,
+    data_sha256: str = "a" * 64,
 ) -> Path:
     """A minimal on-disk primary fit satisfying load_primary_level_reference."""
     sampling = dict(_SAMPLING if sampling is None else sampling)
@@ -79,9 +84,9 @@ def _fake_primary(
             "phase": np.arange(4),
         },
     )
-    G = np.tile(np.repeat([1.0, 0.0], 2), _N_OBS // 4)
+    G = np.tile(np.repeat([1.0, 0.0], 2), _N_OBS // 4) if groups is None else groups
     constant_data = xr.Dataset(
-        {"G": (("obs_id",), G)}, coords={"obs_id": np.arange(_N_OBS)}
+        {"G": (("obs_id",), G)}, coords={"obs_id": np.arange(len(G))}
     )
     xr.DataTree.from_dict(
         {"posterior": posterior, "constant_data": constant_data}
@@ -90,8 +95,8 @@ def _fake_primary(
         "model_id": model_id,
         "outcome_symbol": outcome,
         "kind": kind,
-        "data_sha256": "a" * 64,
-        "n_obs": _N_OBS,
+        "data_sha256": data_sha256,
+        "n_obs": len(G),
         "sampling": sampling,
         # Every stored level fit records its resolved plan; the attach step binds
         # each cell's focal term to it (#584 finding 3).
@@ -456,3 +461,151 @@ def test_attach_rejects_a_sweep_of_a_superseded_parameterisation(tmp_path):
     with pytest.raises(RuntimeError, match="resolved run plan"):
         _attach(primary, sweep, rows)
 
+
+@pytest.fixture
+def run_cli(tmp_path, monkeypatch):
+    # The CLI sets a process-wide override. Isolate it from other tests.
+    monkeypatch.setattr(level_script._paths, "_OUTPUT_ROOT", copy(level_script._paths._OUTPUT_ROOT))
+
+    def run(*args):
+        monkeypatch.setattr(sys, "argv", [str(_SCRIPT_PATH), "--output-dir", str(tmp_path), *args])
+        level_script.main()
+
+    return run
+
+
+@pytest.mark.parametrize(
+    "axis,outcomes,grid,filename",
+    [
+        ("kappa", ("W", "L", "B"), (0.125, 0.25, 0.5), "level_dispersion_prior_sensitivity.csv"),
+        ("sigma_child", ("W", "P"), (0.5, 1.0, 1.5), "level_child_sd_prior_sensitivity.csv"),
+        ("tau", ("W",), (0.25, 0.5, 0.75), "level_tau_prior_sensitivity.csv"),
+        ("arm_gap", ("W",), (0.3, 0.5, 1.0), "level_arm_gap_prior_sensitivity.csv"),
+    ],
+    ids=["dispersion-defaults", "child-sd-graded-and-off-floor", "treatment", "arm-gap"],
+)
+def test_cli_sweeps_only_selected_prior_and_binds_outputs(
+    tmp_path, monkeypatch, run_cli, axis, outcomes, grid, filename
+):
+    from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
+
+    root = tmp_path / "statistical_models"
+    sweep = root / "level_tau_prior_sensitivity"
+    sweep.mkdir(parents=True)
+    for outcome in outcomes:
+        plan = level_script._resolve_plan(outcome)
+        data = plan.restrict_to_declared_waves(load_and_prepare(**plan.prepare_kwargs()))
+        adjust = tuple(c for c in plan.adjust_for if c in data.covariates)
+        fitted = level_script.build_level_factors_model(
+            data, **plan.factory_kwargs(effective_adjustment=adjust)
+        ).prepared
+        _fake_primary(
+            root / "models",
+            outcome=outcome,
+            model_id=level_script.LEVEL_SENSITIVITY_MODEL_IDS[outcome],
+            groups=fitted.G,
+            data_sha256=fitted.data_sha256,
+            focal_term=plan.focal_term,
+        )
+
+    siblings = [sweep / name for name in level_script.AXIS_FILENAMES.values() if name != filename]
+    for sibling in siblings:
+        sibling.write_bytes(b"existing sweep\n")
+    # A subset run must also preserve another outcome and another sampling preset.
+    manifest = sweep / filename
+    manifest.write_text(
+        f"config,outcome,sensitivity_axis\ndev,W,{axis}\nreporting,E,{axis}\nreporting,W,{axis}\n",
+        encoding="utf-8",
+    )
+    model_scales = []
+
+    def sample(**kwargs):
+        # Read each prior's scale from the distribution passed to the sampler.
+        model = level_script.pm.modelcontext(None)
+        child = model["sigma_child"].owner.inputs[-1].eval().item()
+        dispersion = model["inv_sqrt_kappa"].owner.inputs[-1].eval().item() if "kappa" in model else None
+        treatment = model["d_grp_time"].owner.inputs[-1].eval().item()
+        balance = model["arm_gap_t1"].owner.inputs[-1].eval().item()
+        model_scales.append((child, dispersion, treatment, balance))
+        shape = (kwargs["chains"], kwargs["draws"])
+        posterior = xr.Dataset(
+            {
+                "eta": (("chain", "draw", "obs_id"), np.zeros((*shape, len(model.coords["obs_id"])))),
+                "d_grp_time": (("chain", "draw", "post_phase"), np.ones((*shape, len(model.coords["post_phase"])))),
+                "arm_gap_t1": (("chain", "draw"), np.zeros(shape)),
+            }
+        )
+        if dispersion is not None:
+            posterior["kappa"] = (("chain", "draw"), np.ones(shape))
+        return xr.DataTree.from_dict({"posterior": posterior})
+
+    monkeypatch.setattr(level_script.pm, "sample", sample)
+    monkeypatch.setattr(
+        level_script._sampling, "get_sampling_configuration", lambda *a, **kw: SimpleNamespace(cores=1, **_SAMPLING)
+    )
+    run_cli("--config", "reporting", "--axis", axis, *([] if axis == "kappa" else ["--outcomes", *outcomes]))
+
+    rows = pd.read_csv(manifest)
+    preserved = rows.loc[rows["trace_file"].isna(), ["config", "outcome"]]
+    assert list(preserved.itertuples(index=False, name=None)) == [("dev", "W"), ("reporting", "E")]
+    rows = rows.dropna(subset=["trace_file"])
+    assert list(rows.outcome) == [o for o in outcomes for _ in grid]
+    for row, scales, scale in zip(rows.itertuples(), model_scales, grid * len(outcomes), strict=True):
+        child, dispersion, treatment, balance = scales
+        assert child == row.sigma_child_prior_sigma == (scale if axis == "sigma_child" else 1.0)
+        assert treatment == (scale if axis == "tau" else 0.5)
+        assert balance == (scale if axis == "arm_gap" else 0.3)
+        assert row.sensitivity_axis == axis
+        if axis == "tau":
+            assert row.tau_sigma == scale
+        else:
+            assert pd.isna(row.tau_sigma)
+        path = sweep / row.trace_file
+        token = "armgap" if axis == "arm_gap" else axis
+        assert path.name.startswith(f"trace_{row.outcome}_{token}-")
+        assert sha256_file(path) == row.trace_sha256
+        with xr.open_datatree(path) as tree:
+            provenance = json.loads(tree.posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR])
+        assert provenance["sensitivity_axis"] == axis
+        assert provenance["tau_sigma"] == (scale if axis == "tau" else None)
+        if axis == "arm_gap":
+            assert provenance["arm_gap_sigma"] == row.arm_gap_sigma == scale
+        assert provenance["sigma_child_prior_sigma"] == child
+        assert provenance["kappa_sigma"] == dispersion
+        if row.outcome == "P":
+            assert dispersion is None and pd.isna(row.kappa_sigma) and pd.isna(row.kappa_median)
+            assert provenance["kappa_prior_family"] is None
+        else:
+            assert dispersion == row.kappa_sigma == (scale if axis == "kappa" else 0.25)
+            assert provenance["kappa_prior_family"] == row.kappa_prior_family == "halfnormal_inverse_sqrt"
+    assert all(sibling.read_bytes() == b"existing sweep\n" for sibling in siblings)
+    assert set(sweep.glob("*.csv")) == {manifest, *siblings}
+    assert not list((root / "models").rglob(STANDARD_SENSITIVITY_FILENAME))
+
+
+@pytest.mark.parametrize("axis", ["kappa", "sigma_child", "arm_gap"])
+@pytest.mark.parametrize("flag", ["--attach", "--reattach"])
+def test_cli_rejects_non_treatment_attachment(run_cli, tmp_path, capsys, axis, flag):
+    with pytest.raises(SystemExit) as exc:
+        run_cli("--axis", axis, flag)
+    assert exc.value.code == 2 and "only to the tau" in capsys.readouterr().err
+    assert not (tmp_path / "statistical_models").exists()
+
+
+@pytest.mark.parametrize("outcome", ["P", "N"])
+def test_cli_rejects_off_floor_dispersion_before_fitting(run_cli, tmp_path, capsys, outcome):
+    with pytest.raises(SystemExit) as exc:
+        run_cli("--axis", "kappa", "--outcomes", "W", outcome)
+    assert exc.value.code == 2 and "requires a dispersion prior" in capsys.readouterr().err
+    assert not (tmp_path / "statistical_models").exists()
+
+
+def test_cli_preserves_misfiled_arm_gap_manifest(run_cli, tmp_path):
+    sweep = tmp_path / "statistical_models" / "level_tau_prior_sensitivity"
+    sweep.mkdir(parents=True)
+    manifest = sweep / "level_arm_gap_prior_sensitivity.csv"
+    original = b"config,outcome,sensitivity_axis\nreporting,W,arm_gap\nreporting,P,kappa\n"
+    manifest.write_bytes(original)
+    with pytest.raises(ValueError, match="unexpected sweep axes"):
+        run_cli("--axis", "arm_gap", "--outcomes", "W")
+    assert manifest.read_bytes() == original
